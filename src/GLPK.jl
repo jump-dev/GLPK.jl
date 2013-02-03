@@ -12,7 +12,7 @@ export
     SimplexParam,
     InteriorParam,
     IntoptParam,
-    BasisFact,
+    BasisFactParam,
     Data,
     MathProgWorkspace,
 
@@ -179,10 +179,6 @@ macro glpk_ccall(f, args...)
     :(ccall(($"glp_$(f)", _jl_libGLPK), $(args...)))
 end
 
-macro glpkw_ccall(f, args...)
-    :(ccall(($"jl_glpkw__$(f)", _jl_libGLPKW), $(args...)))
-end
-
 # We need to define GLPK.version as first thing
 # in order to perform a sanity check
 # (since we import structs from the header,
@@ -341,13 +337,18 @@ end
 # |  glp_data   |  GLPK.Data               |
 # +-------------+--------------------------+
 #
-# In order to get/set the value of a cstruct field, you can
-# use vector-like referncing with the field name as an argument,
-# e.g.:
+# In order to get/set the value of a Param field, no
+# special syntax is required:
 #
 #   lps_opts = GLPK.SimplexParam()
-#   lps_opts["msg_lev"] = GLPK.MSG_ERR
-#   lps_opts["presolve"] = GLPK.ON
+#   lps_opts.msg_lev = GLPK.MSG_ERR
+#   lps_opts.presolve = GLPK.ON
+#
+# However, as a special case, the "type" field in
+# glp_bfcp is renamed as "bftype" in GLPK.BasisFactParam:
+#
+#   bf_opts = GLPK.BasisFactParam()
+#   bf_opts.bftype = ...
 #
 
 type Prob
@@ -369,97 +370,87 @@ function delete_prob(prob::Prob)
     return
 end
 
-
-simplex_param_struct_desc = ParamDescriptor("smcp",
-        [("msg_lev", Int32), ("meth", Int32), ("pricing", Int32),
-         ("r_test", Int32), ("tol_bnd", Float64), ("tol_dj", Float64),
-         ("tol_piv", Float64), ("obj_ll", Float64), ("obj_ul", Float64),
-         ("it_lim", Int32), ("tm_lim", Int32), ("out_frq", Int32),
-         ("out_dly", Int32), ("presolve", Int32)])
-
 type SimplexParam <: Param
-    struct::Ptr{Void}
-    desc::ParamDescriptor
+    msg_lev::Int32
+    meth::Int32
+    pricing::Int32
+    r_test::Int32
+    tol_bnd::Float64
+    tol_dj::Float64
+    tol_piv::Float64
+    obj_ll::Float64
+    obj_ul::Float64
+    it_lim::Int32
+    tm_lim::Int32
+    out_frq::Int32
+    out_dly::Int32
+    presolve::Int32
+
     function SimplexParam()
-        struct = @glpkw_ccall smcp_init Ptr{Void} ()
-        param = new(struct, simplex_param_struct_desc)
-        finalizer(param, smcp_delete)
-        return param
+        p = new()
+        @glpk_ccall "init_smcp" Void (Ptr{SimplexParam},) &p
+        return p
     end
 end
-
-function smcp_delete(param::SimplexParam)
-    @glpkw_ccall smcp_delete Void (Ptr{Void},) pointer(param)
-    param.struct = C_NULL
-end
-
-
-interior_param_struct_desc = ParamDescriptor("iptcp",
-        [("msg_lev", Int32), ("ord_alg", Int32)])
 
 type InteriorParam <: Param
-    struct::Ptr{Void}
-    desc::ParamDescriptor
+    msg_lev::Int32
+    ord_alg::Int32
+
     function InteriorParam()
-        struct = @glpkw_ccall iptcp_init Ptr{Void} ()
-        param = new(struct, interior_param_struct_desc)
-        finalizer(param, iptcp_delete)
-        return param
+        p = new()
+        @glpk_ccall "init_iptcp" Void (Ptr{InteriorParam},) &p
+        return p
     end
 end
-
-function iptcp_delete(param::InteriorParam)
-    @glpkw_ccall iptcp_delete Void (Ptr{Void},) pointer(param)
-    param.struct = C_NULL
-end
-
-
-intopt_param_struct_desc = ParamDescriptor("iocp",
-    [("msg_lev", Int32), ("br_tech", Int32), ("bt_tech", Int32),
-     ("pp_tech", Int32), ("fp_heur", Int32), ("gmi_cuts", Int32),
-     ("mir_cuts", Int32), ("cov_cuts", Int32), ("clq_cuts", Int32),
-     ("tol_int", Float64), ("tol_obj", Float64), ("mip_gap", Float64),
-     ("tm_lim", Int32), ("out_frq", Int32), ("out_dly", Int32),
-     ("cb_func", Ptr{Void}), ("cb_info", Ptr{Void}), ("cb_size", Int32),
-     ("presolve", Int32), ("binarize", Int32)])
 
 type IntoptParam <: Param
-    struct::Ptr{Void}
-    desc::ParamDescriptor
+    msg_lev::Int32
+    br_tech::Int32
+    bt_tech::Int32
+    pp_tech::Int32
+    fp_heur::Int32
+    gmi_cuts::Int32
+    mir_cuts::Int32
+    cov_cuts::Int32
+    clq_cuts::Int32
+    tol_int::Float64
+    tol_obj::Float64
+    mip_gap::Float64
+    tm_lim::Int32
+    out_frq::Int32
+    out_dly::Int32
+    cb_func::Ptr{Void}
+    cb_info::Ptr{Void}
+    cb_size::Int32
+    presolve::Int32
+    binarize::Int32
+
     function IntoptParam()
-        struct = @glpkw_ccall iocp_init Ptr{Void} ()
-        param = new(struct, intopt_param_struct_desc)
-        finalizer(param, iocp_delete)
-        return param
+        p = new()
+        @glpk_ccall "init_iocp" Void (Ptr{IntoptParam},) &p
+        return p
     end
 end
-
-function iocp_delete(param::IntoptParam)
-    @glpkw_ccall iocp_delete Void (Ptr{Void},) pointer(param)
-    param.struct = C_NULL
-end
-
-
-basisfact_param_struct_desc = ParamDescriptor("bfcp",
-    [("type", Int32), ("lu_size", Int32), ("piv_tol", Float64),
-     ("piv_lim", Int32), ("suhl", Int32), ("eps_tol", Float64),
-     ("max_gro", Float64), ("nfs_max", Int32), ("upd_tol", Float64),
-     ("nrs_max", Int32), ("rs_size", Int32)])
 
 type BasisFactParam <: Param
-    struct::Ptr{Void}
-    desc::ParamDescriptor
-    function BasisFactParam()
-        struct = @glpkw_ccall bfcp_init Ptr{Void} ()
-        param = new(struct, basisfact_param_struct_desc)
-        finalizer(param, bfcp_delete)
-        return param
-    end
-end
+    bftype::Int32 # NOTE: changed type->bftype
+    lu_size::Int32
+    piv_tol::Float64
+    piv_lim::Int32
+    suhl::Int32
+    eps_tol::Float64
+    max_gro::Float64
+    nfs_max::Int32
+    upd_tol::Float64
+    nrs_max::Int32
+    rs_size::Int32
 
-function bfcp_delete(param::BasisFactParam)
-    @glpkw_ccall bfcp_delete Void (Ptr{Void},) pointer(param)
-    param.struct = C_NULL
+    function BasisFactParam()
+        p = new()
+        @glpk_ccall "init_bfcp" Void (Ptr{BasisFactParam},) &p
+        return p
+    end
 end
 
 type Data
@@ -774,32 +765,11 @@ function check_adv_basis_flags(flags::Integer)
     return true
 end
 
-function check_simplex_param(param::SimplexParam)
-    if pointer(param) == C_NULL
-        throw(Error("param = NULL"))
-    end
-    return true
-end
-
-function check_interior_param(param::InteriorParam)
-    if pointer(param) == C_NULL
-        throw(Error("param = NULL"))
-    end
-    return true
-end
-
 function check_kind_is_valid(kind::Integer)
     if (kind != CV &&
         kind != IV &&
         kind != BV)
         throw(Error("invalid kind $kind (use GLPK.CV or GLPK.IV or GLPK.BV)"))
-    end
-    return true
-end
-
-function check_intopt_param(param::IntoptParam)
-    if pointer(param) == C_NULL
-        throw(Error("param = NULL"))
     end
     return true
 end
@@ -863,14 +833,6 @@ end
 function check_print_ranges_flags(flags::Integer)
     if flags != 0
         throw(Error("print_ranges flags must be set to 0 (found $flags instead)"))
-    end
-    return true
-end
-
-
-function check_bfcp(param::BasisFactParam)
-    if pointer(param) == C_NULL
-        throw(Error("Invalid GLPK.BasisFactParam"))
     end
     return true
 end
@@ -1500,11 +1462,10 @@ end
 function simplex{Tp<:Union(SimplexParam, Nothing)}(prob::Prob, param::Tp)
     check_prob(prob)
     if param == nothing
-        param_ptr = C_NULL
+        return @glpk_ccall simplex Int32 (Ptr{Void}, Ptr{Void}) prob.p C_NULL
     else
-        param_ptr = pointer(param)
+        return @glpk_ccall simplex Int32 (Ptr{Void}, Ptr{SimplexParam}) prob.p &param
     end
-    @glpk_ccall simplex Int32 (Ptr{Void}, Ptr{Void}) prob.p param_ptr
 end
 
 simplex(prob::Prob) =
@@ -1513,19 +1474,17 @@ simplex(prob::Prob) =
 function exact{Tp<:Union(SimplexParam, Nothing)}(prob::Prob, param::Tp)
     check_prob(prob)
     if param == nothing
-        param_ptr = C_NULL
+        return @glpk_ccall exact Int32 (Ptr{Void}, Ptr{Void}) prob.p C_NULL
     else
-        param_ptr = pointer(param)
+        return @glpk_ccall exact Int32 (Ptr{Void}, Ptr{SimplexParam}) prob.p &param
     end
-    @glpk_ccall exact Int32 (Ptr{Void}, Ptr{Void}) prob.p param_ptr
 end
 
 exact(prob::Prob) =
     exact(prob, nothing)
 
 function init_smcp(param::SimplexParam)
-    check_simplex_param(param)
-    @glpk_ccall init_smcp Int32 (Ptr{Void},) pointer(param)
+    @glpk_ccall init_smcp Int32 (Ptr{SimplexParam},) &param
 end
 
 function get_status(prob::Prob)
@@ -1592,18 +1551,16 @@ end
 function interior{Tp<:Union(InteriorParam, Nothing)}(prob::Prob, param::Tp)
     check_prob(prob)
     if param == nothing
-        param_ptr::Ptr{Void} = C_NULL
+        return @glpk_ccall interior Int32 (Ptr{Void}, Ptr{Void}) prob.p C_NULL
     else
-        param_ptr = pointer(param)
+        return @glpk_ccall interior Int32 (Ptr{Void}, Ptr{InteriorParam}) prob.p &param
     end
-    @glpk_ccall interior Int32 (Ptr{Void}, Ptr{Void}) prob.p param_ptr
 end
 
 interior(prob::Prob) = interior(prob, nothing)
 
 function init_iptcp(param::InteriorParam)
-    check_interior_param(param)
-    @glpk_ccall init_iptcp Int32 (Ptr{Void},) pointer(param)
+    @glpk_ccall init_iptcp Int32 (Ptr{InteriorParam},) &param
 end
 
 function ipt_status(prob::Prob)
@@ -1666,18 +1623,16 @@ end
 function intopt{Tp<:Union(IntoptParam, Nothing)}(prob::Prob, param::Tp)
     check_prob(prob)
     if param == nothing
-        param_ptr::Ptr{Void} = C_NULL
+        return @glpk_ccall intopt Int32 (Ptr{Void}, Ptr{Void}) prob.p C_NULL
     else
-        param_ptr = pointer(param)
+        return @glpk_ccall intopt Int32 (Ptr{Void}, Ptr{IntoptParam}) prob.p &param
     end
-    @glpk_ccall intopt Int32 (Ptr{Void}, Ptr{Void}) prob.p param_ptr
 end
 
 intopt(prob::Prob) = intopt(prob, nothing)
 
 function init_iocp(param::IntoptParam)
-    check_intopt_param(param)
-    @glpk_ccall init_iocp Int32 (Ptr{Void},) pointer(param)
+    @glpk_ccall init_iocp Int32 (Ptr{IntoptParam},) &param
 end
 
 function mip_status(prob::Prob)
@@ -2002,19 +1957,16 @@ end
 
 function get_bfcp(prob::Prob, param::BasisFactParam)
     check_prob(prob)
-    check_bfcp(param)
-    @glpk_ccall get_bfcp Void (Ptr{Void}, Ptr{Void}) prob.p pointer(param)
+    @glpk_ccall get_bfcp Void (Ptr{Void}, Ptr{BasisFactParam}) prob.p &param
 end
 
 function set_bfcp(prob::Prob, param::Union(BasisFactParam,Nothing))
     check_prob(prob)
     if is(param, nothing)
-        param_p = C_NULL
+        return @glpk_ccall set_bfcp Void (Ptr{Void}, Ptr{Void}) prob.p C_NULL
     else
-        check_bfcp(param)
-        param_p = pointer(param)
+        return @glpk_ccall set_bfcp Void (Ptr{Void}, Ptr{BasisFactParam}) prob.p &param
     end
-    @glpk_ccall set_bfcp Void (Ptr{Void}, Ptr{Void}) prob.p param_p
 end
 set_bfcp(prob::Prob) = set_bfcp(prob, nothing)
 
