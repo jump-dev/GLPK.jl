@@ -219,62 +219,13 @@ end
 
 abstract Param
 
-pointer(param::Param) = param.struct
-
-typealias ParamFieldDescriptor (ASCIIString, BitsKind)
-
-type ParamDescriptor
-    struct_name::String
-    field_names::Vector{ASCIIString}
-    field_types::Vector{BitsKind}
-    function ParamDescriptor(cstr::String, struct_desc)
-        struct_name = cstr
-        c_struct_desc = convert(Vector{ParamFieldDescriptor}, struct_desc)
-        field_names = [ x[1]::ASCIIString for x = c_struct_desc ]
-        field_types = [ x[2]::BitsKind for x = c_struct_desc ]
-        new(struct_name, field_names, field_types)
-    end
-end
-
 function assign{T}(param::Param, val::T, field_name::String)
-    if pointer(param) == C_NULL
-        error("param is not allocated")
-    end
-    for i = 1 : length(param.desc.field_names)
-        if field_name == param.desc.field_names[i]
-            if pointer(param) == C_NULL
-                throw(Error("invalid struct"))
-            end
-            t = param.desc.field_types[i]
-            csf = string("jl_glpkw__", param.desc.struct_name, "_set_", field_name)
-            ccs = :(ccall(($csf, :libglpk_wrapper), Void, (Ptr{Void}, $t), pointer($param), $val))
-            eval(ccs)
-            return
-        end
-    end
-    error("field '$field_name' not found in struct '$(param.desc.struct_name)'")
+    param.(symbol(field_name)) = val
 end
 
 function ref(param::Param, field_name::String)
-    if pointer(param) == C_NULL
-        error("param is not allocated")
-    end
-    for i = 1 : length(param.desc.field_names)
-        if field_name == param.desc.field_names[i]
-            if pointer(param) == C_NULL
-                throw(Error("invalid struct"))
-            end
-            t = param.desc.field_types[i]
-            cgf = string("jl_glpkw__", param.desc.struct_name, "_get_", field_name)
-            ccg = :(ccall(($cgf, :libglpk_wrapper), $t, (Ptr{Void},), pointer($param)))
-            return eval(ccg)
-        end
-    end
-    error("field '$field_name' not found in struct '$(param.desc.struct_name)'")
+    param.(symbol(field_name))
 end
-
-
-
 
 # We define some types which allow to pass optional agruments
 # to the function.
