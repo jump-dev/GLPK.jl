@@ -336,6 +336,42 @@ type SimplexParam <: Param
     out_frq::Int32
     out_dly::Int32
     presolve::Int32
+    _reserved01::Float64
+    _reserved02::Float64
+    _reserved03::Float64
+    _reserved04::Float64
+    _reserved05::Float64
+    _reserved06::Float64
+    _reserved07::Float64
+    _reserved08::Float64
+    _reserved09::Float64
+    _reserved10::Float64
+    _reserved11::Float64
+    _reserved12::Float64
+    _reserved13::Float64
+    _reserved14::Float64
+    _reserved15::Float64
+    _reserved16::Float64
+    _reserved17::Float64
+    _reserved18::Float64
+    _reserved19::Float64
+    _reserved20::Float64
+    _reserved21::Float64
+    _reserved22::Float64
+    _reserved23::Float64
+    _reserved24::Float64
+    _reserved25::Float64
+    _reserved26::Float64
+    _reserved27::Float64
+    _reserved28::Float64
+    _reserved29::Float64
+    _reserved30::Float64
+    _reserved31::Float64
+    _reserved32::Float64
+    _reserved33::Float64
+    _reserved34::Float64
+    _reserved35::Float64
+    _reserved36::Float64
 
     function SimplexParam()
         p = new()
@@ -347,6 +383,54 @@ end
 type InteriorParam <: Param
     msg_lev::Int32
     ord_alg::Int32
+    _reserved01::Float64
+    _reserved02::Float64
+    _reserved03::Float64
+    _reserved04::Float64
+    _reserved05::Float64
+    _reserved06::Float64
+    _reserved07::Float64
+    _reserved08::Float64
+    _reserved09::Float64
+    _reserved10::Float64
+    _reserved11::Float64
+    _reserved12::Float64
+    _reserved13::Float64
+    _reserved14::Float64
+    _reserved15::Float64
+    _reserved16::Float64
+    _reserved17::Float64
+    _reserved18::Float64
+    _reserved19::Float64
+    _reserved20::Float64
+    _reserved21::Float64
+    _reserved22::Float64
+    _reserved23::Float64
+    _reserved24::Float64
+    _reserved25::Float64
+    _reserved26::Float64
+    _reserved27::Float64
+    _reserved28::Float64
+    _reserved29::Float64
+    _reserved30::Float64
+    _reserved31::Float64
+    _reserved32::Float64
+    _reserved33::Float64
+    _reserved34::Float64
+    _reserved35::Float64
+    _reserved36::Float64
+    _reserved37::Float64
+    _reserved38::Float64
+    _reserved39::Float64
+    _reserved40::Float64
+    _reserved41::Float64
+    _reserved42::Float64
+    _reserved43::Float64
+    _reserved44::Float64
+    _reserved45::Float64
+    _reserved46::Float64
+    _reserved47::Float64
+    _reserved48::Float64
 
     function InteriorParam()
         p = new()
@@ -376,6 +460,35 @@ type IntoptParam <: Param
     cb_size::Int32
     presolve::Int32
     binarize::Int32
+    _reserved01::Float64
+    _reserved02::Float64
+    _reserved03::Float64
+    _reserved04::Float64
+    _reserved05::Float64
+    _reserved06::Float64
+    _reserved07::Float64
+    _reserved08::Float64
+    _reserved09::Float64
+    _reserved10::Float64
+    _reserved11::Float64
+    _reserved12::Float64
+    _reserved13::Float64
+    _reserved14::Float64
+    _reserved15::Float64
+    _reserved16::Float64
+    _reserved17::Float64
+    _reserved18::Float64
+    _reserved19::Float64
+    _reserved20::Float64
+    _reserved21::Float64
+    _reserved22::Float64
+    _reserved23::Float64
+    _reserved24::Float64
+    _reserved25::Float64
+    _reserved26::Float64
+    _reserved27::Float64
+    _reserved28::Float64
+    _reserved29::Float64
 
     function IntoptParam()
         p = new()
@@ -396,6 +509,44 @@ type BasisFactParam <: Param
     upd_tol::Float64
     nrs_max::Int32
     rs_size::Int32
+    _reserved01::Float64
+    _reserved02::Float64
+    _reserved03::Float64
+    _reserved04::Float64
+    _reserved05::Float64
+    _reserved06::Float64
+    _reserved07::Float64
+    _reserved08::Float64
+    _reserved09::Float64
+    _reserved10::Float64
+    _reserved11::Float64
+    _reserved12::Float64
+    _reserved13::Float64
+    _reserved14::Float64
+    _reserved15::Float64
+    _reserved16::Float64
+    _reserved17::Float64
+    _reserved18::Float64
+    _reserved19::Float64
+    _reserved20::Float64
+    _reserved21::Float64
+    _reserved22::Float64
+    _reserved23::Float64
+    _reserved24::Float64
+    _reserved25::Float64
+    _reserved26::Float64
+    _reserved27::Float64
+    _reserved28::Float64
+    _reserved29::Float64
+    _reserved30::Float64
+    _reserved31::Float64
+    _reserved32::Float64
+    _reserved33::Float64
+    _reserved34::Float64
+    _reserved35::Float64
+    _reserved36::Float64
+    _reserved37::Float64
+    _reserved38::Float64
 
     function BasisFactParam()
         return new(0, 0, 0.0, 0, 0, 0.0, 0.0, 0, 0.0, 0, 0)
