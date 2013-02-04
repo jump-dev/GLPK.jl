@@ -171,7 +171,7 @@ import Base.pointer, Base.assign, Base.ref
 
 ## Shared library interface setup
 #{{{
-include("glpk_h.jl")
+include("GLPK_constants.jl")
 
 include(joinpath(Pkg.dir(),"GLPK","deps","ext.jl"))
 
