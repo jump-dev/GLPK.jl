@@ -1,0 +1,25 @@
+p lp max 3 3 9
+n p sample
+n z OBJECTIVE
+i 1 u 100
+n i 1 p
+i 2 u 600
+n i 2 q
+i 3 u 300
+n i 3 r
+n j 1 x1
+n j 2 x2
+n j 3 x3
+a 0 1 10
+a 0 2 6
+a 0 3 4
+a 1 1 1
+a 1 2 1
+a 1 3 1
+a 2 1 10
+a 2 2 4
+a 2 3 5
+a 3 1 2
+a 3 2 2
+a 3 3 6
+e o f
