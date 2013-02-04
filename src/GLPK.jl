@@ -398,9 +398,7 @@ type BasisFactParam <: Param
     rs_size::Int32
 
     function BasisFactParam()
-        p = new()
-        @glpk_ccall "init_bfcp" Void (Ptr{BasisFactParam},) &p
-        return p
+        return new(0, 0, 0.0, 0, 0, 0.0, 0.0, 0, 0.0, 0, 0)
     end
 end
 
