@@ -2,11 +2,9 @@ using Test
 import GLPK
 
 function glpk_tst_6()
-    datadir = joinpath("GLPK.jl", "test", "data")
-    #datadir = joinpath(Pkg.dir(), "GLPK", "test", "data")
+    datadir = joinpath(Pkg.dir(), "GLPK", "test", "data")
 
     prev_term_out = GLPK.term_out(GLPK.OFF)
-    #prev_term_out = GLPK.term_out(GLPK.ON)
 
     lp = GLPK.Prob()
 
