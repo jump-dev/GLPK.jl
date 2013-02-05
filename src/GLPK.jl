@@ -4,6 +4,8 @@
 
 module GLPK
 
+## Exports
+#{{{
 export
     # Types
     Param,
@@ -166,6 +168,7 @@ export
     write_cnfsat,
     minisat1,
     intfeas1
+#}}}
 
 import Base.pointer, Base.assign, Base.ref
 
@@ -443,23 +446,24 @@ type IntoptParam <: Param
     msg_lev::Int32
     br_tech::Int32
     bt_tech::Int32
-    pp_tech::Int32
-    fp_heur::Int32
-    gmi_cuts::Int32
-    mir_cuts::Int32
-    cov_cuts::Int32
-    clq_cuts::Int32
     tol_int::Float64
     tol_obj::Float64
-    mip_gap::Float64
     tm_lim::Int32
     out_frq::Int32
     out_dly::Int32
     cb_func::Ptr{Void}
     cb_info::Ptr{Void}
     cb_size::Int32
+    pp_tech::Int32
+    mip_gap::Float64
+    mir_cuts::Int32
+    gmi_cuts::Int32
+    cov_cuts::Int32
+    clq_cuts::Int32
     presolve::Int32
     binarize::Int32
+    fp_heur::Int32
+    alien::Int32
     _reserved01::Float64
     _reserved02::Float64
     _reserved03::Float64
@@ -498,6 +502,7 @@ type IntoptParam <: Param
 end
 
 type BasisFactParam <: Param
+    msg_lev::Int32
     bftype::Int32 # NOTE: changed type->bftype
     lu_size::Int32
     piv_tol::Float64
@@ -549,7 +554,7 @@ type BasisFactParam <: Param
     _reserved38::Float64
 
     function BasisFactParam()
-        return new(0, 0, 0.0, 0, 0, 0.0, 0.0, 0, 0.0, 0, 0)
+        return new(0, 0, 0, 0.0, 0, 0, 0.0, 0.0, 0, 0.0, 0, 0)
     end
 end
 
