@@ -208,7 +208,7 @@ end
 if version() != (MAJOR_VERSION, MINOR_VERSION)
     bv = version()
     hv = (MAJOR_VERSION, MINOR_VERSION)
-    error("GLPK error: mismatched versions: header=$(hv[1]).$(hv[2]) binary=$(bv[1]).$(bv[2])")
+    error("GLPK: mismatched versions: header=$(hv[1]).$(hv[2]) binary=$(bv[1]).$(bv[2])")
 end
 #}}}
 
@@ -596,10 +596,10 @@ function check_prob(prob::Prob)
     return true
 end
 
-function check_string_length(s::String, minl::Integer, maxl::Integer)
+function check_string_length(s::String, maxl::Integer)
     l = length(s)
-    if !(minl <= l <= maxl)
-        throw(Error("Invalid string length $l (must be $minl <= length <= $maxl)"))
+    if l > maxl
+        throw(Error("Invalid string length $l (must be <= $maxl)"))
     end
     return true
 end
@@ -1050,7 +1050,7 @@ function set_prob_name(prob::Prob, name::Union(String,Nothing))
     if is(name, nothing)
         name = ""
     end
-    check_string_length(name, 0, 255)
+    check_string_length(name, 255)
     @glpk_ccall set_prob_name Void (Ptr{Void}, Ptr{Uint8}) prob.p bytestring(name)
 end
 
@@ -1059,7 +1059,7 @@ function set_obj_name(prob::Prob, name::Union(String,Nothing))
     if is(name, nothing)
         name = ""
     end
-    check_string_length(name, 0, 255)
+    check_string_length(name, 255)
     @glpk_ccall set_obj_name Void (Ptr{Void}, Ptr{Uint8}) prob.p bytestring(name)
 end
 
@@ -1069,7 +1069,7 @@ function set_row_name(prob::Prob, row::Integer, name::Union(String,Nothing))
     if is(name, nothing)
         name = ""
     end
-    check_string_length(name, 0, 255)
+    check_string_length(name, 255)
     @glpk_ccall set_row_name Void (Ptr{Void}, Int32, Ptr{Uint8}) prob.p row bytestring(name)
 end
 
@@ -1079,7 +1079,7 @@ function set_col_name(prob::Prob, col::Integer, name::Union(String,Nothing))
     if is(name, nothing)
         name = ""
     end
-    check_string_length(name, 0, 255)
+    check_string_length(name, 255)
     @glpk_ccall set_col_name Void (Ptr{Void}, Int32, Ptr{Uint8}) prob.p col bytestring(name)
 end
 
