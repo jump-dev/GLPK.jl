@@ -289,6 +289,7 @@ end
 # |  glp_bfcp   |  GLPK.BasisFactParam     |
 # |  glp_tran   |  GLPK.MathProgWorkspace  |
 # |  glp_data   |  GLPK.Data               |
+# |  glp_attr   |  GLPK.Attr               |
 # +-------------+--------------------------+
 #
 # In order to get/set the value of a Param field, no
@@ -312,6 +313,9 @@ type Prob
         prob = new(p)
         finalizer(prob, delete_prob)
         return prob
+    end
+    function Prob(p::Ptr{Void})
+        new(p)
     end
 end
 
@@ -581,6 +585,22 @@ function mpl_free_wksp(tran::MathProgWorkspace)
     @glpk_ccall mpl_free_wksp Void (Ptr{Void},) tran.p
     tran.p = C_NULL
     return
+end
+
+type Attr
+    level::Int32
+    origin::Int32
+    klass::Int32
+    _reserved01::Float64
+    _reserved02::Float64
+    _reserved03::Float64
+    _reserved04::Float64
+    _reserved05::Float64
+    _reserved06::Float64
+    _reserved07::Float64
+    function Attr()
+        new(0, 0, 0)
+    end
 end
 #}}}
 
@@ -978,6 +998,104 @@ end
 function check_eps_is_valid(eps::Real)
     if (eps < 0)
         throw(Error("invalid eps $eps (must be >= 0)"))
+    end
+    return true
+end
+
+function check_tree(tree::Ptr{Void})
+    if tree == C_NULL
+        throw(Error("Invalid tree pointer"))
+    end
+    return true
+end
+
+function check_reason(tree::Ptr{Void}, allowed::Vector{Int32})
+    reason = @glpk_ccall ios_reason Int32 (Ptr{Void},) tree
+    if !contains(allowed, reason)
+        throw(Error("callback operation not allowed at current stage"))
+    end
+    return true
+end
+
+function check_can_branch(tree::Ptr{Void}, col::Integer)
+    if 0 == @glpk_ccall ios_can_branch Int32 (Ptr{Void}, Int32) tree col
+        throw(Error("Column $col cannot branch"))
+    end
+    return true
+end
+
+function check_ios_node_is_valid(tree::Ptr{Void}, node::Integer)
+    valid_nodes = IntSet()
+    n = 0
+    while true
+        n = @glpk_ccall ios_next_node Int32 (Ptr{Void}, Int32) tree n
+        if n == 0
+            break
+        end
+        if node == n
+            return true
+        end
+        p = n
+        while !has(valid_nodes, p)
+            add!(valid_nodes, p)
+            p = @glpk_ccall ios_up_node Int32 (Ptr{Void}, Int32) tree p
+            if p == 0
+                break
+            end
+            if node == p
+                return true
+            end
+        end
+    end
+    throw(Error("invalid node $node"))
+end
+
+function check_ios_node_is_active(tree::Ptr{Void}, node::Integer)
+    c = 0
+    while node > c
+        c = @glpk_ccall ios_next_node Int32 (Ptr{Void}, Int32) tree c
+        if c == 0
+            break
+        end
+    end
+    if c != node
+        throw(Error("node $node is not in the active list"))
+    end
+    return true
+end
+
+function check_sel_is_valid(sel::Integer)
+    if !(sel == DN_BRNCH || sel == UP_BRNCH || sel == NO_BRNCH)
+        throw(Error("Invalid select flag: $sel (allowed values: GLPK.DN_BRNCH, GLPK.UP_BRNCH, GLPK.NO_BRNCH)"))
+    end
+end
+
+function check_klass_is_valid(klass::Integer)
+    if klass != 0 && !(101 <= klass <= 200)
+        throw(Error("Invalis klass $klass (should be 0 or 101 <= klass <= 200)"))
+    end
+    return true
+end
+
+function check_ios_add_row_flags(flags::Integer)
+    if flags != 0
+        throw(Error("ios_add_row flags must be 0"))
+    end
+    return true
+end
+
+function check_constr_type_is_valid(constr_type::Integer)
+    if !(constr_type == LO ||
+         constr_type == UP)
+        throw(Error("Invalid constr_type $constr_type (allowed values: GLPK.LO, GLPK.UP)"))
+    end
+    return true
+end
+
+function check_ios_row_is_valid(tree::Ptr{Void}, row::Integer)
+    size = @glpk_ccall ios_pool_size Int32 (Ptr{Void},) tree
+    if !(1 <= row <= size)
+        throw(Error("invalid ios row $row (must be 1 <= row <= $size)"))
     end
     return true
 end
@@ -2398,6 +2516,204 @@ function analyze_coef(prob::Prob, k::Integer)
     return coef1[1], var1[1], value1[1], coef2[1], var2[1], value2[1] 
 end
 
+function ios_reason(tree::Ptr{Void})
+    check_tree(tree)
+    @glpk_ccall ios_reason Int32 (Ptr{Void},) tree
+end
+
+function ios_get_prob(tree::Ptr{Void})
+    check_tree(tree)
+    p = @glpk_ccall ios_get_prob Ptr{Void} (Ptr{Void},) tree
+    return Prob(p)
+end
+
+function ios_row_attr(tree::Ptr{Void}, row::Integer, attr::Attr)
+    check_tree(tree)
+    prob = ios_get_prob(tree)
+    check_row_is_valid(prob, row)
+    @glpk_ccall ios_row_attr Void (Ptr{Void}, Int32, Ptr{Attr}) tree row &attr
+end
+
+function ios_row_attr(tree::Ptr{Void}, row::Integer)
+    check_tree(tree)
+    prob = ios_get_prob(tree)
+    check_row_is_valid(prob, row)
+    attr = Attr()
+    @glpk_ccall ios_row_attr Void (Ptr{Void}, Int32, Ptr{Attr}) tree row &attr
+    return attr
+end
+
+function ios_mip_gap(tree::Ptr{Void})
+    check_tree(tree)
+    @glpk_ccall ios_mip_gap Float64 (Ptr{Void},) tree
+end
+
+function ios_node_data(tree::Ptr{Void}, p::Integer)
+    check_tree(tree)
+    check_ios_node_is_valid(tree, p)
+    @glpk_ccall ios_node_data Ptr{Void} (Ptr{Void}, Int32) tree p
+end
+
+function ios_select_node(tree::Ptr{Void}, p::Integer)
+    check_tree(tree)
+    check_reason(tree, [GLPK.ISELECT])
+    check_ios_node_is_active(tree, p)
+    @glpk_ccall ios_select_node Void (Ptr{Void}, Int32) tree p
+end
+
+function ios_heur_sol{Tv<:Real}(tree::Ptr{Void}, x::Vector{Tv})
+    check_tree(tree)
+    prob = ios_get_prob(tree)
+    cols = @glpk_ccall get_num_cols Int32 (Ptr{Void},) prob.p
+    check_vectors_size(cols, x)
+    x64 = float64(x)
+    off64 = sizeof(Float64)
+    x64p = pointer(x64) - off64
+
+    @glpk_ccall ios_heur_sol Int32 (Ptr{Void}, Ptr{Float64}) tree x64p
+end
+
+function ios_can_branch(tree::Ptr{Void}, col::Integer)
+    check_tree(tree)
+    prob = ios_get_prob(tree)
+    check_col_is_valid(prob, col)
+    @glpk_ccall ios_can_branch Int32 (Ptr{Void}, Int32) tree col
+end
+
+function ios_branch_upon(tree::Ptr{Void}, col::Integer, sel::Integer)
+    check_tree(tree)
+    prob = ios_get_prob(tree)
+    check_col_is_valid(prob, col)
+    check_can_branch(tree, col)
+    check_sel_is_valid(sel)
+    @glpk_ccall ios_branch_upon Void (Ptr{Void}, Int32, Int32) tree col sel
+end
+
+function ios_terminate(tree::Ptr{Void})
+    check_tree(tree)
+    @glpk_ccall ios_terminate Void (Ptr{Void},) tree
+end
+
+function ios_tree_size(tree::Ptr{Void})
+    check_tree(tree)
+    a_cnt = Array(Int32, 1)
+    n_cnt = Array(Int32, 1)
+    t_cnt = Array(Int32, 1)
+    @glpk_ccall ios_tree_size Void (Ptr{Void}, Ptr{Int32}, Ptr{Int32}, Ptr{Int32}) tree pointer(a_cnt) pointer(n_cnt) pointer(t_cnt)
+
+    return a_cnt[1], n_cnt[1], t_cnt[1]
+end
+
+function ios_tree_size(tree::Ptr{Void}, a_cnt, n_cnt, t_cnt)
+    error("Unsupported. Use GLPK.ios_tree_size(tree) instead.")
+end
+
+function ios_curr_node(tree::Ptr{Void})
+    check_tree(tree)
+    @glpk_ccall ios_curr_node Int32 (Ptr{Void},) tree
+end
+
+function ios_next_node(tree::Ptr{Void}, p::Integer)
+    check_tree(tree)
+    if p != 0
+        check_ios_node_is_active(tree, p)
+    end
+    @glpk_ccall ios_next_node Int32 (Ptr{Void}, Int32) tree p
+end
+
+function ios_prev_node(tree::Ptr{Void}, p::Integer)
+    check_tree(tree)
+    if p != 0
+        check_ios_node_is_active(tree, p)
+    end
+    @glpk_ccall ios_prev_node Int32 (Ptr{Void}, Int32) tree p
+end
+
+function ios_up_node(tree::Ptr{Void}, p::Integer)
+    check_tree(tree)
+    check_ios_node_is_valid(tree, p)
+    @glpk_ccall ios_up_node Int32 (Ptr{Void}, Int32) tree p
+end
+
+function ios_node_level(tree::Ptr{Void}, p::Integer)
+    check_tree(tree)
+    check_ios_node_is_valid(tree, p)
+    @glpk_ccall ios_node_level Int32 (Ptr{Void}, Int32) tree p
+end
+
+function ios_node_bound(tree::Ptr{Void}, p::Integer)
+    check_tree(tree)
+    check_ios_node_is_valid(tree, p)
+    @glpk_ccall ios_node_bound Float64 (Ptr{Void}, Int32) tree p
+end
+
+function ios_best_node(tree::Ptr{Void})
+    check_tree(tree)
+    @glpk_ccall ios_best_node Int32 (Ptr{Void},) tree
+end
+
+function ios_pool_size(tree::Ptr{Void})
+    check_tree(tree)
+    check_reason(tree, [GLPK.ICUTGEN])
+    @glpk_ccall ios_pool_size Int32 (Ptr{Void},) tree
+end
+
+function ios_add_row{Ti<:Integer, Tv<:Real}(tree::Ptr{Void}, name::Union(String,Nothing),
+                    klass::Integer, flags::Integer, len::Integer, ind::Vector{Ti}, val::Vector{Tv},
+                    constr_type::Integer, rhs::Float64)
+
+    check_tree(tree)
+    check_reason(tree, [GLPK.ICUTGEN])
+    if name === nothing
+        name = ""
+    end
+    check_string_length(name, 255)
+    check_klass_is_valid(klass)
+    check_ios_add_row_flags(flags)
+    check_vectors_size(len, ind, val)
+    if len > 0
+        ind32 = int32(ind)
+        val64 = float64(val)
+        off32 = sizeof(Int32)
+        off64 = sizeof(Float64)
+        ind32p = pointer(ind32) - off32
+        val64p = pointer(val64) - off64
+        prob = ios_get_prob(tree)
+        check_cols_ids(prob, 0, len, ind32)
+    else
+        ind32p = C_NULL
+        val64p = C_NULL
+    end
+    check_constr_type_is_valid(constr_type)
+
+    @glpk_ccall ios_add_row Int32 (Ptr{Void}, Ptr{Uint8}, Int32, Int32, Int32, Ptr{Int32}, Ptr{Float64}, Int32, Float64) tree bytestring(name) klass flags len ind32p val64p constr_type rhs
+end
+
+function ios_add_row{Ti<:Integer, Tv<:Real}(tree::Ptr{Void}, name::Union(String,Nothing),
+                    klass::Integer, flags::Integer, ind::Vector{Ti}, val::Vector{Tv},
+                    constr_type::Integer, rhs::Float64)
+    check_vectors_all_same_size(ind, val)
+    ios_add_row(tree, name, klass, flags, length(ind), ind, val, constr_type, rhs)
+end
+
+ios_add_row{Ti<:Integer, Tv<:Real}(tree::Ptr{Void}, name::Union(String,Nothing),
+           klass::Integer, ind::Vector{Ti}, val::Vector{Tv}, constr_type::Integer,
+           rhs::Float64) =
+    ios_add_row(tree, name, klass, 0, length(ind), ind, val, constr_type, rhs)
+
+function ios_del_row(tree::Ptr{Void}, row::Integer)
+    check_tree(tree)
+    check_reason(tree, [GLPK.ICUTGEN])
+    check_ios_row_is_valid(tree, row)
+    @glpk_ccall ios_del_row Void (Ptr{Void}, Int32) tree row
+end
+
+function ios_clear_pool(tree::Ptr{Void})
+    check_tree(tree)
+    check_reason(tree, [GLPK.ICUTGEN])
+    @glpk_ccall ios_clear_pool Void (Ptr{Void},) tree
+end
+
 function init_env()
     ret = @glpk_ccall init_env Int32 ()
     check_init_env_succeeded(ret)
@@ -2559,33 +2875,7 @@ end
 
 # FUNCTIONS NOT WRAPPED:
 #
-# 1) All glp_ios_* [because they should be called
-#    from within a callback]:
-#
-#    glp_ios_reason
-#    glp_ios_get_prob
-#    glp_ios_row_attr
-#    glp_ios_mip_gap
-#    glp_ios_node_data
-#    glp_ios_select_node
-#    glp_ios_heur_sol
-#    glp_ios_can_branch
-#    glp_ios_branch_upon
-#    glp_ios_terminate
-#    glp_ios_tree_size
-#    glp_ios_curr_node
-#    glp_ios_next_node
-#    glp_ios_prev_node
-#    glp_ios_up_node
-#    glp_ios_node_level
-#    glp_ios_node_bound
-#    glp_ios_best_node
-#    glp_ios_pool_size
-#    glp_ios_add_row
-#    glp_ios_del_row
-#    glp_ios_clear_pool
-#
-# 2) Printout functions [because they use varargs/va_list,
+# 1) Printout functions [because they use varargs/va_list,
 #    or need callbacks, or are implemented as macros]:
 #
 #    glp_printf
@@ -2595,14 +2885,14 @@ end
 #    glp_assert
 #    glp_error_hook
 #
-# 3) Plain data file reading functions [because they either
+# 2) Plain data file reading functions [because they either
 #    use longjmp or varargs]:
 #
 #    glp_sdf_set_jump
 #    glp_sdf_error
 #    glp_sdf_warning
 #
-# 4) Additional functions [because wat?]:
+# 3) Additional functions [because wat?]:
 #
 #    lpx_check_kkt
 
