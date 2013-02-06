@@ -260,8 +260,14 @@ end
 
 abstract Param
 
-function assign{T}(param::Param, val::T, field_name::String)
-    param.(symbol(field_name)) = val
+function assign{T<:Param}(param::T, val, field_name::String)
+    s = symbol(field_name)
+    i = findfirst(x->x==s, T.names)
+    if i == 0
+        error("Parameter type $T has no field $field_name")
+    end
+    t = T.types[i]
+    param.(s) = convert(t,val)
 end
 
 function ref(param::Param, field_name::String)
