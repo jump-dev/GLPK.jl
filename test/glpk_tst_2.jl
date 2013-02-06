@@ -14,7 +14,7 @@ function glpk_tst_2()
     GLPK.read_prob(lp, 0, joinpath(datadir, "sample.prob"))
     @test GLPK.simplex(lp) == 0
 
-    @test GLPK.read_prob(lp, 0, joinpath(datadir, "plan.lp")) != 0
+    @test_fails GLPK.read_prob(lp, 0, joinpath(datadir, "plan.lp"))
     @test_fails GLPK.write_prob(lp, 0, "") != 0
 
     filecopy = tempname()
