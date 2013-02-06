@@ -212,68 +212,21 @@ type GLPKFatalError <: Exception
     msg::String
 end
 
-# Ugly way to deal with C's jmp_buf: just provides enough storage
-# (should NEVER be accessed directly)
-type JmpBuf
-    _pad01::Float64
-    _pad02::Float64
-    _pad03::Float64
-    _pad04::Float64
-    _pad05::Float64
-    _pad06::Float64
-    _pad07::Float64
-    _pad08::Float64
-    _pad09::Float64
-    _pad10::Float64
-    _pad11::Float64
-    _pad12::Float64
-    _pad13::Float64
-    _pad14::Float64
-    _pad15::Float64
-    _pad16::Float64
-    _pad17::Float64
-    _pad18::Float64
-    _pad19::Float64
-    _pad20::Float64
-    _pad21::Float64
-    _pad22::Float64
-    _pad23::Float64
-    _pad24::Float64
-    _pad25::Float64
-    _pad26::Float64
-    _pad27::Float64
-    _pad28::Float64
-    _pad29::Float64
-    _pad30::Float64
-    _pad31::Float64
-    _pad32::Float64
-    JmpBuf() = new()
-end
-
 # Error hook, used to catch internal errors when calling
 # GLPK functions
 function _err_hook(info::Ptr{Void})
-    ccall(:longjmp, Void, (Ptr{JmpBuf}, Int32), info, 1)
+    ccall((:glp_error_hook, _jl_libGLPK), Void, (Ptr{Void}, Ptr{Void}), C_NULL, C_NULL)
+    ccall((:glp_free_env, _jl_libGLPK), Void, ())
+    _del_all_objs()
+    throw(GLPKFatalError("GLPK call failed. All GLPK objects you defined so far are now invalidated."))
 end
 
 macro glpk_ccall(f, args...)
     quote
-        let jb = JmpBuf()
-            if ccall(:setjmp, Int, (Ptr{JmpBuf},), &jb) == 0
-                # install a safeguard hook so that errors don't crash Julia
-                ccall((:glp_error_hook, _jl_libGLPK), Void, (Ptr{Void}, Ptr{Void}), cfunction(_err_hook, Void, (Ptr{Void},)), &jb)
-                # actual call to the function
-                ret = ccall(($"glp_$(f)", _jl_libGLPK), $(args...))
-                # the call went fine: uninstall the hook
-                ccall((:glp_error_hook, _jl_libGLPK), Void, (Ptr{Void}, Ptr{Void}), C_NULL, C_NULL)
-                # return the result of the call
-                ret
-            else
-                # something went wrong
-                ccall((:glp_free_env, _jl_libGLPK), Void, ())
-                throw(GLPKFatalError("GLPK call failed. All GLPK objects you defined so far are now invalidated."))
-            end
-        end
+        ccall((:glp_error_hook, _jl_libGLPK), Void, (Ptr{Void}, Ptr{Void}), cfunction(_err_hook, Void, (Ptr{Void},)), C_NULL)
+        ret = ccall(($"glp_$(f)", _jl_libGLPK), $(args...))
+        ccall((:glp_error_hook, _jl_libGLPK), Void, (Ptr{Void}, Ptr{Void}), C_NULL, C_NULL)
+        ret
     end
 end
 
@@ -398,22 +351,27 @@ vecornothing_length(a::VecOrNothing) = is(a, nothing) ? 0 : length(a)
 
 type Prob
     p::Ptr{Void}
-    function Prob()
-        p = @glpk_ccall create_prob Ptr{Void} ()
+    function Prob(p::Ptr{Void})
+        if p == C_NULL
+            p = @glpk_ccall create_prob Ptr{Void} ()
+        end
         prob = new(p)
+        _add_obj(prob)
         finalizer(prob, delete_prob)
         return prob
     end
-    function Prob(p::Ptr{Void})
-        new(p)
-    end
 end
+
+Prob() = Prob(C_NULL)
 
 function delete_prob(prob::Prob)
     if prob.p == C_NULL
         return
     end
-    @glpk_ccall delete_prob Void (Ptr{Void},) prob.p
+    if jl_obj_is_valid(prob)
+        @glpk_ccall delete_prob Void (Ptr{Void},) prob.p
+        _del_obj(prob)
+    end
     prob.p = C_NULL
     return
 end
@@ -663,6 +621,7 @@ type MathProgWorkspace
     function MathProgWorkspace()
         tran = @glpk_ccall mpl_alloc_wksp Ptr{Void} ()
         wksp = new(tran)
+        _add_obj(wksp)
         finalizer(wksp, GLPK.mpl_free_wksp)
         return wksp
     end
@@ -672,7 +631,10 @@ function mpl_free_wksp(tran::MathProgWorkspace)
     if tran.p == C_NULL
         return
     end
-    @glpk_ccall mpl_free_wksp Void (Ptr{Void},) tran.p
+    if jl_obj_is_valid(tran)
+        @glpk_ccall mpl_free_wksp Void (Ptr{Void},) tran.p
+        _del_obj(tran)
+    end
     tran.p = C_NULL
     return
 end
@@ -2226,6 +2188,8 @@ end
 
 function free_env()
     ret = @glpk_ccall free_env Int32 ()
+    _del_all_objs()
+    return ret
 end
 
 function term_out(flag::Integer)

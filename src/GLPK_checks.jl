@@ -15,6 +15,22 @@
 # (but will likely produce a fatal error) and which can therefore be disabled
 # via `jl_set_preemptive_check(false)`
 
+let valid_objs = ObjectIdDict()
+    global jl_obj_is_valid, _add_obj, _del_obj, _del_all_objs
+    function jl_obj_is_valid(x)
+        has(valid_objs, x)
+    end
+    function _add_obj(x)
+        valid_objs[x] = true
+    end
+    function _del_obj(x)
+        delete!(valid_objs, x)
+    end
+    function _del_all_objs()
+        empty!(valid_objs)
+    end
+end
+
 let PREEMPTIVE_CHECK = true
     global jl_get_preemptive_check,
            jl_set_preemptive_check
@@ -43,7 +59,7 @@ macro check!(expr)
 end
 
 function _prob(prob::Prob)
-    if prob.p == C_NULL
+    if prob.p == C_NULL || !jl_obj_is_valid(prob)
         throw(GLPKError("invalid GLPK.Prob"))
     end
     return true
@@ -415,7 +431,7 @@ function _data(data::Data)
 end
 
 function _mpl_workspace(tran::MathProgWorkspace)
-    if tran.p == C_NULL
+    if tran.p == C_NULL || !jl_obj_is_valid(tran)
         throw(GLPKError("invalid GLPK.MathProgWorkspace"))
     end
     return true

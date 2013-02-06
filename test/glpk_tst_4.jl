@@ -49,12 +49,16 @@ function glpk_tst_4()
         bh = GLPK.get_bhead(mip, i)
         rb = GLPK.get_row_bind(mip, i)
     end
-    @test_fails GLPK.get_bhead(mip, rows+1)
-    @test_fails GLPK.get_row_bind(mip, -1)
+    if GLPK.jl_get_preemptive_check()
+        @test_fails GLPK.get_bhead(mip, rows+1)
+        @test_fails GLPK.get_row_bind(mip, -1)
+    end
     for i = 1:cols
         cb = GLPK.get_col_bind(mip, i)
     end
-    @test_fails GLPK.get_col_bind(mip, -1)
+    if GLPK.jl_get_preemptive_check()
+        @test_fails GLPK.get_col_bind(mip, -1)
+    end
 
     x = randn(int64(rows))
     GLPK.ftran(mip, x)
