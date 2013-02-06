@@ -18,8 +18,6 @@ function glpk_tst_4()
 
     datadir = joinpath(Pkg.dir(), "GLPK", "test", "data")
 
-    t1 = GLPK.time()
-
     mip = GLPK.Prob()
     tran = GLPK.MathProgWorkspace()
     GLPK.mpl_read_model(tran, joinpath(datadir, "sudoku.mod"), 1)
@@ -146,10 +144,6 @@ function glpk_tst_4()
     mu = GLPK.mem_usage()
     GLPK.free(p)
     mu = GLPK.mem_usage()
-
-    t2 = GLPK.time()
-    #println("time=", t1, " ", t2)
-    dt = GLPK.difftime(t2, t1)
 
     #GLPK.free_env()
 

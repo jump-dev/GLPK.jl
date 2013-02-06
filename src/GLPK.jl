@@ -15,7 +15,6 @@ export
     InteriorParam,
     IntoptParam,
     BasisFactParam,
-    Data,
     MathProgWorkspace,
 
     # Methods
@@ -176,15 +175,6 @@ export
     free,
     mem_usage,
     mem_limit,
-    time,
-    difftime,
-    sdf_open_file,
-    sdf_read_int,
-    sdf_read_num,
-    sdf_read_item,
-    sdf_read_text,
-    sdf_line,
-    sdf_close_file,
     read_cnfsat,
     check_cnfsat,
     write_cnfsat,
@@ -331,7 +321,6 @@ vecornothing_length(a::VecOrNothing) = is(a, nothing) ? 0 : length(a)
 # |  glp_iocp   |  GLPK.IntoptParam        |
 # |  glp_bfcp   |  GLPK.BasisFactParam     |
 # |  glp_tran   |  GLPK.MathProgWorkspace  |
-# |  glp_data   |  GLPK.Data               |
 # |  glp_attr   |  GLPK.Attr               |
 # +-------------+--------------------------+
 #
@@ -609,12 +598,6 @@ type BasisFactParam <: Param
         return new(0, 0, 0, 0.0, 0, 0, 0.0, 0.0, 0, 0.0, 0, 0)
     end
 end
-
-type Data
-    p::Ptr{Void}
-end
-
-pointer(data::Data) = data.p
 
 type MathProgWorkspace
     p::Ptr{Void}
@@ -2234,14 +2217,14 @@ function mem_usage()
     count_p = data32_p
     cpeak_p = data32_p + off32
 
-    data64 = Array(Int64, 2)
+    data64 = Array(Uint64, 2)
     data64_p = pointer(data64)
-    off64 = sizeof(Int64)
+    off64 = sizeof(Uint64)
 
     total_p = data64_p
     tpeak_p = data64_p + off64
 
-    @glpk_ccall mem_usage Void (Ptr{Int32}, Ptr{Int32}, Ptr{Int64}, Ptr{Int64}) count_p cpeak_p total_p tpeak_p 
+    @glpk_ccall mem_usage Void (Ptr{Int32}, Ptr{Int32}, Ptr{Uint64}, Ptr{Uint64}) count_p cpeak_p total_p tpeak_p
 
     count = data32[1]
     cpeak = data32[2]
@@ -2253,53 +2236,6 @@ end
 
 function mem_limit(limit::Integer)
     @glpk_ccall mem_limit Void (Int32,) limit
-end
-
-function time()
-    @glpk_ccall time Int64 ()
-end
-
-function difftime(t1::Integer, t0::Integer)
-    @glpk_ccall difftime Float64 (Int64, Int64) t1 t0
-end
-
-function sdf_open_file(filename::String)
-    @check _file_is_readable(filename)
-    data_p = @glpk_ccall sdf_open_file Ptr{Void} (Ptr{Uint8},) bytestring(filename)
-    @check! _sdf_file_opened(data_p)
-    return Data(data_p)
-end
-
-function sdf_read_int(data::Data)
-    @check! _data(data)
-    @glpk_ccall sdf_read_int Int32 (Ptr{Void},) pointer(data)
-end
-
-function sdf_read_num(data::Data)
-    @check! _data(data)
-    @glpk_ccall sdf_read_num Float64 (Ptr{Void},) pointer(data)
-end
-
-function sdf_read_item(data::Data)
-    @check! _data(data)
-    item_cstr = @glpk_ccall sdf_read_item Ptr{Uint8} (Ptr{Void},) pointer(data)
-    return bytestring(item_cstr)
-end
-
-function sdf_read_text(data::Data)
-    @check! _data(data)
-    text_cstr = @glpk_ccall sdf_read_text Ptr{Uint8} (Ptr{Void},) pointer(data)
-    return bytestring(text_cstr)
-end
-
-function sdf_line(data::Data)
-    @check! _data(data)
-    @glpk_ccall sdf_line Int32 (Ptr{Void},) pointer(data)
-end
-
-function sdf_close_file(data::Data)
-    @check! _data(data)
-    @glpk_ccall sdf_close_file Void (Ptr{Void},) pointer(data)
 end
 
 function read_cnfsat(prob::Prob, filename::String)
@@ -2349,14 +2285,7 @@ end
 #    glp_assert
 #    glp_error_hook
 #
-# 2) Plain data file reading functions [because they either
-#    use longjmp or varargs]:
-#
-#    glp_sdf_set_jump
-#    glp_sdf_error
-#    glp_sdf_warning
-#
-# 3) Additional functions [because wat?]:
+# 2) Additional functions [because wat?]:
 #
 #    lpx_check_kkt
 

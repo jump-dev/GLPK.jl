@@ -423,13 +423,6 @@ function _print_ranges_flags(flags::Integer)
     return true
 end
 
-function _data(data::Data)
-    if pointer(data) == C_NULL
-        throw(GLPKError("invalid GLPK.Data"))
-    end
-    return true
-end
-
 function _mpl_workspace(tran::MathProgWorkspace)
     if tran.p == C_NULL || !jl_obj_is_valid(tran)
         throw(GLPKError("invalid GLPK.MathProgWorkspace"))
@@ -606,12 +599,3 @@ function _pointer_is_valid(ptr::Ptr)
     end
     return true
 end
-
-function _sdf_file_opened(data_p::Ptr)
-    if data_p == C_NULL
-        throw(GLPKError("GLPK.sdf_open_file failed"))
-    end
-    return true
-end
-
-

@@ -1,43 +1,27 @@
 using Test
 import GLPK
 
-function glpk_tst_5()
-    prev_term_out = GLPK.term_out(GLPK.OFF)
-
+function glpk_tst_6()
     datadir = joinpath(Pkg.dir(), "GLPK", "test", "data")
 
-    dataf1 = joinpath(datadir, "data1.txt")
-    dataf2 = joinpath(datadir, "data2.txt")
+    prev_term_out = GLPK.term_out(GLPK.OFF)
 
-    data = GLPK.sdf_open_file(dataf1)
-    sum = 0
-    for i = 1:10
-        num = GLPK.sdf_read_int(data)
-        sum += num
+    lp = GLPK.Prob()
+
+    cnffile = joinpath(datadir, "sat_tst.cnf")
+    GLPK.read_cnfsat(lp, cnffile)
+    GLPK.check_cnfsat(lp)
+    cnfcopy = joinpath(datadir, "sat_tst-copy.cnf")
+    try
+        GLPK.write_cnfsat(lp, "sat_tst.cnf")
+    finally
+        if isfile(cnfcopy)
+            rm(cnfcopy)
+        end
     end
-    @test sum == 3566
-    GLPK.sdf_close_file(data)
+    @test GLPK.minisat1(lp) == 0
 
-    data = GLPK.sdf_open_file(dataf2)
-
-    GLPK.sdf_read_int(data)
-    GLPK.sdf_line(data)
-    GLPK.sdf_read_num(data)
-    GLPK.sdf_line(data)
-    GLPK.sdf_read_item(data)
-    GLPK.sdf_line(data)
-    GLPK.sdf_read_item(data)
-    GLPK.sdf_line(data)
-    GLPK.sdf_read_text(data)
-    GLPK.sdf_line(data)
-    GLPK.sdf_read_text(data)
-    GLPK.sdf_line(data)
-    GLPK.sdf_read_text(data)
-    GLPK.sdf_line(data)
-
-    GLPK.sdf_close_file(data)
-
-    GLPK.term_out(prev_term_out)
+    @test GLPK.intfeas1(lp, 0, 0) == 0
 end
 
-glpk_tst_5()
+glpk_tst_6()

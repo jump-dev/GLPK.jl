@@ -4,7 +4,7 @@
 
 require("BinDeps")
 
-glpkvers = "4.47"
+glpkvers = "4.48"
 glpkname = "glpk-$glpkvers"
 glpkarchive = "$glpkname.tar.gz"
 
