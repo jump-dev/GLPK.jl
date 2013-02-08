@@ -1,1 +1,1 @@
-const _jl_libGLPK = joinpath(Pkg.dir(), "GLPK", "deps", "usr", "lib", "libglpk")
+const _jl_libGLPK = Pkg.dir("GLPK", "deps", "usr", "lib", "libglpk")

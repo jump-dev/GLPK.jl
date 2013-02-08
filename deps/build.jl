@@ -4,7 +4,7 @@ glpkvers = "4.48"
 glpkname = "glpk-$glpkvers"
 @unix_only glpkarchive = "$glpkname.tar.gz"
 @windows_only glpkarghive = "win$(glpkname).zip"
-glpkprefix = joinpath(Pkg.dir(), "GLPK", "deps", "usr")
+glpkprefix = Pkg.dir("GLPK", "deps", "usr")
 
 tagfile = "installed_vers"
 

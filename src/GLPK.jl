@@ -188,7 +188,7 @@ import Base.pointer, Base.assign, Base.ref
 #{{{
 include("GLPK_constants.jl")
 
-include(joinpath(Pkg.dir(),"GLPK","deps","ext.jl"))
+include(Pkg.dir("GLPK","deps","ext.jl"))
 
 # General recoverable exception: all GLPK functions
 # throw this in case of recoverable errors
