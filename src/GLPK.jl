@@ -243,7 +243,7 @@ function version()
         throw(GLPKError("error reading version"))
     end
     vstr = ASCIIString(str[1:k - 1])
-    return tuple(map(x->int32(parse_int(x)), split(vstr, '.'))...)
+    return tuple(map(x->int32(parseint(x)), split(vstr, '.'))...)
 end
 
 if version() != (MAJOR_VERSION, MINOR_VERSION)
@@ -844,7 +844,7 @@ function load_matrix(prob::Prob, ia::VecOrNothing, ja::VecOrNothing, ar::VecOrNo
 end
 
 function load_matrix{Ti<:Integer, Tv<:Real}(prob::Prob, a::SparseMatrixCSC{Tv, Ti})
-    (ia, ja, ar) = findn_nzs(a)
+    (ia, ja, ar) = findnz(a)
     load_matrix(prob, ia, ja, ar)
 end
 

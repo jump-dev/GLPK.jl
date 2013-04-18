@@ -1,4 +1,4 @@
-using Test
+using Base.Test
 import GLPK
 
 function glpk_tst_7()

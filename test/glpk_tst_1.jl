@@ -1,4 +1,4 @@
-using Test
+using Base.Test
 import GLPK
 
 # Basically, same example as in the GLPK manual

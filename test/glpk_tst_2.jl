@@ -1,4 +1,4 @@
-using Test
+using Base.Test
 import GLPK
 
 # Testing reading and writing problem files

@@ -1,4 +1,4 @@
-using Test
+using Base.Test
 import GLPK
 
 # Test reading and writing MathProg files

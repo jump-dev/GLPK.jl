@@ -1,4 +1,4 @@
-using Test
+using Base.Test
 import GLPK
 
 # Test Basis Factorization stuff, plus
@@ -90,16 +90,16 @@ function glpk_tst_4()
     end
 
     for i = 1:100
-        ia, ja, val = findn_nzs(sprand(int64(cols), 1, 0.5))
+        ia, ja, val = findnz(sprand(int64(cols), 1, 0.5))
         GLPK.transform_row(mip, int32(ia), val)
     end
     for i = 1:100
-        ia, ja, val = findn_nzs(sprand(int64(rows), 1, 0.5))
+        ia, ja, val = findnz(sprand(int64(rows), 1, 0.5))
         GLPK.transform_col(mip, int32(ia), val)
     end
 
     for i = 1:100
-        ia, ja, val = findn_nzs(sprand(int64(rows), 1, 0.5))
+        ia, ja, val = findnz(sprand(int64(rows), 1, 0.5))
         dir = 2 * randbool() - 1
         eps = 1e-9
 
@@ -112,7 +112,7 @@ function glpk_tst_4()
     end
 
     for i = 1:100
-        ia, ja, val = findn_nzs(sprand(int64(cols), 1, 0.5))
+        ia, ja, val = findnz(sprand(int64(cols), 1, 0.5))
         dir = 2 * randbool() - 1
         eps = 1e-9
 
