@@ -1,4 +1,4 @@
-require("BinDeps")
+using BinDeps
 
 glpkvers = "4.48"
 glpkname = "glpk-$glpkvers"
