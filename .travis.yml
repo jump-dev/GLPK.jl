@@ -19,3 +19,6 @@ script:
     - cp -R ./* ~/.julia/GLPK/
     - julia ~/.julia/GLPK/deps/build.jl
     - julia ~/.julia/GLPK/test/test.jl
+branches:
+    except:
+        - release-0.1
