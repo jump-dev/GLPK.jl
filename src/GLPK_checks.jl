@@ -502,7 +502,7 @@ function _ios_node_is_valid(tree::Ptr{Void}, node::Integer)
             return true
         end
         p = n
-        while !has(valid_nodes, p)
+        while !contains(valid_nodes, p)
             add!(valid_nodes, p)
             p = @glpk_ccall ios_up_node Int32 (Ptr{Void}, Int32) tree p
             if p == 0
