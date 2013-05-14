@@ -243,7 +243,7 @@ man_pages = [
 #  dir menu entry, description, category)
 texinfo_documents = [
   ('glpk', 'GLPKJl', u'GLPK.jl Documentation',
-   AUTHORS, 'GLPKJl', 'Argument parser for Julia.',
+   AUTHORS, 'GLPKJl', 'GLPK wrapper for Julia.',
    'Miscellaneous'),
 ]
 
