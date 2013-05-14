@@ -18,7 +18,7 @@
 let valid_objs = ObjectIdDict()
     global jl_obj_is_valid, _add_obj, _del_obj, _del_all_objs
     function jl_obj_is_valid(x)
-        has(valid_objs, x)
+        haskey(valid_objs, x)
     end
     function _add_obj(x)
         valid_objs[x] = true
