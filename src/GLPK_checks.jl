@@ -195,7 +195,7 @@ end
 function _rows_ids_content(prob::Prob, num_rows::Integer, rows_ids::Vector{Int32})
     rows = @glpk_ccall get_num_rows Int32 (Ptr{Void},) prob.p
     ind_set = IntSet()
-    add_each!(ind_set, rows_ids[1 : num_rows])
+    union!(ind_set, rows_ids[1 : num_rows])
     if min(ind_set) < 1 || max(ind_set) > rows
         throw(GLPKError("index out of bounds (min=1 max=$rows)"))
     elseif length(ind_set) != num_rows
@@ -221,7 +221,7 @@ end
 function _cols_ids_content(prob::Prob, num_cols::Integer, cols_ids::Vector{Int32})
     cols = @glpk_ccall get_num_cols Int32 (Ptr{Void},) prob.p
     ind_set = IntSet()
-    add_each!(ind_set, cols_ids[1 : num_cols])
+    union!(ind_set, cols_ids[1 : num_cols])
     if min(ind_set) < 1 || max(ind_set) > cols
         throw(GLPKError("index out of bounds (min=1 max=$cols)"))
     elseif length(ind_set) != num_cols
