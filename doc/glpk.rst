@@ -12,6 +12,22 @@ of returning tuples/strings/vectors etc.
 
 It's currently based on GLPK version 4.47.
 
+------------
+Installation
+------------
+
+To install the module, you will need to make sure that you have libgmp and libltdl3 headers installed. For
+example, on Ubuntu you can issue on the command line::
+
+    $ sudo apt-get install libgmp-dev libltdl3-dev
+
+to install them.
+
+After that, the module can be installed via Julia's package manager::
+
+    julia> Pkg.add("GLPK")
+
+
 --------
 Preamble
 --------
