@@ -15,16 +15,16 @@
 # (but will likely produce a fatal error) and which can therefore be disabled
 # via `jl_set_preemptive_check(false)`
 
-let valid_objs = ObjectIdDict()
+let valid_objs = (Uint=>Bool)[]
     global jl_obj_is_valid, _add_obj, _del_obj, _del_all_objs
     function jl_obj_is_valid(x)
-        haskey(valid_objs, x)
+        haskey(valid_objs, object_id(x))
     end
     function _add_obj(x)
-        valid_objs[x] = true
+        valid_objs[object_id(x)] = true
     end
     function _del_obj(x)
-        delete!(valid_objs, x)
+        delete!(valid_objs, object_id(x))
     end
     function _del_all_objs()
         empty!(valid_objs)
