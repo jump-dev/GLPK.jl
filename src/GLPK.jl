@@ -182,7 +182,7 @@ export
     intfeas1
 #}}}
 
-import Base.pointer, Base.assign, Base.ref
+import Base.pointer, Base.setindex!, Base.getindex
 
 ## Shared library interface setup
 #{{{
@@ -260,7 +260,7 @@ end
 
 abstract Param
 
-function assign{T<:Param}(param::T, val, field_name::String)
+function setindex!{T<:Param}(param::T, val, field_name::String)
     s = symbol(field_name)
     i = findfirst(x->x==s, T.names)
     if i == 0
@@ -270,7 +270,7 @@ function assign{T<:Param}(param::T, val, field_name::String)
     param.(s) = convert(t,val)
 end
 
-function ref(param::Param, field_name::String)
+function getindex(param::Param, field_name::String)
     param.(symbol(field_name))
 end
 
