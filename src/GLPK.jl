@@ -1731,8 +1731,8 @@ function eval_tab_row(prob::Prob, k::Integer, ind::Vector{Int32}, val::Vector{Fl
 
     len = @glpk_ccall eval_tab_row Int32 (Ptr{Void}, Int32, Ptr{Int32}, Ptr{Float64}) prob.p k ind32p val64p
 
-    delete!(ind, len+1:length(ind))
-    delete!(val, len+1:length(val))
+    splice!(ind, len+1:length(ind))
+    splice!(val, len+1:length(val))
 
     return len
 end
@@ -1756,8 +1756,8 @@ function eval_tab_row(prob::Prob, k::Integer)
 
     len = @glpk_ccall eval_tab_row Int32 (Ptr{Void}, Int32, Ptr{Int32}, Ptr{Float64}) prob.p k ind32p val64p
 
-    delete!(ind, len+1:length(ind))
-    delete!(val, len+1:length(val))
+    splice!(ind, len+1:length(ind))
+    splice!(val, len+1:length(val))
 
     return ind, val
 end
@@ -1781,8 +1781,8 @@ function eval_tab_col(prob::Prob, k::Integer, ind::Vector{Int32}, val::Vector{Fl
 
     len = @glpk_ccall eval_tab_col Int32 (Ptr{Void}, Int32, Ptr{Int32}, Ptr{Float64}) prob.p k ind32p val64p
 
-    delete!(ind, len+1:length(ind))
-    delete!(val, len+1:length(val))
+    splice!(ind, len+1:length(ind))
+    splice!(val, len+1:length(val))
 
     return len
 end
@@ -1806,8 +1806,8 @@ function eval_tab_col(prob::Prob, k::Integer)
 
     len = @glpk_ccall eval_tab_col Int32 (Ptr{Void}, Int32, Ptr{Int32}, Ptr{Float64}) prob.p k ind32p val64p
 
-    delete!(ind, len+1:length(ind))
-    delete!(val, len+1:length(val))
+    splice!(ind, len+1:length(ind))
+    splice!(val, len+1:length(val))
 
     return ind, val
 end
@@ -1830,8 +1830,8 @@ function transform_row(prob::Prob, len::Integer, ind::Vector{Int32}, val::Vector
 
     len1 = @glpk_ccall transform_row Int32 (Ptr{Void}, Int32, Ptr{Int32}, Ptr{Float64}) prob.p len ind32p val64p
 
-    delete!(ind, len1+1:length(ind))
-    delete!(val, len1+1:length(val))
+    splice!(ind, len1+1:length(ind))
+    splice!(val, len1+1:length(val))
 
     return len1
 end
@@ -1859,8 +1859,8 @@ function transform_col(prob::Prob, len::Integer, ind::Vector{Int32}, val::Vector
 
     len1 = @glpk_ccall transform_col Int32 (Ptr{Void}, Int32, Ptr{Int32}, Ptr{Float64}) prob.p len ind32p val64p
 
-    delete!(ind, len1+1:length(ind))
-    delete!(val, len1+1:length(val))
+    splice!(ind, len1+1:length(ind))
+    splice!(val, len1+1:length(val))
 
     return len1
 end
