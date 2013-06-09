@@ -2,7 +2,7 @@
 # It is intended for use by the Package maintaners whenever the GLPK
 # version is updated.
 
-require("BinDeps")
+using BinDeps
 
 glpkvers = "4.48"
 glpkname = "glpk-$glpkvers"
@@ -11,7 +11,7 @@ glpkarchive = "$glpkname.tar.gz"
 CC = get(ENV, "CC", "cc")
 
 GLPK_CONST = "0x[0-9a-fA-F]+|[-+]?\\s*[0-9]+"
-PERL_CMD = "/^\\s*#define\\s+GLP_(\\w*)\\s*\\(?($GLPK_CONST)\\)?\\s*$$/ and print \"const $$1 = int32($$2)\""
+PERL_CMD = "/^\\s*#define\\s+GLP_(\\w*)\\s*\\(?($GLPK_CONST)\\)?\\s*\$/ and print \"const \$1 = convert(Cint, \$2)\""
 
 if !isfile("$glpkarchive")
     run(download_cmd("http://ftp.gnu.org/gnu/glpk/$glpkarchive", glpkarchive))
