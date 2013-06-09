@@ -115,7 +115,7 @@ This is the table relating C structs with Julia types:
 +---------------+----------------------------+
 | ``glp_tran``  | ``GLPK.MathProgWorkspace`` |
 +---------------+----------------------------+
-| ``glp_data``  | ``GLPK.Data``              |
+| ``glp_attr``  | ``GLPK.Attr``              |
 +---------------+----------------------------+
 
 Therefore, the original C GLPK API:
@@ -154,7 +154,7 @@ and they are automatically destroyed by the garbage collector when no longer nee
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 In all GLPK solver functions, like ``glp_simplex``, options are passed via structs. As stated before, these become
-composite object types in Julia; but instead of setting a field, like in C:
+composite object types in Julia, and no special syntax is required to access them. In C:
 
 .. code-block:: c
 
@@ -162,16 +162,29 @@ composite object types in Julia; but instead of setting a field, like in C:
     param.msg_lev = GLP_MSG_ERR;
     param.presolve = GLP_ON;
 
-in Julia one uses an array-like referencing syntax::
+In Julia::
+
+    param = GLPK.SimplexParam()
+    param.msg_lev = GLPK.MSG_ERR
+    param.presolve = GLPK.ON
+
+As a special case, since `type` is a reserved word in Julia, the `type` field of
+`glp_bfcp` has been renamed to `bftype`::
+
+    bf_opts = GLPK.BasisFactParam()
+    bf_opts.bftype = ...
+
+Additionally, parameters can be accessed via an array-like referencing syntax::
 
     param = GLPK.SimplexParam()
     param["msg_lev"]= GLPK.MSG_ERR
     param["presolve"] = GLPK.ON
 
 Note that the field names are passed as strings, and that all GLPK constants are available in Julia.
-Also note that no test is currently performed at assignment to check that the provided values are valid.
+Also note that no test is currently performed at assignment to check that the provided values are valid,
+but this may change in the future.
 
-This part of the API may change in the future.
+(This part of the API may change in the future.)
 
 
 4) scalar and array types translate in a natural way
@@ -182,13 +195,11 @@ The following C-to-Julia type conversion rules apply:
 +--------------+-------------+
 | C            | Julia       |
 +==============+=============+
-| ``int``      | ``Int32``   |
+| ``int``      | ``Cint``    |
 +--------------+-------------+
-| ``double``   | ``Float64`` |
+| ``double``   | ``Cdouble   |
 +--------------+-------------+
 | ``char[]``   | ``String``  |
-+--------------+-------------+
-| ``glp_long`` | ``Int64``   |
 +--------------+-------------+
 
 On output, these rules apply exactly. On input, on the other hand, Julia requirements are more relaxed:
@@ -197,8 +208,6 @@ On output, these rules apply exactly. On input, on the other hand, Julia require
 | C            | Julia       |
 +==============+=============+
 | ``int``      | ``Integer`` |
-+--------------+-------------+
-| ``glp_long`` | ``Integer`` |
 +--------------+-------------+
 | ``double``   | ``Real``    |
 +--------------+-------------+
@@ -210,7 +219,7 @@ unused element at the beginning of each array; in Julia you don't).
 The relaxed requirements for inputs are also valid for arrays (e.g. one can pass an ``Array{Int64}`` when an array
 of ``int`` is expected, and it will be converted automatically). The only exception is for functions which
 return an array of values by filling out an allocated array whose pointer is provided by the user.
-In that case, the strict version of the rules applies (i.e. you can only pass an ``Array{Int32}`` if an
+In that case, the strict version of the rules applies (i.e. you can only pass an ``Array{Cint}`` if an
 array of ``int`` is expected). Those functions almost always have an alternative, more convenient formulation
 as well, though.
 
@@ -220,7 +229,7 @@ as well, though.
 
 Whenever the C version accepts the value ``NULL`` to indicate an optional pointer argument, the Julia version
 accepts the constant ``nothing``. In case the optional pointer argument is an array, an empty array is
-also accepted (it can be of the expected type, e.g. ``Int32[]``, or even just ``[]``)
+also accepted (it can be of the expected type, e.g. ``Cint[]``, or even just ``[]``)
 Most of the time, alternative ways to call the function are also provided.
 
 
@@ -228,11 +237,29 @@ Most of the time, alternative ways to call the function are also provided.
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Whenever an invalid condition is detected (e.g. if you pass an invalid parameter, such as a negative length),
-the Julia GLPK wrapper throws a ``GLPK.Error`` exception with some message detailing what went wrong.
-Ideally, all invalid input combinations should be captured by Julia before being passed
-over to the library, so that all errors could be catched via a ``try ... catch`` block;
-in practice, it is likely that some conditions exist which will leak to the C API and break Julia: this should be
-considered as a bug (and reported as such).
+the Julia GLPK wrapper throws a ``GLPK.GLPKError`` exception with some message detailing what went wrong.
+With the default settings, all invalid input combinations should be captured by Julia before being passed
+over to the library, so that all errors could be catched via a ``try ... catch`` block; in practice, it is
+likely that some conditions exist which will leak to the C API: this should be considered as a bug
+(and reported as such).
+
+This behaviour can be modified, leaving to the C library to do the checking, by calling::
+
+    GLPK.jl_set_preemptive_check(false)
+
+In this case, if an error is catched within the C library, Julia will throw a ``GLPK.GLPKFatalError``
+exception. When this happens, all GLPK-related objects which were created up to that point become
+invalid and cannot be used any more.
+
+The status of the preemptive check can be obtained by::
+
+    GLPK.jl_get_preemptive_check()
+
+(With the default settings, this returns ``true``.)
+The validity of an object can be checked by::
+
+    GLPK.jl_obj_is_valid(object)
+
 
 .. _glpk-not-available:
 
@@ -240,21 +267,12 @@ considered as a bug (and reported as such).
 GLPK functions which are not avaliable yet in Julia
 ---------------------------------------------------
 
-In general, all parts of the GLPK API which rely on callback functions are not avaliable in Julia.
-In particular, you should not set the callback fields (``cb_func`` and ``cb_info``) in the ``GLPK.IntoptParam``
-type, unless you *really* know what you're doing.
+There are 4 groups of functions which are not wrapped:
 
-There are 5 groups of functions which are not wrapped:
+1. All graph and network routines (anything involving ``glp_graph`` objects); these will be added in the future
 
-1. The branch & cut API function for mixed integer programming, because they are supposed to be called from
-   within a callback (see chapter 5 in the GLPK manual); they all start with this prefix:
-
-   * ``glp_ios_*``
-
-2. All graph and network routines (anything involving ``glp_graph`` objects); these will be added in the future)
-
-3. Some misc functions which either have a variable argument list or involve callbacks (see section 6.1 in the GLPK
-   manual):
+2. Some misc functions which either have a variable argument list, or involve callbacks, or are implemented
+   as mcaros (see section 6.1 in the GLPK manual):
 
    * ``glp_printf``
    * ``glp_vprintf``
@@ -263,14 +281,7 @@ There are 5 groups of functions which are not wrapped:
    * ``glp_assert``
    * ``glp_error_hook``
 
-4. Some plain data file reading routines which involve long jumps / varargs (see section 6.2 in the GLPK manual):
-
-   * ``glp_sdf_set_jump``
-   * ``glp_sdf_error``
-   * ``glp_sdf_warning``
-
-
-5. One additional routine, which may be included in the future:
+3. One additional routine, which may be included in the future:
 
    * ``lpx_check_kkt``
 
@@ -287,6 +298,7 @@ pointless. There are 3 such functions:
 * ``GLPK.analyze_bound``
 * ``GLPK.analyze_coef``
 * ``GLPK.mem_usage``
+* ``GLPK.ios_tree_size``
 
 For example the C declaration for ``glp_analyze_bound`` is:
 
@@ -308,7 +320,7 @@ as pointers.
 Some other functions have both a strictly-compatible calling form, for simplifying C code porting,
 and some more convenient Julia counterparts. See :ref:`the list below <glpk-function-list>` for more details.
 
-One function has a different return value: ``GLPK.version`` returns a tuple of integer with the major and minor
+One function has a different return value: ``GLPK.version`` returns a tuple of integers with the major and minor
 version numbers, rather then a string.
 
 .. _glpk-function-list:
@@ -1017,6 +1029,182 @@ calling forms when available. Refer to the GLPK manual for a complete descriptio
     In Julia, this function has a different API then C. It returns
     ``(coef1, var1, value1, coef2, var2, value2)`` rather then taking them as pointers in the argument list.
 
+.. function:: ios_reason(tree)
+
+   (To be used from inside a callback passed via the ``cb_func`` field of a ``GLPK.IntoptParam`` object. ``tree``
+   is a ``Ptr{Void}`` which must be the same obtained by the callback.)
+
+   Returns a code which indicates why the callback is being called. Possible return values are: ``GLPK.ISELECT``,
+   ``GLPK.IPREPRO``, ``GLPK.IROWGEN``, ``GLPK.IHEUR``, ``GLPK.ICUTGEN``, ``GLPK.IBRANCH`` and ``GLPK.BINGO``.
+
+.. function:: ios_get_prob(tree)
+
+   (To be used from inside a callback passed via the ``cb_func`` field of a ``GLPK.IntoptParam`` object. ``tree``
+   is a ``Ptr{Void}`` which must be the same obtained by the callback.)
+
+   Returns a `GLPK.Prob` object used by the MIP solver. It is not the same object as the original, although it
+   will represent the same problem (i.e. wrap the same C structure) if the presolver was not used.
+
+.. function:: ios_row_attr(tree, row[, attr])
+
+   (To be used from inside a callback passed via the ``cb_func`` field of a ``GLPK.IntoptParam`` object. ``tree``
+   is a ``Ptr{Void}`` which must be the same obtained by the callback.)
+
+   Retrieves additional attributes of the given ``row`` for the current subproblem, storing it in a ``GLPK.Attr``
+   object (the object will be created and returned if not passed).
+
+.. function:: ios_mip_gap(tree)
+
+   (To be used from inside a callback passed via the ``cb_func`` field of a ``GLPK.IntoptParam`` object. ``tree``
+   is a ``Ptr{Void}`` which must be the same obtained by the callback.)
+
+   Computes the relative MIP gap (also called duality gap).
+
+.. function:: ios_node_data(tree, p)
+
+   (To be used from inside a callback passed via the ``cb_func`` field of a ``GLPK.IntoptParam`` object. ``tree``
+   is a ``Ptr{Void}`` which must be the same obtained by the callback.)
+
+   Retuns the memory block allocated for the subproblem whose reference number is ``p``.
+   
+
+.. function:: ios_select_node(tree, p)
+
+   (To be used from inside a callback passed via the ``cb_func`` field of a ``GLPK.IntoptParam`` object. ``tree``
+   is a ``Ptr{Void}`` which must be the same obtained by the callback.)
+
+   Used to select an active subproblem with reference number ``p`` in response to the reason ``GLPK.ISELECT``.
+
+.. function:: ios_heur_sol(tree, x)
+
+   (To be used from inside a callback passed via the ``cb_func`` field of a ``GLPK.IntoptParam`` object. ``tree``
+   is a ``Ptr{Void}`` which must be the same obtained by the callback.)
+
+   Used to provide an integer feasible solution ``x`` in response to the reason ``GLPK.IHEUR``.
+
+.. function:: ios_can_branch(tree, col)
+
+   (To be used from inside a callback passed via the ``cb_func`` field of a ``GLPK.IntoptParam`` object. ``tree``
+   is a ``Ptr{Void}`` which must be the same obtained by the callback.)
+
+   Returns non-zero if the given column can be branched upon, zero otherwise.
+
+.. function:: ios_branch_upon(tree, col, sel)
+
+   (To be used from inside a callback passed via the ``cb_func`` field of a ``GLPK.IntoptParam`` object. ``tree``
+   is a ``Ptr{Void}`` which must be the same obtained by the callback.)
+
+   Used to choose a branching variable (``col``) in response to the reason ``GLPK.IBRANCH``. ``sel`` is a flag
+   which must take a value from ``GLPK.DN_BRANCH``, ``GLPK.UP_BRANCH``, ``GLPK.NO_BRANCH``.
+
+.. function:: ios_terminate(tree)
+
+   (To be used from inside a callback passed via the ``cb_func`` field of a ``GLPK.IntoptParam`` object. ``tree``
+   is a ``Ptr{Void}`` which must be the same obtained by the callback.)
+
+   Terminates the search.
+
+.. function:: ios_tree_size(tree)
+
+   (To be used from inside a callback passed via the ``cb_func`` field of a ``GLPK.IntoptParam`` object. ``tree``
+   is a ``Ptr{Void}`` which must be the same obtained by the callback.)
+
+   Returns counts which characterize the size of the search tree.
+   In Julia, this function has a different API then C. It returns ``(a_cnt, n_cnt, t_cnt)`` rather
+   then taking them as pointers in the argument list.
+
+.. function:: ios_curr_node(tree)
+
+   (To be used from inside a callback passed via the ``cb_func`` field of a ``GLPK.IntoptParam`` object. ``tree``
+   is a ``Ptr{Void}`` which must be the same obtained by the callback.)
+
+   Returns the reference number of the current subproblem, or zero if the current subproblem does not exist.
+
+.. function:: ios_next_node(tree, p)
+
+   (To be used from inside a callback passed via the ``cb_func`` field of a ``GLPK.IntoptParam`` object. ``tree``
+   is a ``Ptr{Void}`` which must be the same obtained by the callback.)
+
+   Returns the reference number of the active subproblem next to ``p``, or the first one if ``p`` is zero, or zero if
+   no such subproblem exists.
+
+.. function:: ios_prev_node(tree, p)
+
+   (To be used from inside a callback passed via the ``cb_func`` field of a ``GLPK.IntoptParam`` object. ``tree``
+   is a ``Ptr{Void}`` which must be the same obtained by the callback.)
+
+   Returns the reference number of the active subproblem previous to ``p``, or the last one if ``p`` is zero, or zero if
+   no such subproblem exists.
+
+.. function:: ios_up_node(tree, p)
+
+   (To be used from inside a callback passed via the ``cb_func`` field of a ``GLPK.IntoptParam`` object. ``tree``
+   is a ``Ptr{Void}`` which must be the same obtained by the callback.)
+
+   Returns the reference number of the parent subproblem of ``p``, or zero if ``p`` is the root.
+
+.. function:: ios_node_level(tree, p)
+
+   (To be used from inside a callback passed via the ``cb_func`` field of a ``GLPK.IntoptParam`` object. ``tree``
+   is a ``Ptr{Void}`` which must be the same obtained by the callback.)
+
+   Returns the level of the subproblem ``p``.
+
+.. function:: ios_node_bound(tree, p)
+
+   (To be used from inside a callback passed via the ``cb_func`` field of a ``GLPK.IntoptParam`` object. ``tree``
+   is a ``Ptr{Void}`` which must be the same obtained by the callback.)
+
+   Returns the local bound for the subproblem ``p``.
+
+.. function:: ios_best_node(tree)
+
+   (To be used from inside a callback passed via the ``cb_func`` field of a ``GLPK.IntoptParam`` object. ``tree``
+   is a ``Ptr{Void}`` which must be the same obtained by the callback.)
+
+   Returns the reference number of the node with the best local bound, or zero if the tree is empty.
+
+.. function:: ios_pool_size(tree)
+
+   (To be used from inside a callback passed via the ``cb_func`` field of a ``GLPK.IntoptParam`` object. ``tree``
+   is a ``Ptr{Void}`` which must be the same obtained by the callback.)
+
+   Returns the current size of the cut pool.
+
+.. function:: ios_add_row(tree, [name,] klass, [flags, [len,]] ind, val, constr_type, rhs)
+
+   (To be used from inside a callback passed via the ``cb_func`` field of a ``GLPK.IntoptParam`` object. ``tree``
+   is a ``Ptr{Void}`` which must be the same obtained by the callback.)
+
+   Adds a row (cutting plane constant) to the cut pool. ``name`` is a string which can be assigned to
+   the constraint and can be also be ``nothing`` (meaning the empty string). ``klass`` specifies the constraint
+   class and can be either ``0`` or an integer between ``101`` and ``200``. ``flags`` must be ``0``.
+
+   The constraint is specified from the left hand side (``len``, ``ind`` and ``val``), the constraint type
+   (``constr_type``) and the right hand side (``rhs``).
+   The left hand side is a vector whose content is specified in sparse format: ``ind`` is a
+   vector of indices, ``val`` is the vector of corresponding values. ``len`` is the number of vector elements
+   which will be considered, and must be less or equal to the length of both ``ind`` and ``val``.
+   ``constr_type`` must be either ``GLPK.LO`` or ``GLPK.UP``. ``rhs`` is a scalar real number.
+
+   In Julia, some arguments are optional: ``len``, which if omitted is inferred from ``ind`` and ``val`` (which
+   need to have the same length in such case); ``flags`` which defaults to ``0``; ``name`` which defaults to
+   ``nothing``.
+
+.. function:: ios_del_row(tree, row)
+
+   (To be used from inside a callback passed via the ``cb_func`` field of a ``GLPK.IntoptParam`` object. ``tree``
+   is a ``Ptr{Void}`` which must be the same obtained by the callback.)
+
+   Delete the given row (cutting plane constraint) from the cut pool.
+
+.. function:: ios_clear_pool(tree)
+
+   (To be used from inside a callback passed via the ``cb_func`` field of a ``GLPK.IntoptParam`` object. ``tree``
+   is a ``Ptr{Void}`` which must be the same obtained by the callback.)
+
+   Makes the cut pool empty deleting all existing rows (cutting plane constraints) from it.
+
 .. function:: init_env()
 
     Initializes the GLPK environment. Not normally needed.
@@ -1082,48 +1270,6 @@ calling forms when available. Refer to the GLPK manual for a complete descriptio
 
     Limits the amount of memory avaliable for dynamic allocation to a value in megabyes given by the integer
     parameter ``limit``.
-
-.. function:: time()
-
-    Returns the current universal time (UTC), in milliseconds.
-
-.. function:: difftime(t1, t0)
-
-    Returns the difference between two time values ``t1`` and ``t0``, expressed in seconds.
-
-.. function:: sdf_open_file(filename)
-
-    Opens a plain data file.
-
-    If successful, returns a ``GLPK.Data`` object, otherwise throws an error.
-
-.. function:: sdf_read_int(glp_data)
-
-    Reads an integer number from the plain data file specified by the ``GLPK.Data`` parameter ``glp_data``, skipping initial
-    whitespace.
-
-.. function:: sdf_read_num(glp_data)
-
-    Reads a floating point number from the plain data file specified by the ``GLPK.Data`` parameter ``glp_data``, skipping initial
-    whitespace.
-
-.. function:: sdf_read_item(glp_data)
-
-    Reads a data item (a String) from the plain data file specified by the ``GLPK.Data`` parameter ``glp_data``, skipping initial
-    whitespace.
-
-.. function:: sdf_read_text(glp_data)
-
-    Reads a line of text from the plain data file specified by the ``GLPK.Data`` parameter ``glp_data``, skipping initial and final
-    whitespace.
-
-.. function:: sdf_line(glp_data)
-
-    Returns the current line in the ``GLPK.Data`` object ``glp_data``
-
-.. function:: sdf_close_file(glp_data)
-
-    Closes the file associated to ``glp_data`` and frees the resources.
 
 .. function:: read_cnfsat(glp_prob, filename)
 
