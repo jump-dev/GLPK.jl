@@ -197,7 +197,7 @@ The following C-to-Julia type conversion rules apply:
 +==============+=============+
 | ``int``      | ``Cint``    |
 +--------------+-------------+
-| ``double``   | ``Cdouble   |
+| ``double``   | ``Cdouble`` |
 +--------------+-------------+
 | ``char[]``   | ``String``  |
 +--------------+-------------+
@@ -293,7 +293,7 @@ Functions which differ from their C counterparts
 
 Some library functions return multiple values; as C cannot do this directly, this is obtained via some "pointer gymnastics".
 In Julia, on the other hand, this is not necessary, and providing an exact counterpart to the C version would be awkward and
-pointless. There are 3 such functions:
+pointless. There are 4 such functions:
 
 * ``GLPK.analyze_bound``
 * ``GLPK.analyze_coef``
@@ -314,7 +314,7 @@ which returns a tuple::
 
     julia> (limit1, var1, limit2, var2) = GLPK.analyze_bound(glp_prob, k)
     
-The other 2 functions work in the same way, by just returning the values which in C you would pass
+The other 3 functions work in the same way, by just returning the values which in C you would pass
 as pointers.
 
 Some other functions have both a strictly-compatible calling form, for simplifying C code porting,
