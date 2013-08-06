@@ -92,7 +92,7 @@ the prefix ``GLP_``. These prefixes are dropped in Julia, and the module prefix 
 instead. For example, the function ``glp_simplex`` becomes ``GLPK.simplex``, and the constant
 ``GLP_UP`` becomes ``GLPK.UP``.
 
-2) from C stucts to Julia objects
+2) from C structs to Julia objects
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 All structs in the original GLPK are wrapped up in composite types, which initialize and destroy themselves
