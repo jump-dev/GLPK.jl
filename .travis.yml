@@ -14,10 +14,10 @@ before_install:
     - git config --global user.email "travis@example.net"
 script:
     - julia -e "Pkg.init()"
-    - julia -e "Pkg.add(Pkg.VersionSet(\"BinDeps\", [VersionNumber(0,0,1)]))"
+    - julia -e "Pkg.add(\"BinDeps\", Pkg.VersionSet(v\"0.2.2\"))"
     - mkdir -p ~/.julia/GLPK
     - cp -R ./* ~/.julia/GLPK/
-    - julia ~/.julia/GLPK/deps/build.jl
+    - julia -e "Pkg.fixup(\"GLPK\")"
     - julia ~/.julia/GLPK/test/test.jl
 branches:
     except:
