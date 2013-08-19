@@ -186,9 +186,10 @@ import Base.pointer, Base.assign, Base.ref
 
 ## Shared library interface setup
 #{{{
-include("GLPK_constants.jl")
+using BinDeps
+@BinDeps.load_dependencies
 
-include(Pkg.dir("GLPK","deps","ext.jl"))
+include("GLPK_constants.jl")
 
 # General recoverable exception: all GLPK functions
 # throw this in case of recoverable errors
@@ -205,17 +206,17 @@ end
 # Error hook, used to catch internal errors when calling
 # GLPK functions
 function _err_hook(info::Ptr{Void})
-    ccall((:glp_error_hook, _jl_libGLPK), Void, (Ptr{Void}, Ptr{Void}), C_NULL, C_NULL)
-    ccall((:glp_free_env, _jl_libGLPK), Void, ())
+    ccall((:glp_error_hook, libglpk), Void, (Ptr{Void}, Ptr{Void}), C_NULL, C_NULL)
+    ccall((:glp_free_env, libglpk), Void, ())
     _del_all_objs()
     throw(GLPKFatalError("GLPK call failed. All GLPK objects you defined so far are now invalidated."))
 end
 
 macro glpk_ccall(f, args...)
     quote
-        ccall((:glp_error_hook, _jl_libGLPK), Void, (Ptr{Void}, Ptr{Void}), cfunction(_err_hook, Void, (Ptr{Void},)), C_NULL)
-        ret = ccall(($"glp_$(f)", _jl_libGLPK), $(args...))
-        ccall((:glp_error_hook, _jl_libGLPK), Void, (Ptr{Void}, Ptr{Void}), C_NULL, C_NULL)
+        ccall((:glp_error_hook, libglpk), Void, (Ptr{Void}, Ptr{Void}), cfunction(_err_hook, Void, (Ptr{Void},)), C_NULL)
+        ret = ccall(($"glp_$(f)", libglpk), $(args...))
+        ccall((:glp_error_hook, libglpk), Void, (Ptr{Void}, Ptr{Void}), C_NULL, C_NULL)
         ret
     end
 end

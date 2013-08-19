@@ -1,36 +1,17 @@
 using BinDeps
 
+@BinDeps.setup
+
 glpkvers = "4.48"
 glpkname = "glpk-$glpkvers"
-@unix_only glpkarchive = "$glpkname.tar.gz"
-@windows_only glpkarghive = "win$(glpkname).zip"
-glpkprefix = Pkg.dir("GLPK", "deps", "usr")
 
-tagfile = "installed_vers"
+glpkdep = library_dependency("libglpk", validate = ((name,handle)->(bytestring(ccall(dlsym(handle, :glp_version), Ptr{Uint8}, ())) == glpkvers)))
 
-if !isfile(tagfile) || readchomp(tagfile) != glpkvers
-    @unix_only begin
-        if !isfile("$glpkarchive")
-            run(download_cmd("http://ftp.gnu.org/gnu/glpk/$glpkarchive", glpkarchive))
-        end
-        run(unpack_cmd(glpkarchive, "."))
-        cd("$glpkname") do
-            run(`./configure --prefix=$glpkprefix --with-gmp --enable-dl`)
-            run(`make`)
-            run(`make check`)
-            run(`make install`)
-        end
-    end
+provides(Sources, {URI("http://ftp.gnu.org/gnu/glpk/$glpkname.tar.gz") => glpkdep}, os = :Unix)
+provides(Sources, {URI("http://downloads.sourceforge.net/project/winglpk/winglpk/GLPK-$glpkvers/win$glpkname.zip") => glpkdep}, os = :Windows)
 
-    @windows_only begin
-        error("sorry, Windows is currently unsupported by the GLPK module")
-        if !isfile("$glpkarchive")
-            run(download_cmd("http://ftp.gnu.org/gnu/glpk/$glpkarchive", glpkarchive))
-            run(download_cmd("http://downloads.sourceforge.net/project/winglpk/winglpk/GLPK-$glpkvers/$glpkarchive", glpkarchive))
-        end
-        run(`7z x $glpkarchive -y`)
-        # TODO move binaries to usr directory
-    end
+provides(BuildProcess, {
+    Autotools(libtarget = joinpath("src", ".libs", "libglpk.la"), configure_options = String["--with-gmp", "--enable-dl"]) => glpkdep
+    }, os = :Unix)
 
-    run(`echo $glpkvers` > tagfile)
-end
+@BinDeps.install
