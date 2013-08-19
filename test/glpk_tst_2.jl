@@ -14,8 +14,8 @@ function glpk_tst_2()
     GLPK.read_prob(lp, 0, joinpath(datadir, "sample.prob"))
     @test GLPK.simplex(lp) == 0
 
-    @test_fails GLPK.read_prob(lp, 0, joinpath(datadir, "plan.lp"))
-    @test_fails GLPK.write_prob(lp, 0, "") != 0
+    @test_throws GLPK.read_prob(lp, 0, joinpath(datadir, "plan.lp"))
+    @test_throws GLPK.write_prob(lp, 0, "") != 0
 
     filecopy = tempname()
 
@@ -28,13 +28,13 @@ function glpk_tst_2()
     end
 
     # test MPS format
-    @test_fails GLPK.read_mps(lp, GLPK.MPS_FILE, C_NULL, "nonexisting_file")
+    @test_throws GLPK.read_mps(lp, GLPK.MPS_FILE, C_NULL, "nonexisting_file")
 
     GLPK.read_mps(lp, GLPK.MPS_DECK, C_NULL, joinpath(datadir, "plan.mps"))
     @test GLPK.simplex(lp, nothing) == 0
 
-    @test_fails GLPK.read_mps(lp, GLPK.MPS_DECK, C_NULL, joinpath(datadir, "plan.lp"))
-    @test_fails GLPK.write_mps(lp, GLPK.MPS_FILE, C_NULL, "")
+    @test_throws GLPK.read_mps(lp, GLPK.MPS_DECK, C_NULL, joinpath(datadir, "plan.lp"))
+    @test_throws GLPK.write_mps(lp, GLPK.MPS_FILE, C_NULL, "")
 
     try
         GLPK.write_mps(lp, GLPK.MPS_FILE, C_NULL, filecopy)
@@ -45,13 +45,13 @@ function glpk_tst_2()
     end
 
     # Test LP format
-    @test_fails GLPK.read_lp(lp, C_NULL, "nonexisting_file")
+    @test_throws GLPK.read_lp(lp, C_NULL, "nonexisting_file")
 
     GLPK.read_lp(lp, C_NULL, joinpath(datadir, "plan.lp"))
     @test GLPK.simplex(lp) == 0
 
-    @test_fails GLPK.read_lp(lp, C_NULL, joinpath(datadir, "plan.mps"))
-    @test_fails GLPK.write_lp(lp, C_NULL, "")
+    @test_throws GLPK.read_lp(lp, C_NULL, joinpath(datadir, "plan.mps"))
+    @test_throws GLPK.write_lp(lp, C_NULL, "")
 
     try
         GLPK.write_lp(lp, C_NULL, filecopy)
