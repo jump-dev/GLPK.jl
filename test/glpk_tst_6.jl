@@ -1,7 +1,7 @@
 using Base.Test
 import GLPK
 
-function glpk_tst_7()
+function glpk_tst_6()
     datadir = joinpath(Pkg.dir(), "GLPK", "test", "data")
 
     prev_term_out = GLPK.term_out(GLPK.OFF)
@@ -87,4 +87,4 @@ function glpk_tst_7()
     GLPK.term_out(prev_term_out)
 end
 
-glpk_tst_7()
+glpk_tst_6()

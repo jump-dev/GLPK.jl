@@ -1,7 +1,7 @@
 using Base.Test
 import GLPK
 
-function glpk_tst_6()
+function glpk_tst_5()
     datadir = joinpath(Pkg.dir(), "GLPK", "test", "data")
 
     prev_term_out = GLPK.term_out(GLPK.OFF)
@@ -24,4 +24,4 @@ function glpk_tst_6()
     @test GLPK.intfeas1(lp, 0, 0) == 0
 end
 
-glpk_tst_6()
+glpk_tst_5()
