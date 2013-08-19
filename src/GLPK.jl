@@ -347,12 +347,17 @@ vecornothing_length(a::VecOrNothing) = is(a, nothing) ? 0 : length(a)
 type Prob
     p::Ptr{Void}
     function Prob(p::Ptr{Void})
-        if p == C_NULL
+        create = (p == C_NULL)
+        if create
             p = @glpk_ccall create_prob Ptr{Void} ()
         end
         prob = new(p)
         _add_obj(prob)
-        finalizer(prob, delete_prob)
+        if create
+            finalizer(prob, delete_prob)
+        else
+            finalizer(prob, _del_obj)
+        end
         return prob
     end
 end
