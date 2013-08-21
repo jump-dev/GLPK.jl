@@ -12,8 +12,16 @@ provides(Sources, {URI("http://downloads.sourceforge.net/project/winglpk/winglpk
 
 provides(Homebrew, {"https://raw.github.com/Homebrew/homebrew-science/master/glpk.rb" => glpkdep})
 
+julia_usrdir = normpath(JULIA_HOME*"/../") # This is a stopgap, we need a better builtin solution to get the included libraries
+libdirs = String["$(julia_usrdir)/lib"]
+includedirs = String["$(julia_usrdir)/include"]
+
 provides(BuildProcess, {
-    Autotools(libtarget = joinpath("src", ".libs", "libglpk.la"), configure_options = String["--with-gmp", "--enable-dl"]) => glpkdep
+    Autotools(libtarget = joinpath("src", ".libs", "libglpk.la"), 
+              # configure_options = String["--with-gmp", "--enable-dl"],
+              configure_options = String["--with-gmp"],
+              lib_dirs = libdirs, 
+              include_dirs = includedirs) => glpkdep
     }, os = :Unix)
 
 @BinDeps.install
