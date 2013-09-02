@@ -10,7 +10,14 @@ glpkdep = library_dependency("libglpk", validate = ((name,handle)->(bytestring(c
 provides(Sources, {URI("http://ftp.gnu.org/gnu/glpk/$glpkname.tar.gz") => glpkdep}, os = :Unix)
 provides(Sources, {URI("http://downloads.sourceforge.net/project/winglpk/winglpk/GLPK-$glpkvers/win$glpkname.zip") => glpkdep}, os = :Windows)
 
-provides(Homebrew, {"https://raw.github.com/Homebrew/homebrew-science/master/glpk.rb" => glpkdep})
+@osx_only begin
+  if( Pkg.installed("Homebrew") === nothing )
+    error("Homebrew package not installed, please run Pkg.add(\"Homebrew\")")
+  else
+    using Homebrew
+    provides( Homebrew.HB, "glpk", glpkdep, os = :Darwin )
+  end
+end
 
 julia_usrdir = normpath(JULIA_HOME*"/../") # This is a stopgap, we need a better builtin solution to get the included libraries
 libdirs = String["$(julia_usrdir)/lib"]
