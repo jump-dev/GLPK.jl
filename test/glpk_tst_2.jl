@@ -7,6 +7,7 @@ function glpk_tst_2()
     prev_term_out = GLPK.term_out(GLPK.OFF)
 
     datadir = joinpath(Pkg.dir(), "GLPK", "test", "data")
+    isdir(datadir) || (datadir = joinpath(Pkg.dir(), "GLPK.jl", "test", "data"))
 
     lp = GLPK.Prob()
 
@@ -22,9 +23,7 @@ function glpk_tst_2()
     try
         GLPK.write_prob(lp, 0, filecopy)
     finally
-        if isfile(filecopy)
-            rm(filecopy)
-        end
+        isfile(filecopy) && rm(filecopy)
     end
 
     # test MPS format
@@ -39,9 +38,7 @@ function glpk_tst_2()
     try
         GLPK.write_mps(lp, GLPK.MPS_FILE, C_NULL, filecopy)
     finally
-        if isfile(filecopy)
-            rm(filecopy)
-        end
+        isfile(filecopy) && rm(filecopy)
     end
 
     # Test LP format
@@ -56,9 +53,7 @@ function glpk_tst_2()
     try
         GLPK.write_lp(lp, C_NULL, filecopy)
     finally
-        if isfile(filecopy)
-            rm(filecopy)
-        end
+        isfile(filecopy) && rm(filecopy)
     end
     
     GLPK.term_out(prev_term_out)
