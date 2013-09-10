@@ -20,8 +20,8 @@ function glpk_tst_6()
 
     function cb_callback(tree::Ptr{Void}, info::Ptr{Void})
         reason = GLPK.ios_reason(tree)
-        @test contains([GLPK.ISELECT, GLPK.IPREPRO, GLPK.IROWGEN, GLPK.IHEUR,
-                      GLPK.ICUTGEN, GLPK.IBRANCH, GLPK.IBINGO], reason)
+        @test reason in [GLPK.ISELECT, GLPK.IPREPRO, GLPK.IROWGEN, GLPK.IHEUR,
+                         GLPK.ICUTGEN, GLPK.IBRANCH, GLPK.IBINGO]
 
         prob = GLPK.ios_get_prob(tree)
 
