@@ -478,7 +478,7 @@ end
 
 function _reason(tree::Ptr{Void}, allowed::Vector{Cint})
     reason = @glpk_ccall ios_reason Cint (Ptr{Void},) tree
-    if !contains(allowed, reason)
+    if !(reason in allowed)
         throw(GLPKError("callback operation not allowed at current stage"))
     end
     return true
@@ -503,7 +503,7 @@ function _ios_node_is_valid(tree::Ptr{Void}, node::Integer)
             return true
         end
         p = n
-        while !contains(valid_nodes, p)
+        while !(p in valid_nodes)
             push!(valid_nodes, p)
             p = @glpk_ccall ios_up_node Cint (Ptr{Void}, Cint) tree p
             if p == 0
