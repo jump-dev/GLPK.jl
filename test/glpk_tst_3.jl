@@ -7,6 +7,7 @@ function glpk_tst_3()
     prev_term_out = GLPK.term_out(GLPK.OFF)
 
     datadir = joinpath(Pkg.dir(), "GLPK", "test", "data")
+    isdir(datadir) || (datadir = joinpath(Pkg.dir(), "GLPK.jl", "test", "data"))
 
     lp = GLPK.Prob()
     tran = GLPK.MathProgWorkspace()
@@ -17,9 +18,7 @@ function glpk_tst_3()
     try
         GLPK.mpl_generate(tran, outfile)
     finally
-        if isfile(outfile)
-            rm(outfile)
-        end
+        isfile(outfile) && rm(outfile)
     end
     GLPK.mpl_build_prob(tran, lp)
 

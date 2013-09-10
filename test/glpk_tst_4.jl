@@ -17,6 +17,7 @@ function glpk_tst_4()
     prev_term_out = GLPK.term_out(GLPK.OFF)
 
     datadir = joinpath(Pkg.dir(), "GLPK", "test", "data")
+    isdir(datadir) || (datadir = joinpath(Pkg.dir(), "GLPK.jl", "test", "data"))
 
     mip = GLPK.Prob()
     tran = GLPK.MathProgWorkspace()
@@ -152,48 +153,36 @@ function glpk_tst_4()
     sol_plain = tempname()
 
     try
-        GLPK.print_sol(mip, "sol_printable.txt")
-        GLPK.write_sol(mip, "sol.txt")
-        GLPK.read_sol(mip, "sol.txt")
+        GLPK.print_sol(mip, sol_printable)
+        GLPK.write_sol(mip, sol_plain)
+        GLPK.read_sol(mip, sol_plain)
     finally
-        if isfile(sol_printable)
-            rm(sol_printable)
-        end
-        if isfile(sol_plain)
-            rm(sol_plain)
-        end
+        isfile(sol_printable) && rm(sol_printable)
+        isfile(sol_plain) && rm(sol_plain)
     end
 
     ipt_printable = tempname()
     ipt_plain = tempname()
 
     try
-        GLPK.print_ipt(mip, "ipt_printable.txt")
-        GLPK.write_ipt(mip, "ipt.txt")
-        GLPK.read_ipt(mip, "ipt.txt")
+        GLPK.print_ipt(mip, ipt_printable)
+        GLPK.write_ipt(mip, ipt_plain)
+        GLPK.read_ipt(mip, ipt_plain)
     finally
-        if isfile(ipt_printable)
-            rm(ipt_printable)
-        end
-        if isfile(ipt_plain)
-            rm(ipt_plain)
-        end
+        isfile(ipt_printable) && rm(ipt_printable)
+        isfile(ipt_plain) && rm(ipt_plain)
     end
 
     mip_printable = tempname()
     mip_plain = tempname()
 
     try
-        GLPK.print_mip(mip, "mip_printable.txt")
-        GLPK.write_mip(mip, "mip.txt")
-        GLPK.read_mip(mip, "mip.txt")
+        GLPK.print_mip(mip, mip_printable)
+        GLPK.write_mip(mip, mip_plain)
+        GLPK.read_mip(mip, mip_plain)
     finally
-        if isfile(mip_printable)
-            rm(mip_printable)
-        end
-        if isfile(mip_plain)
-            rm(mip_plain)
-        end
+        isfile(mip_printable) && rm(mip_printable)
+        isfile(mip_plain) && rm(mip_plain)
     end
 
     tee_out = tempname()
@@ -201,9 +190,7 @@ function glpk_tst_4()
         GLPK.open_tee(tee_out)
         GLPK.close_tee()
     finally
-        if isfile(tee_out)
-            rm(tee_out)
-        end
+        isfile(tee_out) && rm(tee_out)
     end
 
     GLPK.term_out(prev_term_out)

@@ -3,6 +3,7 @@ import GLPK
 
 function glpk_tst_6()
     datadir = joinpath(Pkg.dir(), "GLPK", "test", "data")
+    isdir(datadir) || (datadir = joinpath(Pkg.dir(), "GLPK.jl", "test", "data"))
 
     prev_term_out = GLPK.term_out(GLPK.OFF)
 

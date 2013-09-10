@@ -3,6 +3,7 @@ import GLPK
 
 function glpk_tst_5()
     datadir = joinpath(Pkg.dir(), "GLPK", "test", "data")
+    isdir(datadir) || (datadir = joinpath(Pkg.dir(), "GLPK.jl", "test", "data"))
 
     prev_term_out = GLPK.term_out(GLPK.OFF)
 
@@ -13,11 +14,9 @@ function glpk_tst_5()
     GLPK.check_cnfsat(lp)
     cnfcopy = joinpath(datadir, "sat_tst-copy.cnf")
     try
-        GLPK.write_cnfsat(lp, "sat_tst.cnf")
+        GLPK.write_cnfsat(lp, cnfcopy)
     finally
-        if isfile(cnfcopy)
-            rm(cnfcopy)
-        end
+        isfile(cnfcopy) && rm(cnfcopy)
     end
     @test GLPK.minisat1(lp) == 0
 
