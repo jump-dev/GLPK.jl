@@ -16,12 +16,12 @@ PERL_CMD = "/^\\s*#define\\s+GLP_(\\w*)\\s*\\(?($GLPK_CONST)\\)?\\s*\$/ and prin
 if !isfile("$glpkarchive")
     run(download_cmd("http://ftp.gnu.org/gnu/glpk/$glpkarchive", glpkarchive))
 end
-run(unpack_cmd(glpkarchive, "."))
+run(`tar xzf $glpkarchive`)
 
 glpkheader = joinpath(glpkname, "src", "glpk.h")
 
 glpk_h_jl = joinpath("..", "src", "GLPK_constants.jl")
-run(`$CC -E -dM $glpkheader` | `perl -nle $PERL_CMD` | (`sort` > glpk_h_jl))
+run(`$CC -E -dM $glpkheader` |> `perl -nle $PERL_CMD` |> `sort` |> glpk_h_jl)
 
 run(`rm -fr $glpkname`)
 rm(glpkarchive)
