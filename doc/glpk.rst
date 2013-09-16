@@ -10,23 +10,29 @@ It is designed for making it easy to port C code to Julia, while at the same tim
 benefits of the higher level language features of Julia, like the automatic management of memory, the possibility
 of returning tuples/strings/vectors etc.
 
-It's currently based on GLPK version 4.47.
+It's currently based on GLPK version 4.48.
+
+At the moment, only Unix platforms (Linux, OS X, BDS's etc) are fully supported.
+On Windows, you may be able to use this package if you install manually the GLPK library in your system.
 
 ------------
 Installation
 ------------
 
-To install the module, you will need to make sure that you have libgmp and libltdl3 headers installed. For
-example, on Ubuntu you can issue on the command line::
-
-    $ sudo apt-get install libgmp-dev libltdl3-dev
-
-to install them.
-
-After that, the module can be installed via Julia's package manager::
+The module can be installed via Julia's package manager::
 
     julia> Pkg.add("GLPK")
 
+The package manager will try to find the correct version of the GLPK library in the system;
+if it doesn't find it, it will install it.
+
+On Linux and BSD, this means that it will download the source files and compile the library.
+
+On OS X, this means that it will need the `Homebrew <https://github.com/staticfloat/Homebrew.jl>`_
+package, and it will download a precompiled binary.
+
+On Windows, no automated installation step is currently available; you'll need to install the library
+manually before adding the package.
 
 --------
 Preamble
