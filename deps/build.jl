@@ -2,7 +2,7 @@ using BinDeps
 
 @BinDeps.setup
 
-glpkvers = "4.48"
+glpkvers = "4.52"
 glpkname = "glpk-$glpkvers"
 
 glpkdep = library_dependency("libglpk", validate = ((name,handle)->(bytestring(ccall(dlsym(handle, :glp_version), Ptr{Uint8}, ())) == glpkvers)))

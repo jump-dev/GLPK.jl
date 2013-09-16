@@ -102,6 +102,7 @@ export
     mip_obj_val,
     mip_row_val,
     mip_col_val,
+    check_kkt,
     read_mps,
     write_mps,
     read_lp,
@@ -182,7 +183,7 @@ export
     intfeas1
 #}}}
 
-import Base.pointer, Base.assign, Base.ref
+import Base.pointer, Base.setindex!, Base.getindex
 
 ## Shared library interface setup
 #{{{
@@ -261,7 +262,7 @@ end
 
 abstract Param
 
-function assign{T<:Param}(param::T, val, field_name::String)
+function setindex!{T<:Param}(param::T, val, field_name::String)
     s = symbol(field_name)
     i = findfirst(x->x==s, T.names)
     if i == 0
@@ -271,7 +272,7 @@ function assign{T<:Param}(param::T, val, field_name::String)
     param.(s) = convert(t,val)
 end
 
-function ref(param::Param, field_name::String)
+function getindex(param::Param, field_name::String)
     param.(symbol(field_name))
 end
 
@@ -516,6 +517,10 @@ type IntoptParam <: Param
     presolve::Cint
     binarize::Cint
     fp_heur::Cint
+    ps_heur::Cint
+    ps_tm_lim::Cint
+    use_sol::Cint
+    save_sol::Ptr{Cchar}
     alien::Cint
     _reserved01::Cdouble
     _reserved02::Cdouble
@@ -542,10 +547,6 @@ type IntoptParam <: Param
     _reserved23::Cdouble
     _reserved24::Cdouble
     _reserved25::Cdouble
-    _reserved26::Cdouble
-    _reserved27::Cdouble
-    _reserved28::Cdouble
-    _reserved29::Cdouble
 
     function IntoptParam()
         p = new()
@@ -1393,8 +1394,24 @@ function mip_col_val(prob::Prob, col::Integer)
     @glpk_ccall mip_col_val Cdouble (Ptr{Void}, Cint) prob.p col
 end
 
-#TODO
-#function lpx_check_kkt(prob::Prob, scaled::Integer, kkt)
+function check_kkt(prob::Prob, sol, cond, ae_max, ae_ind, re_max, re_ind)
+    error("unsupported. Use GLPK.check_kkt(prob, sol, cond) instead.")
+end
+
+function check_kkt(prob::Prob, sol::Integer, cond::Integer)
+    @check! _prob(prob)
+    @check _sol_param(sol)
+    @check _kkt_cond_param(cond, sol)
+
+    ae_max = Array(Cdouble, 1)
+    ae_ind = Array(Cint, 1)
+    re_max = Array(Cdouble, 1)
+    re_ind = Array(Cint, 1)
+
+    @glpk_ccall check_kkt Void (Ptr{Void}, Cint, Cint, Ptr{Cdouble}, Ptr{Cint}, Ptr{Cdouble}, Ptr{Cint}) prob.p sol cond pointer(ae_max) pointer(ae_ind) pointer(re_max) pointer(re_ind)
+
+    return ae_max[1], ae_ind[1], re_max[1], re_ind[1]
+end
 
 function read_mps(prob::Prob, format::Integer, param, filename::String)
     @check! _prob(prob)
@@ -1519,7 +1536,7 @@ end
 function mpl_postsolve(tran::MathProgWorkspace, prob::Prob, sol::Integer)
     @check! _mpl_workspace(tran)
     @check! _prob(prob)
-    @check _mpl_postsolve_param(sol)
+    @check _sol_param(sol)
     ret = @glpk_ccall mpl_postsolve Cint (Ptr{Void}, Ptr{Void}, Cint) tran.p prob.p sol
     @check! _succeeded(ret, "mpl_postsolve")
     return ret
@@ -2214,13 +2231,13 @@ end
 
 function malloc(size::Integer)
     @check _alloc_size(size)
-    @glpk_ccall malloc Ptr{Void} (Cint,) size
+    @glpk_ccall alloc Ptr{Void} (Cint, Cint) 1 size
 end
 
 function calloc(n::Integer, size::Integer)
     @check _alloc_size(n)
     @check _alloc_size(size)
-    @glpk_ccall calloc Ptr{Void} (Cint, Cint) n size
+    @glpk_ccall alloc Ptr{Void} (Cint, Cint) n size
 end
 
 function free(ptr::Ptr)

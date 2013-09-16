@@ -381,6 +381,16 @@ function _succeeded(ret::Integer, msg::String)
     return true
 end
 
+function _kkt_cond_param(cond::Integer, sol::Integer)
+    if !(cond in [KKT_PE, KKT_PB, KKT_DE, KKT_DB])
+        throw(GLPKError("invalid cond parameter $cond (use GLPK.KKT_PE, GLPK.KKT_PB, GLPK.KKT_DE or GLPK.KKT_DB)"))
+    end
+    if sol != IPT && cond in [KKT_DE, KKT_DB]
+        throw(GLPKError("invalid cond parameter $cond used with sol parameter $sol (use GLPK.KKT_PE or GLPK.KKT_PB)"))
+    end
+    return true
+end
+
 function _mps_format(format::Integer)
     if (format != MPS_DECK &&
         format != MPS_FILE)
@@ -431,7 +441,7 @@ function _mpl_workspace(tran::MathProgWorkspace)
     return true
 end
 
-function _mpl_postsolve_param(sol::Integer)
+function _sol_param(sol::Integer)
     if !(sol == SOL || sol == IPT || sol == MIP)
         throw(GLPKError("invalid parameter sol $sol (use GLPK.SOL, GLPK.IPT or GLPK.MIP)"))
     end

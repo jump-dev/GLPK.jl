@@ -4,7 +4,7 @@
 
 using BinDeps
 
-glpkvers = "4.48"
+glpkvers = "4.52"
 glpkname = "glpk-$glpkvers"
 glpkarchive = "$glpkname.tar.gz"
 

@@ -10,7 +10,7 @@ It is designed for making it easy to port C code to Julia, while at the same tim
 benefits of the higher level language features of Julia, like the automatic management of memory, the possibility
 of returning tuples/strings/vectors etc.
 
-It's currently based on GLPK version 4.48.
+It's currently based on GLPK version 4.52.
 
 At the moment, only Unix platforms (Linux, OS X, BDS's etc) are fully supported.
 On Windows, you may be able to use this package if you install manually the GLPK library in your system.
@@ -273,7 +273,7 @@ The validity of an object can be checked by::
 GLPK functions which are not avaliable yet in Julia
 ---------------------------------------------------
 
-There are 4 groups of functions which are not wrapped:
+There are 2 groups of functions which are not wrapped:
 
 1. All graph and network routines (anything involving ``glp_graph`` objects); these will be added in the future
 
@@ -287,10 +287,6 @@ There are 4 groups of functions which are not wrapped:
    * ``glp_assert``
    * ``glp_error_hook``
 
-3. One additional routine, which may be included in the future:
-
-   * ``lpx_check_kkt``
-
 .. _glpk-different-than-C:
 
 ------------------------------------------------
@@ -299,12 +295,13 @@ Functions which differ from their C counterparts
 
 Some library functions return multiple values; as C cannot do this directly, this is obtained via some "pointer gymnastics".
 In Julia, on the other hand, this is not necessary, and providing an exact counterpart to the C version would be awkward and
-pointless. There are 4 such functions:
+pointless. There are 5 such functions:
 
 * ``GLPK.analyze_bound``
 * ``GLPK.analyze_coef``
 * ``GLPK.mem_usage``
 * ``GLPK.ios_tree_size``
+* ``GLPK.check_kkt``
 
 For example the C declaration for ``glp_analyze_bound`` is:
 
@@ -320,7 +317,7 @@ which returns a tuple::
 
     julia> (limit1, var1, limit2, var2) = GLPK.analyze_bound(glp_prob, k)
     
-The other 3 functions work in the same way, by just returning the values which in C you would pass
+The other 4 functions work in the same way, by just returning the values which in C you would pass
 as pointers.
 
 Some other functions have both a strictly-compatible calling form, for simplifying C code porting,
@@ -758,6 +755,15 @@ calling forms when available. Refer to the GLPK manual for a complete descriptio
 .. function:: mip_col_val(glp_prob, col)
 
     Returns the value of the specified column for the MIP solution.
+
+.. function:: check_kkt(glp_prob, sol, cond)
+
+    Checks feasibility/optimality conditions for the current solution stored in the given problem. ``sol`` specifies what solution should be checked: either ``GLPK.SOL`` (basic), ``GLPK.IPT`` (interior point) or ``GLPK.MIP`` (mixed integer). ``cond`` specifies which condition should be checked: either ``GLPK.KKT_PE`` (primal equality), ``GLPK.KKT_PB`` (primal bound), ``GLPK.KKT_DE`` (dual equality, interior point only) or ``GLPK.KKT_DB`` (dual bound, interior point only).
+
+    In Julia, this function has a different API then C. It returns ``(ae_max, ae_ind, re_max, re_ind)`` rather
+    then taking them as pointers in the argument list.
+
+    The meaning of the returned parameters is as follows: ``ae_max`` (largest absolute error), ``ae_ind`` (index of the above), ``re_max`` (largest relative error) and ``re_ind`` (index of the above). The indices refer to a row, column or variable depending on the value of ``cond`` (``KKT_PE``, ``KKT_DE`` or ``KKT_*B``, respectively).
 
 .. function:: read_mps(glp_prob, format, [param,] filename)
 
