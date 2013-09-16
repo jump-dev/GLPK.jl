@@ -178,6 +178,13 @@ function glpk_tst_1()
     @test GLPK.get_dual_stat(lp) == GLPK.FEAS
     @test GLPK.get_unbnd_ray(lp) == 0
 
+    ae_max, ae_ind, re_max, re_ind = GLPK.check_kkt(lp, GLPK.SOL, GLPK.KKT_PE)
+    @test ae_max == 0 ? (ae_ind == 0) : (1 <= ae_ind <= GLPK.get_num_rows(lp))
+    @test re_max == 0 ? (re_ind == 0) : (1 <= re_ind <= GLPK.get_num_rows(lp))
+    ae_max, ae_ind, re_max, re_ind = GLPK.check_kkt(lp, GLPK.SOL, GLPK.KKT_PB)
+    @test ae_max == 0 ? (ae_ind == 0) : (1 <= ae_ind <= GLPK.get_num_rows(lp) + GLPK.get_num_cols(lp))
+    @test re_max == 0 ? (re_ind == 0) : (1 <= re_ind <= GLPK.get_num_rows(lp) + GLPK.get_num_cols(lp))
+
     # solve again, using simplex with exact arithmetics
     flag = GLPK.exact(lp, param)
 
@@ -187,6 +194,13 @@ function glpk_tst_1()
     @test GLPK.get_prim_stat(lp) == GLPK.FEAS
     @test GLPK.get_dual_stat(lp) == GLPK.FEAS
     @test GLPK.get_unbnd_ray(lp) == 0
+
+    ae_max, ae_ind, re_max, re_ind = GLPK.check_kkt(lp, GLPK.SOL, GLPK.KKT_PE)
+    @test ae_max == 0 ? (ae_ind == 0) : (1 <= ae_ind <= GLPK.get_num_rows(lp))
+    @test re_max == 0 ? (re_ind == 0) : (1 <= re_ind <= GLPK.get_num_rows(lp))
+    ae_max, ae_ind, re_max, re_ind = GLPK.check_kkt(lp, GLPK.SOL, GLPK.KKT_PB)
+    @test ae_max == 0 ? (ae_ind == 0) : (1 <= ae_ind <= GLPK.get_num_rows(lp) + GLPK.get_num_cols(lp))
+    @test re_max == 0 ? (re_ind == 0) : (1 <= re_ind <= GLPK.get_num_rows(lp) + GLPK.get_num_cols(lp))
 
     # verify results
     tol = 1e-10
@@ -227,6 +241,19 @@ function glpk_tst_1()
     @test GLPK.get_prim_stat(lp) == GLPK.FEAS
     @test GLPK.get_dual_stat(lp) == GLPK.FEAS
     @test GLPK.get_unbnd_ray(lp) == 0
+
+    ae_max, ae_ind, re_max, re_ind = GLPK.check_kkt(lp, GLPK.IPT, GLPK.KKT_PE)
+    @test ae_max == 0 ? (ae_ind == 0) : (1 <= ae_ind <= GLPK.get_num_rows(lp))
+    @test re_max == 0 ? (re_ind == 0) : (1 <= re_ind <= GLPK.get_num_rows(lp))
+    ae_max, ae_ind, re_max, re_ind = GLPK.check_kkt(lp, GLPK.IPT, GLPK.KKT_PB)
+    @test ae_max == 0 ? (ae_ind == 0) : (1 <= ae_ind <= GLPK.get_num_rows(lp) + GLPK.get_num_cols(lp))
+    @test re_max == 0 ? (re_ind == 0) : (1 <= re_ind <= GLPK.get_num_rows(lp) + GLPK.get_num_cols(lp))
+    ae_max, ae_ind, re_max, re_ind = GLPK.check_kkt(lp, GLPK.IPT, GLPK.KKT_DE)
+    @test ae_max == 0 ? (ae_ind == 0) : (1 <= ae_ind - GLPK.get_num_rows(lp) <= GLPK.get_num_cols(lp))
+    @test re_max == 0 ? (re_ind == 0) : (1 <= re_ind - GLPK.get_num_rows(lp) <= GLPK.get_num_cols(lp))
+    ae_max, ae_ind, re_max, re_ind = GLPK.check_kkt(lp, GLPK.IPT, GLPK.KKT_DB)
+    @test ae_max == 0 ? (ae_ind == 0) : (1 <= ae_ind <= GLPK.get_num_rows(lp) + GLPK.get_num_cols(lp))
+    @test re_max == 0 ? (re_ind == 0) : (1 <= re_ind <= GLPK.get_num_rows(lp) + GLPK.get_num_cols(lp))
 
     # verify results
     tol = 1e-10
