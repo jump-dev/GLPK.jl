@@ -17,10 +17,11 @@ function glpk_tst_3()
     outfile = tempname()
     try
         GLPK.mpl_generate(tran, outfile)
+        GLPK.mpl_build_prob(tran, lp)
+        GLPK.mpl_free_wksp(tran)
     finally
         isfile(outfile) && rm(outfile)
     end
-    GLPK.mpl_build_prob(tran, lp)
 
     @test GLPK.simplex(lp) == 0
 

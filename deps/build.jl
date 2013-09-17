@@ -37,9 +37,8 @@ end
 glpklibdir = BinDeps.libdir(glpkdep)
 glpksrcdir = BinDeps.srcdir(glpkdep)
 glpkdownloadsdir = BinDeps.downloadsdir(glpkdep)
-println(glpksrcdir)
 glpkdlldir = joinpath(glpksrcdir, glpkname, "w$WORD_SIZE")
-provides(SimpleBuild,
+provides(BuildProcess,
     (@build_steps begin
         FileDownloader("http://downloads.sourceforge.net/project/winglpk/winglpk/GLPK-$glpkvers/win$glpkname.zip",
                        joinpath(glpkdownloadsdir, "win$glpkname.zip"))
@@ -55,4 +54,8 @@ provides(SimpleBuild,
         end
     end), glpkdep, os = :Windows)
 
+@windows_only push!(BinDeps.defaults, BuildProcess)
+
 @BinDeps.install
+
+@windows_only pop!(BinDeps.defaults)
