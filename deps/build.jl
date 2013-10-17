@@ -5,8 +5,8 @@ using BinDeps
 glpkvers = "4.52"
 glpkname = "glpk-$glpkvers"
 glpkdllname = "glpk_$(replace(glpkvers, ".", "_"))"
-glpkdllname32 = "32$glpkdllname"
-glpkdllname64 = "64$glpkdllname"
+glpkdllname32 = "$(glpkdllname)_32bit"
+glpkdllname64 = "$(glpkdllname)_64bit"
 
 glpkvalidate(name, handle) = (bytestring(ccall(dlsym(handle, :glp_version), Ptr{Uint8}, ())) == glpkvers)
 glpkdep = library_dependency("libglpk", aliases = (WORD_SIZE == 32 ? [glpkdllname32] : [glpkdllname64]), validate = glpkvalidate)
