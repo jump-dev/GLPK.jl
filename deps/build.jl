@@ -5,11 +5,10 @@ using BinDeps
 glpkvers = "4.52"
 glpkname = "glpk-$glpkvers"
 glpkdllname = "glpk_$(replace(glpkvers, ".", "_"))"
-glpkdllname32 = "$(glpkdllname)_32bit"
-glpkdllname64 = "$(glpkdllname)_64bit"
+glpkdllnamew(w) = "$(glpkdllname)_$(w)bit"
 
 glpkvalidate(name, handle) = (bytestring(ccall(dlsym(handle, :glp_version), Ptr{Uint8}, ())) == glpkvers)
-glpkdep = library_dependency("libglpk", aliases = (WORD_SIZE == 32 ? [glpkdllname32] : [glpkdllname64]), validate = glpkvalidate)
+glpkdep = library_dependency("libglpk", aliases = [glpkdllnamew(WORD_SIZE)], validate = glpkvalidate)
 
 # Build from sources (used by Linux, BSD)
 julia_usrdir = normpath("$JULIA_HOME/../") # This is a stopgap, we need a better builtin solution to get the included libraries
@@ -35,29 +34,23 @@ end
 glpklibdir = BinDeps.libdir(glpkdep)
 glpksrcdir = BinDeps.srcdir(glpkdep)
 glpkdownloadsdir = BinDeps.downloadsdir(glpkdep)
-glpkdlldir32 = joinpath(glpksrcdir, glpkname, "w32")
-glpkdlldir64 = joinpath(glpksrcdir, glpkname, "w64")
-glpkdest32 = joinpath(glpklibdir, "$glpkdllname32.dll")
-glpkdest64 = joinpath(glpklibdir, "$glpkdllname64.dll")
+glpkdlldirw(w) = joinpath(glpksrcdir, glpkname, "w$w")
+glpkdestw(w) = joinpath(glpklibdir, "$(glpkdllnamew(w)).dll")
 provides(BuildProcess,
     (@build_steps begin
         FileDownloader("http://downloads.sourceforge.net/project/winglpk/winglpk/GLPK-$glpkvers/win$glpkname.zip",
                        joinpath(glpkdownloadsdir, "win$glpkname.zip"))
         CreateDirectory(glpksrcdir, true)
         FileUnpacker(joinpath(glpkdownloadsdir, "win$glpkname.zip"),
-                     glpksrcdir, glpkdlldir32)
+                     glpksrcdir, glpkdlldirw(32))
         CreateDirectory(glpklibdir, true)
-        @build_steps begin
-            ChangeDirectory(glpkdlldir32)
-            FileRule(glpkdest32, @build_steps begin
-                `cp $(glpkdllname).dll $(glpkdest32)`
-            end)
-        end
-        @build_steps begin
-            ChangeDirectory(glpkdlldir64)
-            FileRule(glpkdest64, @build_steps begin
-                `cp $(glpkdllname).dll $(glpkdest64)`
-            end)
+        for w in (32,64)
+            @build_steps begin
+                ChangeDirectory(glpkdlldirw(w))
+                FileRule(glpkdestw(w), @build_steps begin
+                    `cp $(glpkdllname).dll $(glpkdestw(w))`
+                end)
+            end
         end
     end), glpkdep, os = :Windows)
 
