@@ -59,7 +59,7 @@ function glpk_tst_4()
         @test_throws GLPK.get_col_bind(mip, -1)
     end
 
-    x = randn(int64(rows))
+    x = randn(int(rows))
     GLPK.ftran(mip, x)
     GLPK.btran(mip, x)
 
@@ -91,17 +91,17 @@ function glpk_tst_4()
     end
 
     for i = 1:100
-        ia, ja, val = findnz(sprand(int64(cols), 1, 0.5))
+        ia, ja, val = findnz(sprand(int(cols), 1, 0.5))
         GLPK.transform_row(mip, int32(ia), val)
     end
 
     for i = 1:100
-        ia, ja, val = findnz(sprand(int64(rows), 1, 0.5))
+        ia, ja, val = findnz(sprand(int(rows), 1, 0.5))
         GLPK.transform_col(mip, int32(ia), val)
     end
 
     for i = 1:100
-        ia, ja, val = findnz(sprand(int64(rows), 1, 0.5))
+        ia, ja, val = findnz(sprand(int(rows), 1, 0.5))
         dir = 2 * randbool() - 1
         eps = 1e-9
 
@@ -114,7 +114,7 @@ function glpk_tst_4()
     end
 
     for i = 1:100
-        ia, ja, val = findnz(sprand(int64(cols), 1, 0.5))
+        ia, ja, val = findnz(sprand(int(cols), 1, 0.5))
         dir = 2 * randbool() - 1
         eps = 1e-9
 
