@@ -1,5 +1,6 @@
 language: cpp
 compiler:
+    - gcc
     - clang
 notifications:
     email: false
