@@ -12,9 +12,6 @@ of returning tuples/strings/vectors etc.
 
 It's currently based on GLPK version 4.52.
 
-At the moment, only Unix platforms (Linux, OS X, BDS's etc) are fully supported.
-On Windows, you may be able to use this package if you install manually the GLPK library in your system.
-
 ------------
 Installation
 ------------
@@ -28,11 +25,10 @@ if it doesn't find it, it will install it.
 
 On Linux and BSD, this means that it will download the source files and compile the library.
 
-On OS X, this means that it will need the `Homebrew <https://github.com/staticfloat/Homebrew.jl>`_
-package, and it will download a precompiled binary.
+On OS X, this means that it will use the `Homebrew <https://github.com/staticfloat/Homebrew.jl>`_
+package (which will be automatically installed if needed), and it will download a precompiled binary.
 
-On Windows, no automated installation step is currently available; you'll need to install the library
-manually before adding the package.
+On Windows, it will download a precompiled binary.
 
 --------
 Preamble
