@@ -197,7 +197,7 @@ function _rows_ids_content(prob::Prob, num_rows::Integer, rows_ids::Vector{Cint}
     rows = @glpk_ccall get_num_rows Cint (Ptr{Void},) prob.p
     ind_set = IntSet()
     union!(ind_set, rows_ids[1 : num_rows])
-    if min(ind_set) < 1 || max(ind_set) > rows
+    if minimum(ind_set) < 1 || maximum(ind_set) > rows
         throw(GLPKError("index out of bounds (min=1 max=$rows)"))
     elseif length(ind_set) != num_rows
         throw(GLPKError("one or more duplicate index(es) found"))
@@ -223,7 +223,7 @@ function _cols_ids_content(prob::Prob, num_cols::Integer, cols_ids::Vector{Cint}
     cols = @glpk_ccall get_num_cols Cint (Ptr{Void},) prob.p
     ind_set = IntSet()
     union!(ind_set, cols_ids[1 : num_cols])
-    if min(ind_set) < 1 || max(ind_set) > cols
+    if minimum(ind_set) < 1 || maximum(ind_set) > cols
         throw(GLPKError("index out of bounds (min=1 max=$cols)"))
     elseif length(ind_set) != num_cols
         throw(GLPKError("one or more duplicate index(es) found"))
@@ -247,7 +247,7 @@ function _list_ids(prob::Prob, len::Integer, list_ids::Vector{Cint})
     #if length(list_ids) < len
     #throw(GLPKError("invalid vector size: declared>=$len actual=$(length(list_ids))"))
     #end
-    if min(list_ids[1:len]) < 1 || max(list_ids[1:len]) > rows + cols
+    if minimum(list_ids[1:len]) < 1 || maximum(list_ids[1:len]) > rows + cols
         throw(GLPKError("index out of bounds (min=1 max=$(rows + cols))"))
     end
     return true
