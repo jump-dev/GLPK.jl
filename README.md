@@ -7,4 +7,4 @@ It makes it possible to access nearly all of GLPK functionality from within Juli
 The documentation can be found at https://gplkjl.readthedocs.org/en/latest/glpk.html, or
 in the doc/ directory (see doc/README.md).
 
-[![Build Status](https://api.travis-ci.org/carlobaldassi/GLPK.jl.png?branch=master)](https://travis-ci.org/carlobaldassi/GLPK.jl)
+[![Build Status](https://api.travis-ci.org/JuliaOpt/GLPK.jl.png?branch=master)](https://travis-ci.org/JuliaOpt/GLPK.jl)
