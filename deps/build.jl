@@ -44,13 +44,17 @@ provides(BuildProcess,
         FileUnpacker(joinpath(glpkdownloadsdir, "win$glpkname.zip"),
                      glpksrcdir, glpkdlldirw(32))
         CreateDirectory(glpklibdir, true)
-        for w in (32,64)
-            @build_steps begin
-                ChangeDirectory(glpkdlldirw(w))
-                FileRule(glpkdestw(w), @build_steps begin
-                    `cp $(glpkdllname).dll $(glpkdestw(w))`
-                end)
-            end
+        @build_steps begin
+            ChangeDirectory(glpkdlldirw(32))
+            FileRule(glpkdestw(32), @build_steps begin
+                `cp $(glpkdllname).dll $(glpkdestw(32))`
+            end)
+        end
+        @build_steps begin
+            ChangeDirectory(glpkdlldirw(64))
+            FileRule(glpkdestw(64), @build_steps begin
+                `cp $(glpkdllname).dll $(glpkdestw(64))`
+            end)
         end
     end), glpkdep, os = :Windows)
 
