@@ -12,6 +12,7 @@ before_install:
     - sudo apt-get install libgmp-dev libltdl3-dev
 script:
     - julia -e 'Pkg.init(); run(`ln -s $(pwd()) $(Pkg.dir())/`); Pkg.resolve()'
+    - julia -e 'Pkg.build("GLPK")'
     - julia -e 'using GLPK; @assert isdefined(:GLPK); @assert typeof(GLPK) === Module'
     - julia test/runtests.jl
 
