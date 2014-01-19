@@ -187,8 +187,7 @@ import Base.pointer, Base.setindex!, Base.getindex
 
 ## Shared library interface setup
 #{{{
-using BinDeps
-@BinDeps.load_dependencies
+include("../deps/deps.jl")
 
 include("GLPK_constants.jl")
 
