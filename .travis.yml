@@ -1,21 +1,23 @@
 language: cpp
 compiler:
-    - gcc
-    - clang
+  - gcc
+  - clang
 notifications:
-    email: false
+  email: false
+env:
+  matrix:
+    - JULIAVERSION="juliareleases"
+    - JULIAVERSION="julianightlies"
 before_install:
-    - sudo add-apt-repository ppa:staticfloat/julia-deps -y
-    - sudo add-apt-repository ppa:staticfloat/julianightlies -y
-    - sudo apt-get update -qq -y
-    - sudo apt-get install julia -y
-    - sudo apt-get install libgmp-dev
+  - sudo add-apt-repository ppa:staticfloat/julia-deps -y
+  - sudo add-apt-repository ppa:staticfloat/${JULIAVERSION} -y
+  - sudo apt-get update -qq -y
+  - sudo apt-get install libpcre3-dev libgmp-dev julia -y
 script:
-    - julia -e 'Pkg.init(); run(`ln -s $(pwd()) $(Pkg.dir())/`); Pkg.resolve()'
-    - julia -e 'Pkg.build("GLPK.jl")'
-    - julia -e 'using GLPK; @assert isdefined(:GLPK); @assert typeof(GLPK) === Module'
-    - julia test/runtests.jl
-
+  - julia -e 'Pkg.init(); run(`ln -s $(pwd()) $(Pkg.dir("GLPK"))`); Pkg.pin("GLPK"); Pkg.resolve()'
+  - julia -e 'Pkg.build("GLPK")'
+  - julia -e 'using GLPK; @assert isdefined(:GLPK); @assert typeof(GLPK) === Module'
+  - julia test/runtests.jl
 branches:
-    except:
-        - release-0.1
+  except:
+    - release-0.1
