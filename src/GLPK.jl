@@ -187,7 +187,11 @@ import Base.pointer, Base.setindex!, Base.getindex
 
 ## Shared library interface setup
 #{{{
-include("../deps/deps.jl")
+if isfile(joinpath(Pkg.dir("GLPK"),"deps","deps.jl"))
+    include("../deps/deps.jl")
+else
+    error("GLPK not properly installed. Please run Pkg.build(\"GLPK\")")
+end
 
 include("GLPK_constants.jl")
 
