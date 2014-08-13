@@ -750,7 +750,7 @@ function set_mat_row{Ti<:Integer, Tv<:Real}(prob::Prob, row::Integer, len::Integ
 end
 function set_mat_row(prob::Prob, row::Integer, len::Integer, ind::VecOrNothing, val::VecOrNothing)
     ind = convert_vecornothing(Cint, ind)
-    val = convert_vecornothing(Cdouble, ar)
+    val = convert_vecornothing(Cdouble, val)
     set_mat_row(prob, row, len, ind, val)
 end
 function set_mat_row(prob::Prob, row::Integer, ind::VecOrNothing, val::VecOrNothing)
@@ -782,7 +782,7 @@ function set_mat_col{Ti<:Integer, Tv<:Real}(prob::Prob, col::Integer, len::Integ
 end
 function set_mat_col(prob::Prob, col::Integer, len::Integer, ind::VecOrNothing, val::VecOrNothing)
     ind = convert_vecornothing(Cint, ind)
-    val = convert_vecornothing(Cdouble, ar)
+    val = convert_vecornothing(Cdouble, val)
     set_mat_col(prob, col, len, ind, val)
 end
 function set_mat_col(prob::Prob, col::Integer, ind::VecOrNothing, val::VecOrNothing)
