@@ -232,23 +232,7 @@ end
 # we must ensure that the binary is the correct
 # one)
 function version()
-    csp = @glpk_ccall version Ptr{Uint8} ()
-    str = Array(Uint8, 100)
-    strp = pointer(str)
-    k = 0
-    for i = 1 : 100
-        ccall(:memcpy, Ptr{Void}, (Ptr{Void}, Ptr{Void}, Csize_t), strp, csp, sizeof(Uint8))
-        if str[i] == '\0'
-            k = i
-            break
-        end
-        strp += sizeof(Uint8)
-        csp += sizeof(Uint8)
-    end
-    if k == 0
-        throw(GLPKError("error reading version"))
-    end
-    vstr = ASCIIString(str[1:k - 1])
+    vstr = bytestring(@glpk_ccall version Ptr{Cchar} ())
     return tuple(map(x->parseint(x), split(vstr, '.'))...)
 end
 
@@ -269,11 +253,9 @@ abstract Param
 function setindex!{T<:Param}(param::T, val, field_name::String)
     s = symbol(field_name)
     i = findfirst(x->x==s, T.names)
-    if i == 0
-        error("Parameter type $T has no field $field_name")
-    end
+    i > 0 || error("Parameter type $T has no field $field_name")
     t = T.types[i]
-    param.(s) = convert(t,val)
+    param.(s) = convert(t, val)
 end
 
 function getindex(param::Param, field_name::String)
@@ -286,22 +268,22 @@ end
 # as an empty vector [] or as the 'nothing' constant
 
 typealias VecOrNothing Union(Vector, Nothing)
-function convert_vecornothing{T}(::Type{T}, a::VecOrNothing)
-    if isequal(a, nothing) || isa(a, Array{None})
-        return T[]
-    elseif T <: Integer
-        if !(eltype(a) <: Integer)
-            throw(GLPKError("integer-valued array required, or [] or nothing"))
-        end
-    elseif T <: Real
-        if !(eltype(a) <: Real)
-            throw(GLPKError("real-valued array required, or [] or nothing"))
-        end
-    end
-    convert(Array{T}, a)
-end
-vecornothing_length(a::VecOrNothing) = is(a, nothing) ? 0 : length(a)
+convert_vecornothing{T<:Integer}(::Type{T}, a::Nothing) = T[]
+convert_vecornothing{T<:Integer}(::Type{T}, a::Vector{None}) = T[]
+convert_vecornothing{T<:Integer,S<:Integer}(::Type{T}, a::Vector{S}) = convert(Array{T}, a)
+convert_vecornothing{T<:Integer,S<:Real}(::Type{T}, a::Vector{S}) = throw(GLPKError("integer-valued array required, or [] or nothing"))
+convert_vecornothing{T<:Integer,S}(::Type{T}, a::Vector{S}) = throw(GLPKError("integer-valued array required, or [] or nothing"))
 
+convert_vecornothing{T<:Real}(::Type{T}, a::Nothing) = T[]
+convert_vecornothing{T<:Real}(::Type{T}, a::Vector{None}) = T[]
+convert_vecornothing{T<:Real,S<:Real}(::Type{T}, a::Vector{S}) = convert(Array{T}, a)
+convert_vecornothing{T<:Real,S}(::Type{T}, a::Vector{S}) = throw(GLPKError("real-valued array required, or [] or nothing"))
+
+convert_vecornothing{T}(::Type{T}, a::Nothing) = T[]
+convert_vecornothing{T}(::Type{T}, a::Vector{None}) = T[]
+
+vecornothing_length(a::Nothing) = 0
+vecornothing_length(a) = length(a)
 
 #}}}
 
@@ -371,9 +353,7 @@ end
 Prob() = Prob(C_NULL)
 
 function delete_prob(prob::Prob)
-    if prob.p == C_NULL
-        return
-    end
+    prob.p == C_NULL && return
     if jl_obj_is_valid(prob)
         @glpk_ccall delete_prob Void (Ptr{Void},) prob.p
         _del_obj(prob)
@@ -628,9 +608,7 @@ type MathProgWorkspace
 end
 
 function mpl_free_wksp(tran::MathProgWorkspace)
-    if tran.p == C_NULL
-        return
-    end
+    tran.p == C_NULL && return
     if jl_obj_is_valid(tran)
         @glpk_ccall mpl_free_wksp Void (Ptr{Void},) tran.p
         _del_obj(tran)
@@ -684,18 +662,14 @@ include("GLPK_checks.jl")
 
 function set_prob_name(prob::Prob, name::Union(String,Nothing))
     @check! _prob(prob)
-    if is(name, nothing)
-        name = ""
-    end
+    name == nothing && (name = "")
     @check _string_length(name, 255)
     @glpk_ccall set_prob_name Void (Ptr{Void}, Ptr{Cchar}) prob.p bytestring(name)
 end
 
 function set_obj_name(prob::Prob, name::Union(String,Nothing))
     @check! _prob(prob)
-    if is(name, nothing)
-        name = ""
-    end
+    name == nothing && (name = "")
     @check _string_length(name, 255)
     @glpk_ccall set_obj_name Void (Ptr{Void}, Ptr{Cchar}) prob.p bytestring(name)
 end
@@ -703,9 +677,7 @@ end
 function set_row_name(prob::Prob, row::Integer, name::Union(String,Nothing))
     @check! _prob(prob)
     @check _row_is_valid(prob, row)
-    if is(name, nothing)
-        name = ""
-    end
+    name == nothing && (name = "")
     @check _string_length(name, 255)
     @glpk_ccall set_row_name Void (Ptr{Void}, Cint, Ptr{Cchar}) prob.p row bytestring(name)
 end
@@ -713,9 +685,7 @@ end
 function set_col_name(prob::Prob, col::Integer, name::Union(String,Nothing))
     @check! _prob(prob)
     @check _col_is_valid(prob, col)
-    if is(name, nothing)
-        name = ""
-    end
+    name == nothing && (name = "")
     @check _string_length(name, 255)
     @glpk_ccall set_col_name Void (Ptr{Void}, Cint, Ptr{Cchar}) prob.p col bytestring(name)
 end
@@ -824,9 +794,7 @@ end
 function load_matrix{Ti<:Integer, Tv<:Real}(prob::Prob, numel::Integer, ia::Vector{Ti}, ja::Vector{Ti}, ar::Vector{Tv})
     @check! _prob(prob)
     @check! _vectors_size(numel, ia, ja, ar)
-    if numel == 0
-        return
-    end
+    numel == 0 && return
     ia32 = convert(Vector{Cint}, ia)
     ja32 = convert(Vector{Cint}, ja)
     ar64 = convert(Vector{Cdouble}, ar)
@@ -929,21 +897,15 @@ end
 function get_prob_name(prob::Prob)
     @check! _prob(prob)
     name_cstr = @glpk_ccall get_prob_name Ptr{Cchar} (Ptr{Void},) prob.p
-    if name_cstr == C_NULL
-        return ""
-    else
-        return bytestring(name_cstr)
-    end
+    name_cstr == C_NULL && return ""
+    return bytestring(name_cstr)
 end
 
 function get_obj_name(prob::Prob)
     @check! _prob(prob)
     name_cstr = @glpk_ccall get_obj_name Ptr{Cchar} (Ptr{Void},) prob.p
-    if name_cstr == C_NULL
-        return ""
-    else
-        return bytestring(name_cstr)
-    end
+    name_cstr == C_NULL && return ""
+    return bytestring(name_cstr)
 end
 
 function get_obj_dir(prob::Prob)
@@ -965,22 +927,16 @@ function get_row_name(prob::Prob, row::Integer)
     @check! _prob(prob)
     @check _row_is_valid(prob, row)
     name_cstr = @glpk_ccall get_row_name Ptr{Cchar} (Ptr{Void}, Cint) prob.p row
-    if name_cstr == C_NULL
-        return ""
-    else
-        return bytestring(name_cstr)
-    end
+    name_cstr == C_NULL && return ""
+    return bytestring(name_cstr)
 end
 
 function get_col_name(prob::Prob, col::Integer)
     @check! _prob(prob)
     @check _col_is_valid(prob, col)
     name_cstr = @glpk_ccall get_col_name Ptr{Cchar} (Ptr{Void}, Cint) prob.p col
-    if name_cstr == C_NULL
-        return ""
-    else
-        return bytestring(name_cstr)
-    end
+    name_cstr == C_NULL && return ""
+    return bytestring(name_cstr)
 end
 
 function get_row_type(prob::Prob, row::Integer)
@@ -1034,9 +990,8 @@ function get_mat_row(prob::Prob, row::Integer, ind::Union(Vector{Cint},Nothing),
     @check! _prob(prob)
     @check _row_is_valid(prob, row)
     numel = @glpk_ccall get_mat_row Cint (Ptr{Void}, Cint, Ptr{Cint}, Ptr{Cdouble}) prob.p row C_NULL C_NULL
-    if numel == 0
-        return 0
-    end
+    numel == 0 && return 0
+
     if !isequal(ind, nothing)
         @check! _vectors_size(numel, ind)
         off32 = sizeof(Cint)
@@ -1058,9 +1013,8 @@ function get_mat_row(prob::Prob, row::Integer)
     @check! _prob(prob)
     @check _row_is_valid(prob, row)
     numel = @glpk_ccall get_mat_row Cint (Ptr{Void}, Cint, Ptr{Cint}, Ptr{Cdouble}) prob.p row C_NULL C_NULL
-    if numel == 0
-        return (Cint[], Cdouble[])
-    end
+    numel == 0 && return (Cint[], Cdouble[])
+
     ind = Array(Cint, numel)
     val = Array(Cdouble, numel)
 
@@ -1076,9 +1030,8 @@ function get_mat_col(prob::Prob, col::Integer, ind::Union(Vector{Cint},Nothing),
     @check! _prob(prob)
     @check _col_is_valid(prob, col)
     numel = @glpk_ccall get_mat_col Cint (Ptr{Void}, Cint, Ptr{Cint}, Ptr{Cdouble}) prob.p col C_NULL C_NULL
-    if numel == 0
-        return 0
-    end
+    numel == 0 && return 0
+
     if !isequal(ind, nothing)
         @check! _vectors_size(numel, ind)
         off32 = sizeof(Cint)
@@ -1100,9 +1053,8 @@ function get_mat_col(prob::Prob, col::Integer)
     @check! _prob(prob)
     @check _col_is_valid(prob, col)
     numel = @glpk_ccall get_mat_col Cint (Ptr{Void}, Cint, Ptr{Cint}, Ptr{Cdouble}) prob.p col C_NULL C_NULL
-    if numel == 0
-        return (Cint[], Cdouble[])
-    end
+    numel == 0 && return (Cint[], Cdouble[])
+
     ind = Array(Cint, numel)
     val = Array(Cdouble, numel)
 
@@ -1200,29 +1152,25 @@ function cpx_basis(prob::Prob)
     @glpk_ccall cpx_basis Void (Ptr{Void},) prob.p
 end
 
-function simplex{Tp<:Union(SimplexParam, Nothing)}(prob::Prob, param::Tp)
+function simplex(prob::Prob, param::SimplexParam)
     @check! _prob(prob)
-    if param == nothing
-        return @glpk_ccall simplex Cint (Ptr{Void}, Ptr{Void}) prob.p C_NULL
-    else
-        return @glpk_ccall simplex Cint (Ptr{Void}, Ptr{SimplexParam}) prob.p &param
-    end
+    return @glpk_ccall simplex Cint (Ptr{Void}, Ptr{SimplexParam}) prob.p &param
 end
-
-simplex(prob::Prob) =
-    simplex(prob, nothing)
-
-function exact{Tp<:Union(SimplexParam, Nothing)}(prob::Prob, param::Tp)
+function simplex(prob::Prob, param::Nothing)
     @check! _prob(prob)
-    if param == nothing
-        return @glpk_ccall exact Cint (Ptr{Void}, Ptr{Void}) prob.p C_NULL
-    else
-        return @glpk_ccall exact Cint (Ptr{Void}, Ptr{SimplexParam}) prob.p &param
-    end
+    return @glpk_ccall simplex Cint (Ptr{Void}, Ptr{Void}) prob.p C_NULL
 end
+simplex(prob::Prob) = simplex(prob, nothing)
 
-exact(prob::Prob) =
-    exact(prob, nothing)
+function exact(prob::Prob, param::SimplexParam)
+    @check! _prob(prob)
+    return @glpk_ccall exact Cint (Ptr{Void}, Ptr{SimplexParam}) prob.p &param
+end
+function exact(prob::Prob, param::Nothing)
+    @check! _prob(prob)
+    return @glpk_ccall exact Cint (Ptr{Void}, Ptr{Void}) prob.p C_NULL
+end
+exact(prob::Prob) = exact(prob, nothing)
 
 function init_smcp(param::SimplexParam)
     @glpk_ccall init_smcp Cint (Ptr{SimplexParam},) &param
@@ -1289,15 +1237,14 @@ function get_unbnd_ray(prob::Prob)
     @glpk_ccall get_unbnd_ray Cint (Ptr{Void},) prob.p
 end
 
-function interior{Tp<:Union(InteriorParam, Nothing)}(prob::Prob, param::Tp)
+function interior(prob::Prob, param::InteriorParam)
     @check! _prob(prob)
-    if param == nothing
-        return @glpk_ccall interior Cint (Ptr{Void}, Ptr{Void}) prob.p C_NULL
-    else
-        return @glpk_ccall interior Cint (Ptr{Void}, Ptr{InteriorParam}) prob.p &param
-    end
+    return @glpk_ccall interior Cint (Ptr{Void}, Ptr{InteriorParam}) prob.p &param
 end
-
+function interior(prob::Prob, param::Nothing)
+    @check! _prob(prob)
+    return @glpk_ccall interior Cint (Ptr{Void}, Ptr{Void}) prob.p C_NULL
+end
 interior(prob::Prob) = interior(prob, nothing)
 
 function init_iptcp(param::InteriorParam)
@@ -1361,15 +1308,14 @@ function get_num_bin(prob::Prob)
     @glpk_ccall get_num_bin Cint (Ptr{Void},) prob.p
 end
 
-function intopt{Tp<:Union(IntoptParam, Nothing)}(prob::Prob, param::Tp)
+function intopt(prob::Prob, param::IntoptParam)
     @check! _prob(prob)
-    if param == nothing
-        return @glpk_ccall intopt Cint (Ptr{Void}, Ptr{Void}) prob.p C_NULL
-    else
-        return @glpk_ccall intopt Cint (Ptr{Void}, Ptr{IntoptParam}) prob.p &param
-    end
+    return @glpk_ccall intopt Cint (Ptr{Void}, Ptr{IntoptParam}) prob.p &param
 end
-
+function intopt(prob::Prob, param::Nothing)
+    @check! _prob(prob)
+    return @glpk_ccall intopt Cint (Ptr{Void}, Ptr{Void}) prob.p C_NULL
+end
 intopt(prob::Prob) = intopt(prob, nothing)
 
 function init_iocp(param::IntoptParam)
@@ -1420,7 +1366,7 @@ end
 function read_mps(prob::Prob, format::Integer, param, filename::String)
     @check! _prob(prob)
     @check _mps_format(format)
-    if is(param, nothing)
+    if param == nothing
         param = C_NULL
     else
         @check _mps_param(param)
@@ -1438,7 +1384,7 @@ read_mps(prob::Prob, format::Integer, filename::String) =
 function write_mps(prob::Prob, format::Integer, param, filename::String)
     @check! _prob(prob)
     @check _mps_format(format)
-    if is(param, nothing)
+    if param == nothing
         param = C_NULL
     else
         @check _mps_param(param)
@@ -1518,7 +1464,7 @@ end
 
 function mpl_generate(tran::MathProgWorkspace, filename::Union(String, Nothing))
     @check! _mpl_workspace(tran)
-    if is(filename, nothing)
+    if filename == nothing
         cfilename = C_NULL
     else
         @check _file_is_writable(filename)
@@ -1685,13 +1631,13 @@ function get_bfcp(prob::Prob, param::BasisFactParam)
     @glpk_ccall get_bfcp Void (Ptr{Void}, Ptr{BasisFactParam}) prob.p &param
 end
 
-function set_bfcp(prob::Prob, param::Union(BasisFactParam,Nothing))
+function set_bfcp(prob::Prob, param::BasisFactParam)
     @check! _prob(prob)
-    if is(param, nothing)
-        return @glpk_ccall set_bfcp Void (Ptr{Void}, Ptr{Void}) prob.p C_NULL
-    else
-        return @glpk_ccall set_bfcp Void (Ptr{Void}, Ptr{BasisFactParam}) prob.p &param
-    end
+    return @glpk_ccall set_bfcp Void (Ptr{Void}, Ptr{BasisFactParam}) prob.p &param
+end
+function set_bfcp(prob::Prob, param::Nothing)
+    @check! _prob(prob)
+    return @glpk_ccall set_bfcp Void (Ptr{Void}, Ptr{Void}) prob.p C_NULL
 end
 set_bfcp(prob::Prob) = set_bfcp(prob, nothing)
 
@@ -1955,9 +1901,8 @@ function dual_rtest{Ti<:Integer, Tv<:Real}(prob::Prob, ind::Vector{Ti}, val::Vec
     dual_rtest(prob, length(ind), ind, val, dir, eps)
 end
 
-function analyze_bound(prob::Prob, k, limit1, var1, limit2, var2)
+analyze_bound(prob::Prob, k, limit1, var1, limit2, var2) =
     error("unsupported. Use GLPK.analyze_bound(prob, k) instead.")
-end
 
 function analyze_bound(prob::Prob, k::Integer)
     @check! _prob(prob)
@@ -1975,9 +1920,8 @@ function analyze_bound(prob::Prob, k::Integer)
     return limit1[1], var1[1], limit2[1], var2[1]
 end
 
-function analyze_coef(prob::Prob, k, coef1, var1, value1, coef2, var2, value2)
+analyze_coef(prob::Prob, k, coef1, var1, value1, coef2, var2, value2) =
     error("unsupported. Use GLPK.analyze_coef(prob, k) instead.")
-end
 
 function analyze_coef(prob::Prob, k::Integer)
     @check! _prob(prob)
@@ -2085,9 +2029,8 @@ function ios_tree_size(tree::Ptr{Void})
     return a_cnt[1], n_cnt[1], t_cnt[1]
 end
 
-function ios_tree_size(tree::Ptr{Void}, a_cnt, n_cnt, t_cnt)
+ios_tree_size(tree::Ptr{Void}, a_cnt, n_cnt, t_cnt) =
     error("unsupported. Use GLPK.ios_tree_size(tree) instead.")
-end
 
 function ios_curr_node(tree::Ptr{Void})
     @check! _tree(tree)
@@ -2096,17 +2039,13 @@ end
 
 function ios_next_node(tree::Ptr{Void}, p::Integer)
     @check! _tree(tree)
-    if p != 0
-        @check _ios_node_is_active(tree, p)
-    end
+    p != 0 && @check _ios_node_is_active(tree, p)
     @glpk_ccall ios_next_node Cint (Ptr{Void}, Cint) tree p
 end
 
 function ios_prev_node(tree::Ptr{Void}, p::Integer)
     @check! _tree(tree)
-    if p != 0
-        @check _ios_node_is_active(tree, p)
-    end
+    p != 0 && @check _ios_node_is_active(tree, p)
     @glpk_ccall ios_prev_node Cint (Ptr{Void}, Cint) tree p
 end
 
@@ -2145,9 +2084,7 @@ function ios_add_row{Ti<:Integer, Tv<:Real}(tree::Ptr{Void}, name::Union(String,
 
     @check! _tree(tree)
     @check _reason(tree, [GLPK.ICUTGEN])
-    if name === nothing
-        name = ""
-    end
+    name == nothing && (name = "")
     @check _string_length(name, 255)
     @check _klass_is_valid(klass)
     @check _ios_add_row_flags(flags)
@@ -2249,9 +2186,8 @@ function free(ptr::Ptr)
     @glpk_ccall free Void (Ptr{Void},) ptr
 end
 
-function mem_usage(count, cpeak, total, tpeak)
+mem_usage(count, cpeak, total, tpeak) =
     error("unsupported. Use GLPK.mem_usage() instead.")
-end
 
 function mem_usage()
     data32 = Array(Cint, 2)
@@ -2318,19 +2254,13 @@ end
 
 # FUNCTIONS NOT WRAPPED:
 #
-# 1) Printout functions [because they use varargs/va_list,
-#    or need callbacks, or are implemented as macros]:
+# glp_printf      (uses varargs)
+# glp_vprintf     (uses varargs)
+# glp_term_hook
+# glp_error       (implemented as macro)
+# glp_assert      (implemented as macro)
+# glp_error_hook  (reserved for internal use by the wrapper)
 #
-#    glp_printf
-#    glp_vprintf
-#    glp_term_hook
-#    glp_error
-#    glp_assert
-#    glp_error_hook
-#
-# 2) Additional functions [because wat?]:
-#
-#    lpx_check_kkt
 
 #}}}
 
