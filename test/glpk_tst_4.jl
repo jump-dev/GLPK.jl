@@ -49,14 +49,14 @@ function glpk_tst_4()
         rb = GLPK.get_row_bind(mip, i)
     end
     if GLPK.jl_get_preemptive_check()
-        @test_throws GLPK.get_bhead(mip, rows+1)
-        @test_throws GLPK.get_row_bind(mip, -1)
+        @glpk_test_throws GLPK.get_bhead(mip, rows+1)
+        @glpk_test_throws GLPK.get_row_bind(mip, -1)
     end
     for i = 1:cols
         cb = GLPK.get_col_bind(mip, i)
     end
     if GLPK.jl_get_preemptive_check()
-        @test_throws GLPK.get_col_bind(mip, -1)
+        @glpk_test_throws GLPK.get_col_bind(mip, -1)
     end
 
     x = randn(int(rows))

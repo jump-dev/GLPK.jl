@@ -46,7 +46,7 @@ end
 macro check(expr)
     quote
         if jl_get_preemptive_check()
-            $expr
+            $(esc(expr))
         else
             true
         end
@@ -55,7 +55,7 @@ end
 
 macro check!(expr)
     quote
-        $expr
+        $(esc(expr))
     end
 end
 

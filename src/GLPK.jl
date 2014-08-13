@@ -10,6 +10,7 @@ export
     # Types
     Param,
     GLPKError,
+    GLPKFatalError,
     Prob,
     SimplexParam,
     InteriorParam,
@@ -219,7 +220,7 @@ end
 macro glpk_ccall(f, args...)
     quote
         ccall((:glp_error_hook, libglpk), Void, (Ptr{Void}, Ptr{Void}), cfunction(_err_hook, Void, (Ptr{Void},)), C_NULL)
-        ret = ccall(($"glp_$(f)", libglpk), $(args...))
+        ret = ccall(($"glp_$f", libglpk), $(map(esc,args)...))
         ccall((:glp_error_hook, libglpk), Void, (Ptr{Void}, Ptr{Void}), C_NULL, C_NULL)
         ret
     end
