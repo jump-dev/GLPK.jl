@@ -8,3 +8,4 @@ The documentation can be found at https://gplkjl.readthedocs.org/en/latest/glpk.
 in the doc/ directory (see doc/README.md).
 
 [![Build Status](https://api.travis-ci.org/JuliaOpt/GLPK.jl.png?branch=master)](https://travis-ci.org/JuliaOpt/GLPK.jl)
+[![Coverage Status](https://img.shields.io/coveralls/JuliaOpt/GLPK.jl.svg)](https://coveralls.io/r/JuliaOpt/GLPK.jl)
