@@ -30,7 +30,9 @@ function glpk_tst_6()
         cn = GLPK.ios_curr_node(tree)
         bn = GLPK.ios_best_node(tree)
         fan = GLPK.ios_next_node(tree, 0)
+        GLPK.ios_next_node(tree, fan)
         lan = GLPK.ios_prev_node(tree, 0)
+        GLPK.ios_prev_node(tree, lan)
         for i = 1:t_cnt
             try
                 un = GLPK.ios_up_node(tree, i)

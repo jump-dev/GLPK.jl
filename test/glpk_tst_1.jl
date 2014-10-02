@@ -53,11 +53,18 @@ function glpk_tst_1()
     GLPK.set_row_name(lp, 3, "r")
     GLPK.set_row_bnds(lp, 3, GLPK.UP, 0.0, 300.0)
 
+    GLPK.set_mat_row(lp, 1, nothing, nothing)
+    GLPK.set_mat_row(lp, 1, 0, nothing, nothing)
+    GLPK.set_mat_col(lp, 1, nothing, nothing)
+    GLPK.set_mat_col(lp, 1, 0, nothing, nothing)
+
     GLPK.set_mat_row(lp, 1, 3, [1,2,3], [1., 1., 1.])
+    GLPK.set_mat_row(lp, 1, [1,2,3], [1., 1., 1.])
     GLPK.set_mat_row(lp, 2, 3, [1,2,3], [10., 4., 5.])
     GLPK.set_mat_row(lp, 3, 3, [1,2,3], [2., 2., 6.])
 
     GLPK.set_mat_col(lp, 1, 3, [1,2,3], [1., 10., 2.])
+    GLPK.set_mat_col(lp, 1, [1,2,3], [1., 10., 2.])
     GLPK.set_mat_col(lp, 2, 3, [1,2,3], [1., 4., 2.])
     GLPK.set_mat_col(lp, 3, 3, [1,2,3], [1., 5., 6.])
 
