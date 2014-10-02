@@ -184,7 +184,7 @@ export
     intfeas1
 #}}}
 
-import Base.pointer, Base.setindex!, Base.getindex
+import Base.setindex!, Base.getindex
 
 ## Shared library interface setup
 #{{{
@@ -267,20 +267,12 @@ end
 # In this framework, optional arguments can be passed either
 # as an empty vector [] or as the 'nothing' constant
 
-typealias VecOrNothing Union(Vector, Nothing)
-convert_vecornothing{T<:Integer}(::Type{T}, a::Nothing) = T[]
-convert_vecornothing{T<:Integer}(::Type{T}, a::Vector{None}) = T[]
-convert_vecornothing{T<:Integer,S<:Integer}(::Type{T}, a::Vector{S}) = convert(Array{T}, a)
-convert_vecornothing{T<:Integer,S<:Real}(::Type{T}, a::Vector{S}) = throw(GLPKError("integer-valued array required, or [] or nothing"))
-convert_vecornothing{T<:Integer,S}(::Type{T}, a::Vector{S}) = throw(GLPKError("integer-valued array required, or [] or nothing"))
+typealias VecOrNothing Union(AbstractVector, Nothing)
+cint_vec(a::Nothing) = Cint[]
+cint_vec(a::AbstractVector) = convert(Vector{Cint}, a)
 
-convert_vecornothing{T<:Real}(::Type{T}, a::Nothing) = T[]
-convert_vecornothing{T<:Real}(::Type{T}, a::Vector{None}) = T[]
-convert_vecornothing{T<:Real,S<:Real}(::Type{T}, a::Vector{S}) = convert(Array{T}, a)
-convert_vecornothing{T<:Real,S}(::Type{T}, a::Vector{S}) = throw(GLPKError("real-valued array required, or [] or nothing"))
-
-convert_vecornothing{T}(::Type{T}, a::Nothing) = T[]
-convert_vecornothing{T}(::Type{T}, a::Vector{None}) = T[]
+cdouble_vec(a::Nothing) = Cdouble[]
+cdouble_vec(a::AbstractVector) = convert(Vector{Cdouble}, a)
 
 vecornothing_length(a::Nothing) = 0
 vecornothing_length(a) = length(a)
@@ -728,13 +720,13 @@ function set_obj_coef(prob::Prob, col::Integer, coef::Real)
     @glpk_ccall set_obj_coef Void (Ptr{Void}, Cint, Cdouble) prob.p col coef
 end
 
-function set_mat_row{Ti<:Integer, Tv<:Real}(prob::Prob, row::Integer, len::Integer, ind::Vector{Ti}, val::Vector{Tv})
+function set_mat_row(prob::Prob, row::Integer, len::Integer, ind::VecOrNothing, val::VecOrNothing)
     @check! _prob(prob)
     @check! _vectors_size(len, ind, val)
     @check _row_is_valid(prob, row)
     if len > 0
-        ind32 = convert(Vector{Cint}, ind)
-        val64 = convert(Vector{Cdouble}, val)
+        ind32 = cint_vec(ind)
+        val64 = cdouble_vec(val)
         off32 = sizeof(Cint)
         off64 = sizeof(Cdouble)
         ind32p = pointer(ind32) - off32
@@ -748,11 +740,7 @@ function set_mat_row{Ti<:Integer, Tv<:Real}(prob::Prob, row::Integer, len::Integ
 
     @glpk_ccall set_mat_row Void (Ptr{Void}, Cint, Cint, Ptr{Cint}, Ptr{Cdouble}) prob.p row len ind32p val64p
 end
-function set_mat_row(prob::Prob, row::Integer, len::Integer, ind::VecOrNothing, val::VecOrNothing)
-    ind = convert_vecornothing(Cint, ind)
-    val = convert_vecornothing(Cdouble, val)
-    set_mat_row(prob, row, len, ind, val)
-end
+
 function set_mat_row(prob::Prob, row::Integer, ind::VecOrNothing, val::VecOrNothing)
     @check! _vectors_all_same_size(ind, val)
     l = vecornothing_length(ind)
@@ -760,13 +748,13 @@ function set_mat_row(prob::Prob, row::Integer, ind::VecOrNothing, val::VecOrNoth
 end
 
 
-function set_mat_col{Ti<:Integer, Tv<:Real}(prob::Prob, col::Integer, len::Integer, ind::Vector{Ti}, val::Vector{Tv})
+function set_mat_col(prob::Prob, col::Integer, len::Integer, ind::VecOrNothing, val::VecOrNothing)
     @check! _prob(prob)
     @check! _vectors_size(len, ind, val)
     @check _col_is_valid(prob, col)
     if len > 0
-        ind32 = convert(Vector{Cint}, ind)
-        val64 = convert(Vector{Cdouble}, val)
+        ind32 = cint_vec(ind)
+        val64 = cdouble_vec(val)
         off32 = sizeof(Cint)
         off64 = sizeof(Cdouble)
         ind32p = pointer(ind32) - off32
@@ -780,24 +768,20 @@ function set_mat_col{Ti<:Integer, Tv<:Real}(prob::Prob, col::Integer, len::Integ
 
     @glpk_ccall set_mat_col Void (Ptr{Void}, Cint, Cint, Ptr{Cint}, Ptr{Cdouble}) prob.p col len ind32p val64p
 end
-function set_mat_col(prob::Prob, col::Integer, len::Integer, ind::VecOrNothing, val::VecOrNothing)
-    ind = convert_vecornothing(Cint, ind)
-    val = convert_vecornothing(Cdouble, val)
-    set_mat_col(prob, col, len, ind, val)
-end
+
 function set_mat_col(prob::Prob, col::Integer, ind::VecOrNothing, val::VecOrNothing)
     @check! _vectors_all_same_size(ind, val)
     l = vecornothing_length(ind)
     set_mat_col(prob, col, l, ind, val)
 end
 
-function load_matrix{Ti<:Integer, Tv<:Real}(prob::Prob, numel::Integer, ia::Vector{Ti}, ja::Vector{Ti}, ar::Vector{Tv})
+function load_matrix(prob::Prob, numel::Integer, ia::VecOrNothing, ja::VecOrNothing, ar::VecOrNothing)
     @check! _prob(prob)
     @check! _vectors_size(numel, ia, ja, ar)
     numel == 0 && return
-    ia32 = convert(Vector{Cint}, ia)
-    ja32 = convert(Vector{Cint}, ja)
-    ar64 = convert(Vector{Cdouble}, ar)
+    ia32 = cint_vec(ia)
+    ja32 = cint_vec(ja)
+    ar64 = cdouble_vec(ar)
     @check _indices_vectors_dup(prob, numel, ia32, ja32)
 
     off32 = sizeof(Cint)
@@ -809,41 +793,28 @@ function load_matrix{Ti<:Integer, Tv<:Real}(prob::Prob, numel::Integer, ia::Vect
     @glpk_ccall load_matrix Void (Ptr{Void}, Cint, Ptr{Cint}, Ptr{Cint}, Ptr{Cdouble}) prob.p numel ia32p ja32p ar64p
 end
 
-function load_matrix(prob::Prob, numel::Integer, ia::VecOrNothing, ja::VecOrNothing, ar::VecOrNothing)
-    ia = convert_vecornothing(Cint, ia)
-    ja = convert_vecornothing(Cint, ja)
-    ar = convert_vecornothing(Cdouble, ar)
-    load_matrix(prob, numel, ia, ja, ar)
-end
-
 function load_matrix(prob::Prob, ia::VecOrNothing, ja::VecOrNothing, ar::VecOrNothing)
     @check! _vectors_all_same_size(ia, ja, ar)
     l = vecornothing_length(ar)
     load_matrix(prob, l, ia, ja, ar)
 end
 
-function load_matrix{Ti<:Integer, Tv<:Real}(prob::Prob, a::SparseMatrixCSC{Tv, Ti})
+function load_matrix(prob::Prob, a::AbstractSparseMatrix)
     (ia, ja, ar) = findnz(a)
     load_matrix(prob, ia, ja, ar)
 end
 
-function check_dup{Ti<:Integer}(rows::Integer, cols::Integer, numel::Integer, ia::Vector{Ti}, ja::Vector{Ti})
+function check_dup(rows::Integer, cols::Integer, numel::Integer, ia::VecOrNothing, ja::VecOrNothing)
     @check _rows_and_cols(rows, cols)
     @check! _vectors_size(numel, ia, ja)
-    ia32 = convert(Vector{Cint}, ia)
-    ja32 = convert(Vector{Cint}, ja)
+    ia32 = cint_vec(ia)
+    ja32 = cint_vec(ja)
 
     off32 = sizeof(Cint)
     ia32p = pointer(ia32) - off32
     ja32p = pointer(ja32) - off32
 
     @glpk_ccall check_dup Cint (Cint, Cint, Cint, Ptr{Cint}, Ptr{Cint}) rows cols numel ia32p ja32p
-end
-
-function check_dup(rows::Integer, cols::Integer, numel::Integer, ia::VecOrNothing, ja::VecOrNothing)
-    ia = convert_vecornothing(Cint, ia)
-    ja = convert_vecornothing(Cint, ja)
-    check_dup(rows, cols, numel, ia, ja)
 end
 
 function check_dup(rows::Integer, cols::Integer, ia::VecOrNothing, ja::VecOrNothing)
@@ -857,9 +828,9 @@ function sort_matrix(prob::Prob)
     @glpk_ccall sort_matrix Void (Ptr{Void},) prob.p
 end
 
-function del_rows{Ti<:Integer}(prob::Prob, num_rows::Integer, rows_ids::AbstractVector{Ti})
+function del_rows(prob::Prob, num_rows::Integer, rows_ids::VecOrNothing)
     @check! _prob(prob)
-    rows_ids32 = convert(Vector{Cint}, rows_ids)
+    rows_ids32 = cint_vec(rows_ids)
     @check! _rows_ids_size(prob, 1, num_rows, rows_ids32)
     @check _rows_ids_content(prob, num_rows, rows_ids32)
 
@@ -867,12 +838,12 @@ function del_rows{Ti<:Integer}(prob::Prob, num_rows::Integer, rows_ids::Abstract
     rows_ids32p = pointer(rows_ids32) - off32
     @glpk_ccall del_rows Void (Ptr{Void}, Cint, Ptr{Cint}) prob.p num_rows rows_ids32p
 end
-del_rows{Ti<:Integer}(prob::Prob, rows_ids::AbstractVector{Ti}) =
+del_rows(prob::Prob, rows_ids::VecOrNothing) =
     del_rows(prob, length(rows_ids), rows_ids)
 
-function del_cols{Ti<:Integer}(prob::Prob, num_cols::Integer, cols_ids::AbstractVector{Ti})
+function del_cols(prob::Prob, num_cols::Integer, cols_ids::VecOrNothing)
     @check! _prob(prob)
-    cols_ids32 = convert(Vector{Cint}, cols_ids)
+    cols_ids32 = cint_vec(cols_ids)
     @check! _cols_ids_size(prob, 1, num_cols, cols_ids32)
     @check _cols_ids_content(prob, num_cols, cols_ids32)
 
@@ -880,7 +851,7 @@ function del_cols{Ti<:Integer}(prob::Prob, num_cols::Integer, cols_ids::Abstract
     cols_ids32p = pointer(cols_ids32) - off32
     @glpk_ccall del_cols Void (Ptr{Void}, Cint, Ptr{Cint}) prob.p num_cols cols_ids32p
 end
-del_cols{Ti<:Integer}(prob::Prob, cols_ids::AbstractVector{Ti}) =
+del_cols(prob::Prob, cols_ids::VecOrNothing) =
     del_cols(prob, length(cols_ids), cols_ids)
 
 function copy_prob(prob_dest::Prob, prob::Prob, copy_names::Integer)
@@ -992,14 +963,14 @@ function get_mat_row(prob::Prob, row::Integer, ind::Union(Vector{Cint},Nothing),
     numel = @glpk_ccall get_mat_row Cint (Ptr{Void}, Cint, Ptr{Cint}, Ptr{Cdouble}) prob.p row C_NULL C_NULL
     numel == 0 && return 0
 
-    if !isequal(ind, nothing)
+    if ind != nothing
         @check! _vectors_size(numel, ind)
         off32 = sizeof(Cint)
         ind32p = pointer(ind) - off32
     else
         ind32p = C_NULL
     end
-    if !isequal(val, nothing)
+    if val != nothing
         @check! _vectors_size(numel, val)
         off64 = sizeof(Cdouble)
         val64p = pointer(val) - off64
@@ -1032,14 +1003,14 @@ function get_mat_col(prob::Prob, col::Integer, ind::Union(Vector{Cint},Nothing),
     numel = @glpk_ccall get_mat_col Cint (Ptr{Void}, Cint, Ptr{Cint}, Ptr{Cdouble}) prob.p col C_NULL C_NULL
     numel == 0 && return 0
 
-    if !isequal(ind, nothing)
+    if ind != nothing
         @check! _vectors_size(numel, ind)
         off32 = sizeof(Cint)
         ind32p = pointer(ind) - off32
     else
         ind32p = C_NULL
     end
-    if !isequal(val, nothing)
+    if val != nothing
         @check! _vectors_size(numel, val)
         off64 = sizeof(Cdouble)
         val64p = pointer(val) - off64
@@ -1564,7 +1535,7 @@ function write_mip(prob::Prob, filename::String)
     return ret
 end
 
-function print_ranges{Ti<:Integer}(prob::Prob, len::Integer, list::Vector{Ti}, flags::Integer, filename::String)
+function print_ranges(prob::Prob, len::Integer, list::VecOrNothing, flags::Integer, filename::String)
     @check! _prob(prob)
     @check! _vectors_size(len, list)
     @check _status_is_optimal(prob)
@@ -1573,7 +1544,7 @@ function print_ranges{Ti<:Integer}(prob::Prob, len::Integer, list::Vector{Ti}, f
     @check _file_is_writable(filename)
 
     if len > 0
-        list32 = convert(Vector{Cint}, list)
+        list32 = cint_vec(list)
         @check _list_ids(prob, len, list32)
 
         off32 = sizeof(Cint)
@@ -1585,28 +1556,14 @@ function print_ranges{Ti<:Integer}(prob::Prob, len::Integer, list::Vector{Ti}, f
     @glpk_ccall print_ranges Cint (Ptr{Void}, Cint, Ptr{Cint}, Cint, Ptr{Cchar}) prob.p len list32p flags bytestring(filename)
 end
 
-print_ranges{Ti<:Integer}(prob::Prob, list::Vector{Ti}, flags::Integer, filename::String) =
+print_ranges(prob::Prob, list::VecOrNothing, flags::Integer, filename::String) =
     print_ranges(prob, length(list), list, flags, filename)
 
-print_ranges{Ti<:Integer}(prob::Prob, len::Integer, list::Vector{Ti}, filename::String) = 
-    print_ranges(prob, len, list, 0, filename)
-
-print_ranges{Ti<:Integer}(prob::Prob, list::Vector{Ti}, filename::String) =
-    print_ranges(prob, length(list), list, 0, filename)
-
-function print_ranges(prob::Prob, len::Integer, list::VecOrNothing, flags::Integer, filename::String)
-    list = convert_vecornothing(Cint, list)
-    print_ranges(prob, len, list, flags, filename)
-end
-
-print_ranges(prob::Prob, list::VecOrNothing, flags::Integer, filename::String) =
-    print_ranges(prob, vecornothing_length(list), list, flags, filename)
-
-print_ranges(prob::Prob, len::Integer, list::VecOrNothing, filename::String) =
+print_ranges(prob::Prob, len::Integer, list::VecOrNothing, filename::String) = 
     print_ranges(prob, len, list, 0, filename)
 
 print_ranges(prob::Prob, list::VecOrNothing, filename::String) =
-    print_ranges(prob, vecornothing_length(list), list, 0, filename)
+    print_ranges(prob, length(list), list, 0, filename)
 
 print_ranges(prob::Prob, filename::String) =
     print_ranges(prob, 0, nothing, 0, filename)
@@ -1843,7 +1800,7 @@ function transform_col(prob::Prob, ind::Vector{Cint}, val::Vector{Cdouble})
     transform_col(prob, length(ind), ind, val)
 end
 
-function prim_rtest{Ti<:Integer, Tv<:Real}(prob::Prob, len::Integer, ind::Vector{Ti}, val::Vector{Tv}, dir::Integer, eps::Real)
+function prim_rtest(prob::Prob, len::Integer, ind::VecOrNothing, val::VecOrNothing, dir::Integer, eps::Real)
     @check! _prob(prob)
     @check _bf_exists(prob)
     @check _is_prim_feasible(prob)
@@ -1856,8 +1813,8 @@ function prim_rtest{Ti<:Integer, Tv<:Real}(prob::Prob, len::Integer, ind::Vector
         @check _var_is_basic(prob, ind[i])
     end
 
-    ind32 = convert(Vector{Cint}, ind)
-    val64 = convert(Vector{Cdouble}, val)
+    ind32 = cint_vec(ind)
+    val64 = cdouble_vec(val)
     off32 = sizeof(Cint)
     off64 = sizeof(Cdouble)
     ind32p = pointer(ind32) - off32
@@ -1867,12 +1824,12 @@ function prim_rtest{Ti<:Integer, Tv<:Real}(prob::Prob, len::Integer, ind::Vector
     return piv
 end
 
-function prim_rtest{Ti<:Integer, Tv<:Real}(prob::Prob, ind::Vector{Ti}, val::Vector{Tv}, dir::Integer, eps::Real)
+function prim_rtest(prob::Prob, ind::VecOrNothing, val::VecOrNothing, dir::Integer, eps::Real)
     @check! _vectors_all_same_size(ind, val)
     prim_rtest(prob, length(ind), ind, val, dir, eps)
 end
 
-function dual_rtest{Ti<:Integer, Tv<:Real}(prob::Prob, len::Integer, ind::Vector{Ti}, val::Vector{Tv}, dir::Integer, eps::Real)
+function dual_rtest(prob::Prob, len::Integer, ind::VecOrNothing, val::VecOrNothing, dir::Integer, eps::Real)
     @check! _prob(prob)
     @check _bf_exists(prob)
     @check _is_dual_feasible(prob)
@@ -1885,8 +1842,8 @@ function dual_rtest{Ti<:Integer, Tv<:Real}(prob::Prob, len::Integer, ind::Vector
         @check _var_is_non_basic(prob, ind[i])
     end
 
-    ind32 = convert(Vector{Cint}, ind)
-    val64 = convert(Vector{Cdouble}, val)
+    ind32 = cint_vec(ind)
+    val64 = cdouble_vec(val)
     off32 = sizeof(Cint)
     off64 = sizeof(Cdouble)
     ind32p = pointer(ind32) - off32
@@ -1896,7 +1853,7 @@ function dual_rtest{Ti<:Integer, Tv<:Real}(prob::Prob, len::Integer, ind::Vector
     return piv
 end
 
-function dual_rtest{Ti<:Integer, Tv<:Real}(prob::Prob, ind::Vector{Ti}, val::Vector{Tv}, dir::Integer, eps::Real)
+function dual_rtest(prob::Prob, ind::VecOrNothing, val::VecOrNothing, dir::Integer, eps::Real)
     @check! _vectors_all_same_size(ind, val)
     dual_rtest(prob, length(ind), ind, val, dir, eps)
 end
@@ -1986,12 +1943,12 @@ function ios_select_node(tree::Ptr{Void}, p::Integer)
     @glpk_ccall ios_select_node Void (Ptr{Void}, Cint) tree p
 end
 
-function ios_heur_sol{Tv<:Real}(tree::Ptr{Void}, x::Vector{Tv})
+function ios_heur_sol(tree::Ptr{Void}, x::VecOrNothing)
     @check! _tree(tree)
     prob = ios_get_prob(tree)
     cols = @glpk_ccall get_num_cols Cint (Ptr{Void},) prob.p
     @check! _vectors_size(cols, x)
-    x64 = convert(Vector{Cdouble}, x)
+    x64 = cdouble_vec(x)
     off64 = sizeof(Cdouble)
     x64p = pointer(x64) - off64
 
@@ -2078,9 +2035,8 @@ function ios_pool_size(tree::Ptr{Void})
     @glpk_ccall ios_pool_size Cint (Ptr{Void},) tree
 end
 
-function ios_add_row{Ti<:Integer, Tv<:Real}(tree::Ptr{Void}, name::Union(String,Nothing),
-                    klass::Integer, flags::Integer, len::Integer, ind::Vector{Ti}, val::Vector{Tv},
-                    constr_type::Integer, rhs::Real)
+function ios_add_row(tree::Ptr{Void}, name::Union(String,Nothing), klass::Integer, flags::Integer,
+                     len::Integer, ind::VecOrNothing, val::VecOrNothing, constr_type::Integer, rhs::Real)
 
     @check! _tree(tree)
     @check _reason(tree, [GLPK.ICUTGEN])
@@ -2090,8 +2046,8 @@ function ios_add_row{Ti<:Integer, Tv<:Real}(tree::Ptr{Void}, name::Union(String,
     @check _ios_add_row_flags(flags)
     @check! _vectors_size(len, ind, val)
     if len > 0
-        ind32 = convert(Vector{Cint}, ind)
-        val64 = convert(Vector{Cdouble}, val)
+        ind32 = cint_vec(ind)
+        val64 = cdouble_vec(val)
         off32 = sizeof(Cint)
         off64 = sizeof(Cdouble)
         ind32p = pointer(ind32) - off32
@@ -2108,26 +2064,21 @@ function ios_add_row{Ti<:Integer, Tv<:Real}(tree::Ptr{Void}, name::Union(String,
     @glpk_ccall ios_add_row Cint (Ptr{Void}, Ptr{Cchar}, Cint, Cint, Cint, Ptr{Cint}, Ptr{Cdouble}, Cint, Cdouble) tree bytestring(name) klass flags len ind32p val64p constr_type rhs
 end
 
-ios_add_row{Ti<:Integer, Tv<:Real}(tree::Ptr{Void}, 
-           klass::Integer, flags::Integer, len::Integer, ind::Vector{Ti}, val::Vector{Tv},
-           constr_type::Integer, rhs::Real) =
+ios_add_row(tree::Ptr{Void}, klass::Integer, flags::Integer, len::Integer, ind::VecOrNothing, val::VecOrNothing,
+            constr_type::Integer, rhs::Real) =
     ios_add_row(tree, nothing, klass, flags, len, ind, val, constr_type, rhs)
 
-function ios_add_row{Ti<:Integer, Tv<:Real}(tree::Ptr{Void}, name::Union(String,Nothing),
-                    klass::Integer, flags::Integer, ind::Vector{Ti}, val::Vector{Tv},
-                    constr_type::Integer, rhs::Real)
+function ios_add_row(tree::Ptr{Void}, name::Union(String,Nothing), klass::Integer, flags::Integer,
+                     ind::VecOrNothing, val::VecOrNothing, constr_type::Integer, rhs::Real)
     @check! _vectors_all_same_size(ind, val)
     ios_add_row(tree, name, klass, flags, length(ind), ind, val, constr_type, rhs)
 end
 
-ios_add_row{Ti<:Integer, Tv<:Real}(tree::Ptr{Void}, name::Union(String,Nothing),
-           klass::Integer, ind::Vector{Ti}, val::Vector{Tv}, constr_type::Integer,
-           rhs::Real) =
+ios_add_row(tree::Ptr{Void}, name::Union(String,Nothing), klass::Integer, ind::VecOrNothing, val::VecOrNothing,
+            constr_type::Integer, rhs::Real) =
     ios_add_row(tree, name, klass, 0, length(ind), ind, val, constr_type, rhs)
 
-ios_add_row{Ti<:Integer, Tv<:Real}(tree::Ptr{Void},
-           klass::Integer, ind::Vector{Ti}, val::Vector{Tv}, constr_type::Integer,
-           rhs::Real) =
+ios_add_row(tree::Ptr{Void}, klass::Integer, ind::VecOrNothing, val::VecOrNothing, constr_type::Integer, rhs::Real) =
     ios_add_row(tree, nothing, klass, 0, length(ind), ind, val, constr_type, rhs)
 
 function ios_del_row(tree::Ptr{Void}, row::Integer)
