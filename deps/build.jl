@@ -27,7 +27,10 @@ provides(BuildProcess, {
 # Homebrew (OS X section)
 @osx_only begin
     using Homebrew
-    provides(Homebrew.HB, "glpk", glpkdep, os = :Darwin)
+    if Homebrew.installed("glpk") # remove old conflicting version
+        Homebrew.rm("glpk")
+    end
+    provides(Homebrew.HB, "glpk452", glpkdep, os = :Darwin)
 end
 
 # Windows
