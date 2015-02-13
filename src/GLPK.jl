@@ -799,7 +799,7 @@ function load_matrix(prob::Prob, ia::VecOrNothing, ja::VecOrNothing, ar::VecOrNo
     load_matrix(prob, l, ia, ja, ar)
 end
 
-function load_matrix(prob::Prob, a::AbstractSparseMatrix)
+function load_matrix(prob::Prob, a::Base.SparseMatrix.AbstractSparseMatrix)
     (ia, ja, ar) = findnz(a)
     load_matrix(prob, ia, ja, ar)
 end
