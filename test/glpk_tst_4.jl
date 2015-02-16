@@ -1,3 +1,4 @@
+using Compat
 using Base.Test
 import GLPK
 
@@ -27,12 +28,12 @@ function glpk_tst_4()
     GLPK.mpl_build_prob(tran, mip)
     @test GLPK.simplex(mip, nothing) == 0
     @test GLPK.intopt(mip, nothing) == 0
-    GLPK.mpl_postsolve(tran, mip, GLPK.MIP) 
+    GLPK.mpl_postsolve(tran, mip, GLPK.MIP)
 
     @test GLPK.warm_up(mip) == 0
 
     @test GLPK.factorize(mip) == 0
-    
+
     @test GLPK.bf_updated(mip) == 0
 
     bfp = GLPK.BasisFactParam()
@@ -102,7 +103,7 @@ function glpk_tst_4()
 
     for i = 1:100
         ia, ja, val = findnz(sprand(int(rows), 1, 0.5))
-        dir = 2 * randbool() - 1
+        dir = 2 * rand(Bool) - 1
         eps = 1e-9
 
         basic = map(x->var_is_basic(mip, x), ia)
@@ -115,7 +116,7 @@ function glpk_tst_4()
 
     for i = 1:100
         ia, ja, val = findnz(sprand(int(cols), 1, 0.5))
-        dir = 2 * randbool() - 1
+        dir = 2 * rand(Bool) - 1
         eps = 1e-9
 
         basic = map(x->var_is_basic(mip, x), ia)
