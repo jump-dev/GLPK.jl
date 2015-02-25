@@ -2,7 +2,7 @@ using Base.Test
 import GLPK
 
 function glpk_tst_5()
-    datadir = joinpath(Pkg.dir(), "GLPK", "test", "data")
+    datadir = joinpath(dirname(@__FILE__), "data")
     isdir(datadir) || (datadir = joinpath(Pkg.dir(), "GLPK.jl", "test", "data"))
 
     prev_term_out = GLPK.term_out(GLPK.OFF)
