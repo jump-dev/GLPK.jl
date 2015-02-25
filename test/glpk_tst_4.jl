@@ -17,7 +17,7 @@ end
 function glpk_tst_4()
     prev_term_out = GLPK.term_out(GLPK.OFF)
 
-    datadir = joinpath(Pkg.dir(), "GLPK", "test", "data")
+    datadir = joinpath(dirname(@__FILE__), "data")
     isdir(datadir) || (datadir = joinpath(Pkg.dir(), "GLPK.jl", "test", "data"))
 
     mip = GLPK.Prob()
