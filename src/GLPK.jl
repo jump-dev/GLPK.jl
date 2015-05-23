@@ -186,6 +186,8 @@ export
 
 import Base.setindex!, Base.getindex
 
+using Compat
+
 ## Shared library interface setup
 #{{{
 if isfile(joinpath(dirname(@__FILE__),"..","deps","deps.jl"))
@@ -231,9 +233,9 @@ end
 # (since we import structs from the header,
 # we must ensure that the binary is the correct
 # one)
-function version()
+@compat function version()
     vstr = bytestring(@glpk_ccall version Ptr{Cchar} ())
-    return tuple(map(x->parseint(x), split(vstr, '.'))...)
+    return tuple(map(x->parse(Int, x), split(vstr, '.'))...)
 end
 
 if version() != (MAJOR_VERSION, MINOR_VERSION)
@@ -250,9 +252,9 @@ end
 
 abstract Param
 
-function setindex!{T<:Param}(param::T, val, field_name::String)
+@compat function setindex!{T<:Param}(param::T, val, field_name::String)
     s = symbol(field_name)
-    i = findfirst(x->x==s, T.names)
+    i = findfirst(x->x==s, fieldnames(T))
     i > 0 || error("Parameter type $T has no field $field_name")
     t = T.types[i]
     param.(s) = convert(t, val)
