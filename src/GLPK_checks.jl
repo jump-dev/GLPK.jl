@@ -16,7 +16,7 @@
 # GLPK anyway (but will likely produce a fatal error if they fail, while Julia
 # handles things more gracefully).
 
-let valid_objs = (Uint=>Bool)[]
+let valid_objs = Dict{UInt, Bool}()
     global jl_obj_is_valid, _add_obj, _del_obj, _del_all_objs
     function jl_obj_is_valid(x)
         haskey(valid_objs, object_id(x))

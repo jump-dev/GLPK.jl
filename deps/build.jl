@@ -1,5 +1,7 @@
 using BinDeps
 
+using Compat
+
 @BinDeps.setup
 
 glpkvers = "4.52"
@@ -7,7 +9,9 @@ glpkname = "glpk-$glpkvers"
 glpkdllname = "glpk_$(replace(glpkvers, ".", "_"))"
 glpkdllnamew(w) = "$(glpkdllname)_$(w)bit"
 
-glpkvalidate(name, handle) = (bytestring(ccall(dlsym(handle, :glp_version), Ptr{Uint8}, ())) == glpkvers)
+const _dlsym = (VERSION >= v"0.4.0-dev+3844" ? Libdl.dlsym : dlsym)
+
+glpkvalidate(name, handle) = (bytestring(ccall(_dlsym(handle, :glp_version), Ptr{Uint8}, ())) == glpkvers)
 glpkdep = library_dependency("libglpk", aliases = [glpkdllnamew(WORD_SIZE)], validate = glpkvalidate)
 
 # Build from sources (used by Linux, BSD)
@@ -15,13 +19,13 @@ julia_usrdir = normpath("$JULIA_HOME/../") # This is a stopgap, we need a better
 libdirs = String["$(julia_usrdir)/lib"]
 includedirs = String["$(julia_usrdir)/include"]
 
-provides(Sources, {URI("http://ftp.gnu.org/gnu/glpk/$glpkname.tar.gz") => glpkdep}, os = :Unix)
-provides(BuildProcess, {
+@compat provides(Sources, Dict(URI("http://ftp.gnu.org/gnu/glpk/$glpkname.tar.gz") => glpkdep), os = :Unix)
+@compat provides(BuildProcess, Dict(
     Autotools(libtarget = joinpath("src", ".libs", "libglpk.la"),
               configure_options = String["--with-gmp"],
               lib_dirs = libdirs,
               include_dirs = includedirs) => glpkdep
-    }, os = :Unix)
+    ), os = :Unix)
 
 
 # Homebrew (OS X section)
@@ -63,6 +67,6 @@ provides(BuildProcess,
 
 @windows_only push!(BinDeps.defaults, BuildProcess)
 
-@BinDeps.install [ :libglpk => :libglpk ]
+@compat @BinDeps.install Dict(:libglpk => :libglpk)
 
 @windows_only pop!(BinDeps.defaults)
