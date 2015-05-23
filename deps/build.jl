@@ -4,15 +4,33 @@ using Compat
 
 @BinDeps.setup
 
-glpkvers = "4.52"
-glpkname = "glpk-$glpkvers"
-glpkdllname = "glpk_$(replace(glpkvers, ".", "_"))"
+include("verreq.jl")
+
+glpkname = "glpk-$glpkdefver"
+glpkdllname = "glpk_$(replace(glpkdefver, ".", "_"))"
 glpkdllnamew(w) = "$(glpkdllname)_$(w)bit"
 
 const _dlsym = (VERSION >= v"0.4.0-dev+3844" ? Libdl.dlsym : dlsym)
 
-glpkvalidate(name, handle) = (bytestring(ccall(_dlsym(handle, :glp_version), Ptr{Uint8}, ())) == glpkvers)
-glpkdep = library_dependency("libglpk", aliases = [glpkdllnamew(WORD_SIZE)], validate = glpkvalidate)
+if VERSION >= v"0.4-dev"
+    function string_version(str)
+        VersionNumber(str)
+    end
+else
+    function string_version(str)
+        major_ver, minor_ver = match(r"(\d+)\.(\d+)", str).captures
+        # No need for @compat since this is only on <= 0.3
+        VersionNumber(parseint(major_ver), parseint(minor_ver))
+    end
+end
+
+function glpkvalidate(name, handle)
+    ver_str = bytestring(ccall(_dlsym(handle, :glp_version), Ptr{Uint8}, ()))
+    ver = string_version(ver_str)
+    glpkminver <= ver <= glpkmaxver
+end
+glpkdep = library_dependency("libglpk", aliases = [glpkdllnamew(WORD_SIZE)],
+                             validate = glpkvalidate)
 
 # Build from sources (used by Linux, BSD)
 julia_usrdir = normpath("$JULIA_HOME/../") # This is a stopgap, we need a better builtin solution to get the included libraries
@@ -45,7 +63,7 @@ glpkdlldirw(w) = joinpath(glpksrcdir, glpkname, "w$w")
 glpkdestw(w) = joinpath(glpklibdir, "$(glpkdllnamew(w)).dll")
 provides(BuildProcess,
     (@build_steps begin
-        FileDownloader("http://downloads.sourceforge.net/project/winglpk/winglpk/GLPK-$glpkvers/win$glpkname.zip",
+        FileDownloader("http://downloads.sourceforge.net/project/winglpk/winglpk/GLPK-$glpkdefver/win$glpkname.zip",
                        joinpath(glpkdownloadsdir, "win$glpkname.zip"))
         CreateDirectory(glpksrcdir, true)
         FileUnpacker(joinpath(glpkdownloadsdir, "win$glpkname.zip"),
