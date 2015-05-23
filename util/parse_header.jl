@@ -4,24 +4,61 @@
 
 using BinDeps
 
-glpkvers = "4.52"
-glpkname = "glpk-$glpkvers"
-glpkarchive = "$glpkname.tar.gz"
+include("../deps/verreq.jl")
 
-CC = get(ENV, "CC", "cc")
-
-GLPK_CONST = "0x[0-9a-fA-F]+|[-+]?\\s*[0-9]+"
-PERL_CMD = "/^\\s*#define\\s+GLP_(\\w*)\\s*\\(?($GLPK_CONST)\\)?\\s*\$/ and print \"const \$1 = convert(Cint, \$2)\""
-
-if !isfile("$glpkarchive")
-    run(download_cmd("http://ftp.gnu.org/gnu/glpk/$glpkarchive", glpkarchive))
+function with_temp_dir(fn::Function)
+    tmpdir = mktempdir()
+    try
+        cd(fn, tmpdir)
+    finally
+        rm(tmpdir, recursive=true)
+    end
 end
-run(`tar xzf $glpkarchive`)
 
-glpkheader = joinpath(glpkname, "src", "glpk.h")
+function parse_header(iname, oname)
+    CC = get(ENV, "CC", "cc")
+    glpk_consts = Tuple{String, Cint}[]
+    major_ver = 0
+    minor_ver = 0
+    for line in eachline(`$CC -E -dM $iname`)
+        m = match(r"^#define\s+GLP_(\w+)\s+([^\s]+)", line)
+        if m != nothing
+            name, value = m.captures
+            value = parse(Cint, value)
+            if name == "MAJOR_VERSION"
+                major_ver = value
+            elseif name == "MINOR_VERSION"
+                minor_ver = value
+            else
+                push!(glpk_consts, (name, value))
+            end
+        end
+    end
+    check_glpk_version(major_ver, minor_ver)
+    sort!(glpk_consts, by=(key)->key[1])
+    open(oname, "w") do hdl
+        for (name::String, value::Cint) in glpk_consts
+            write(hdl, "const $name = convert(Cint, $value)\n")
+        end
+    end
+end
 
-glpk_h_jl = joinpath("..", "src", "GLPK_constants.jl")
-run(`$CC -E -dM $glpkheader` |> `perl -nle $PERL_CMD` |> `sort` |> glpk_h_jl)
+function get_header()
+    if length(ARGS) >= 1 && isfile(ARGS[1])
+        return ARGS[1]
+    end
+    glpkname = "glpk-$glpkdefver"
+    glpkarchive = "$glpkname.tar.gz"
 
-run(`rm -fr $glpkname`)
-rm(glpkarchive)
+    run(download_cmd("http://ftp.gnu.org/gnu/glpk/$glpkarchive", glpkarchive))
+    run(`tar xzf $glpkarchive`)
+
+    joinpath(glpkname, "src", "glpk.h")
+end
+
+with_temp_dir() do
+    glpkheader = get_header()
+
+    glpk_h_jl = joinpath(dirname(@__FILE__), "..", "src", "GLPK_constants.jl")
+    parse_header(glpkheader, glpk_h_jl)
+end

@@ -238,11 +238,19 @@ end
     return tuple(map(x->parse(Int, x), split(vstr, '.'))...)
 end
 
-if version() != (MAJOR_VERSION, MINOR_VERSION)
-    bv = version()
-    hv = (MAJOR_VERSION, MINOR_VERSION)
-    error("GLPK: mismatched versions: header=$(hv[1]).$(hv[2]) binary=$(bv[1]).$(bv[2])")
+include("../deps/verreq.jl")
+
+function __init__()
+    major_ver, minor_ver = version()
+    check_glpk_version(major_ver, minor_ver)
+    global const MAJOR_VERSION = major_ver
+    global const MINOR_VERSION = minor_ver
 end
+
+if VERSION < v"0.4-dev"
+    __init__()
+end
+
 #}}}
 
 ## Preliminary definitions
