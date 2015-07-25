@@ -8,7 +8,6 @@ include("verreq.jl")
 
 glpkname = "glpk-$glpkdefver"
 glpkdllname = "glpk_$(replace(glpkdefver, ".", "_"))"
-glpkdllnamew(w) = "$(glpkdllname)_$(w)bit"
 
 const _dlsym = (VERSION >= v"0.4.0-dev+3844" ? Libdl.dlsym : dlsym)
 
@@ -29,7 +28,7 @@ function glpkvalidate(name, handle)
     ver = string_version(ver_str)
     glpkminver <= ver <= glpkmaxver
 end
-glpkdep = library_dependency("libglpk", aliases = [glpkdllnamew(WORD_SIZE)],
+glpkdep = library_dependency("libglpk", aliases = [glpkdllname],
                              validate = glpkvalidate)
 
 # Build from sources (used by Linux, BSD)
@@ -56,35 +55,7 @@ includedirs = String["$(julia_usrdir)/include"]
 end
 
 # Windows
-glpklibdir = BinDeps.libdir(glpkdep)
-glpksrcdir = BinDeps.srcdir(glpkdep)
-glpkdownloadsdir = BinDeps.downloadsdir(glpkdep)
-glpkdlldirw(w) = joinpath(glpksrcdir, glpkname, "w$w")
-glpkdestw(w) = joinpath(glpklibdir, "$(glpkdllnamew(w)).dll")
-provides(BuildProcess,
-    (@build_steps begin
-        FileDownloader("http://downloads.sourceforge.net/project/winglpk/winglpk/GLPK-$glpkdefver/win$glpkname.zip",
-                       joinpath(glpkdownloadsdir, "win$glpkname.zip"))
-        CreateDirectory(glpksrcdir, true)
-        FileUnpacker(joinpath(glpkdownloadsdir, "win$glpkname.zip"),
-                     glpksrcdir, glpkdlldirw(32))
-        CreateDirectory(glpklibdir, true)
-        @build_steps begin
-            ChangeDirectory(glpkdlldirw(32))
-            FileRule(glpkdestw(32), @build_steps begin
-                `cp $(glpkdllname).dll $(glpkdestw(32))`
-            end)
-        end
-        @build_steps begin
-            ChangeDirectory(glpkdlldirw(64))
-            FileRule(glpkdestw(64), @build_steps begin
-                `cp $(glpkdllname).dll $(glpkdestw(64))`
-            end)
-        end
-    end), glpkdep, os = :Windows)
-
-@windows_only push!(BinDeps.defaults, BuildProcess)
+provides(Binaries, URI("https://bintray.com/artifact/download/tkelman/generic/win$glpkname.zip"),
+         glpkdep, unpacked_dir="$glpkname/w$WORD_SIZE", os = :Windows)
 
 @compat @BinDeps.install Dict(:libglpk => :libglpk)
-
-@windows_only pop!(BinDeps.defaults)
