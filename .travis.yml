@@ -1,27 +1,26 @@
-language: cpp
-compiler:
-  - gcc
-  - clang
-notifications:
-  email: false
+language: julia
+os:
+  - linux
+  - osx
+julia:
+  - release
+  - nightly
 env:
   matrix:
-    - JULIAVERSION="juliareleases"
-    - JULIAVERSION="julianightlies"
-before_install:
-  - sudo add-apt-repository ppa:staticfloat/julia-deps -y
-  - sudo add-apt-repository ppa:staticfloat/${JULIAVERSION} -y
-  - sudo apt-get update -qq -y
-  - sudo apt-get install libpcre3-dev libgmp-dev julia -y
-  - if [[ -a .git/shallow ]]; then git fetch --unshallow; fi
-script:
-  - julia -e 'Pkg.init(); run(`ln -s $(pwd()) $(Pkg.dir("GLPK"))`); Pkg.pin("GLPK"); Pkg.resolve()'
-  - julia -e 'Pkg.build("GLPK")'
-  - julia -e 'using GLPK; @assert isdefined(:GLPK); @assert typeof(GLPK) === Module'
-  - if [ $JULIAVERSION = "julianightlies" ]; then julia --code-coverage test/runtests.jl; fi
-  - if [ $JULIAVERSION = "juliareleases" ]; then julia test/runtests.jl; fi
+    - CC="gcc"
+    - CC="clang"
+notifications:
+  email: false
+sudo: false # use a docker worker
+addons:
+  apt_packages:
+  - libgmp-dev
+# uncomment the following lines to override the default test script
+#script:
+#  - if [[ -a .git/shallow ]]; then git fetch --unshallow; fi
+#  - julia --check-bounds=yes -e 'Pkg.clone(pwd()); Pkg.build("GLPK"); Pkg.test("GLPK")'
 after_success:
-  - if [ $JULIAVERSION = "julianightlies" ]; then julia -e 'cd(Pkg.dir("GLPK")); Pkg.add("Coverage"); using Coverage; Coveralls.submit(Coveralls.process_folder())'; fi
+  - if [ $TRAVIS_JULIA_VERSION = "nightly" ]; then julia -e 'cd(Pkg.dir("GLPK")); Pkg.add("Coverage"); using Coverage; Coveralls.submit(Coveralls.process_folder())'; fi
 branches:
   except:
     - release-0.1
