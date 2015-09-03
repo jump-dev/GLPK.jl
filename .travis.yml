@@ -20,7 +20,7 @@ addons:
 #  - if [[ -a .git/shallow ]]; then git fetch --unshallow; fi
 #  - julia --check-bounds=yes -e 'Pkg.clone(pwd()); Pkg.build("GLPK"); Pkg.test("GLPK")'
 after_success:
-  - if [ $TRAVIS_JULIA_VERSION = "nightly" ]; then julia -e 'cd(Pkg.dir("GLPK")); Pkg.add("Coverage"); using Coverage; Coveralls.submit(Coveralls.process_folder())'; fi
+  - julia -e 'cd(Pkg.dir("GLPK")); Pkg.add("Coverage"); using Coverage; Coveralls.submit(process_folder())'
 branches:
   except:
     - release-0.1
