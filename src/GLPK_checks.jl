@@ -66,7 +66,7 @@ function _prob(prob::Prob)
     return true
 end
 
-function _string_length(s::String, maxl::Integer)
+function _string_length(s::AbstractString, maxl::Integer)
     l = length(s)
     if l > maxl
         throw(GLPKError("invalid string length $l (must be <= $maxl)"))
@@ -354,7 +354,7 @@ function _kind_is_valid(kind::Integer)
     return true
 end
 
-function _file_is_readable(filename::String)
+function _file_is_readable(filename::AbstractString)
     try
         f = open(filename, "r")
         close(f)
@@ -364,7 +364,7 @@ function _file_is_readable(filename::String)
     return true
 end
 
-function _file_is_writable(filename::String)
+function _file_is_writable(filename::AbstractString)
     try
         f = open(filename, "w")
         close(f)
@@ -374,7 +374,7 @@ function _file_is_writable(filename::String)
     return true
 end
 
-function _succeeded(ret::Integer, msg::String)
+function _succeeded(ret::Integer, msg::AbstractString)
     if ret != 0
         throw(GLPKError(msg * " failed"))
     end
