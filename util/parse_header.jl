@@ -17,7 +17,7 @@ end
 
 function parse_header(iname, oname)
     CC = get(ENV, "CC", "cc")
-    glpk_consts = Tuple{String, Cint}[]
+    glpk_consts = Tuple{AbstractString, Cint}[]
     major_ver = 0
     minor_ver = 0
     for line in eachline(`$CC -E -dM $iname`)
@@ -37,7 +37,7 @@ function parse_header(iname, oname)
     check_glpk_version(major_ver, minor_ver)
     sort!(glpk_consts, by=(key)->key[1])
     open(oname, "w") do hdl
-        for (name::String, value::Cint) in glpk_consts
+        for (name::AbstractString, value::Cint) in glpk_consts
             write(hdl, "const $name = convert(Cint, $value)\n")
         end
     end

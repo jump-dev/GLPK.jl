@@ -24,7 +24,7 @@ else
 end
 
 function glpkvalidate(name, handle)
-    ver_str = bytestring(ccall(_dlsym(handle, :glp_version), Ptr{Uint8}, ()))
+    ver_str = bytestring(ccall(_dlsym(handle, :glp_version), Ptr{UInt8}, ()))
     ver = string_version(ver_str)
     glpkminver <= ver <= glpkmaxver
 end
@@ -33,13 +33,13 @@ glpkdep = library_dependency("libglpk", aliases = [glpkdllname],
 
 # Build from sources (used by Linux, BSD)
 julia_usrdir = normpath("$JULIA_HOME/../") # This is a stopgap, we need a better builtin solution to get the included libraries
-libdirs = String["$(julia_usrdir)/lib"]
-includedirs = String["$(julia_usrdir)/include"]
+libdirs = AbstractString["$(julia_usrdir)/lib"]
+includedirs = AbstractString["$(julia_usrdir)/include"]
 
 @compat provides(Sources, Dict(URI("http://ftp.gnu.org/gnu/glpk/$glpkname.tar.gz") => glpkdep), os = :Unix)
 @compat provides(BuildProcess, Dict(
     Autotools(libtarget = joinpath("src", ".libs", "libglpk.la"),
-              configure_options = String["--with-gmp"],
+              configure_options = AbstractString["--with-gmp"],
               lib_dirs = libdirs,
               include_dirs = includedirs) => glpkdep
     ), os = :Unix)

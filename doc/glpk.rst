@@ -194,15 +194,15 @@ but this may change in the future.
 
 The following C-to-Julia type conversion rules apply:
 
-+--------------+-------------+
-| C            | Julia       |
-+==============+=============+
-| ``int``      | ``Cint``    |
-+--------------+-------------+
-| ``double``   | ``Cdouble`` |
-+--------------+-------------+
-| ``char[]``   | ``String``  |
-+--------------+-------------+
++--------------+--------------------+
+| C            | Julia              |
++==============+====================+
+| ``int``      | ``Cint``           |
++--------------+--------------------+
+| ``double``   | ``Cdouble``        |
++--------------+--------------------+
+| ``char[]``   | ``AbstractString`` |
++--------------+--------------------+
 
 On output, these rules apply exactly. On input, on the other hand, Julia requirements are more relaxed:
 
