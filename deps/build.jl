@@ -1,6 +1,7 @@
 using BinDeps
 
 using Compat
+using Compat: unsafe_string, is_apple
 
 @BinDeps.setup
 
@@ -24,7 +25,7 @@ else
 end
 
 function glpkvalidate(name, handle)
-    ver_str = bytestring(ccall(_dlsym(handle, :glp_version), Ptr{UInt8}, ()))
+    ver_str = unsafe_string(ccall(_dlsym(handle, :glp_version), Ptr{UInt8}, ()))
     ver = string_version(ver_str)
     glpkminver <= ver <= glpkmaxver
 end
@@ -46,7 +47,7 @@ includedirs = AbstractString["$(julia_usrdir)/include"]
 
 
 # Homebrew (OS X section)
-@osx_only begin
+if is_apple()
     using Homebrew
     if Homebrew.installed("glpk") # remove old conflicting version
         Homebrew.rm("glpk")
