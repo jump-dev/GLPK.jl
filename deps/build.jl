@@ -57,6 +57,6 @@ end
 
 # Windows
 provides(Binaries, URI("https://bintray.com/artifact/download/tkelman/generic/win$glpkname.zip"),
-         glpkdep, unpacked_dir="$glpkname/w$WORD_SIZE", os = :Windows)
+         glpkdep, unpacked_dir="$glpkname/w$(Sys.WORD_SIZE)", os = :Windows)
 
 @compat @BinDeps.install Dict(:libglpk => :libglpk)
