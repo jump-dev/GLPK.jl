@@ -265,11 +265,11 @@ abstract Param
     i = findfirst(x->x==s, fieldnames(T))
     i > 0 || error("Parameter type $T has no field $field_name")
     t = T.types[i]
-    param.(s) = convert(t, val)
+    setfield!(param, s, convert(t, val))
 end
 
 function getindex(param::Param, field_name::AbstractString)
-    param.(Symbol(field_name))
+    getfield(param, Symbol(field_name))
 end
 
 # We define some types which allow to pass optional agruments
