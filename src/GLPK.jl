@@ -234,7 +234,7 @@ end
 # we must ensure that the binary is the correct
 # one)
 @compat function version()
-    vstr = bytestring(@glpk_ccall version Ptr{Cchar} ())
+    vstr = unsafe_string(@glpk_ccall version Ptr{Cchar} ())
     return tuple(map(x->parse(Int, x), split(vstr, '.'))...)
 end
 
@@ -261,15 +261,15 @@ end
 abstract Param
 
 @compat function setindex!{T<:Param}(param::T, val, field_name::AbstractString)
-    s = symbol(field_name)
+    s = Symbol(field_name)
     i = findfirst(x->x==s, fieldnames(T))
     i > 0 || error("Parameter type $T has no field $field_name")
     t = T.types[i]
-    param.(s) = convert(t, val)
+    setfield!(param, s, convert(t, val))
 end
 
 function getindex(param::Param, field_name::AbstractString)
-    param.(symbol(field_name))
+    getfield(param, Symbol(field_name))
 end
 
 # We define some types which allow to pass optional agruments
@@ -666,14 +666,14 @@ include("GLPK_checks.jl")
     @check! _prob(prob)
     name == nothing && (name = "")
     @check _string_length(name, 255)
-    @glpk_ccall set_prob_name Void (Ptr{Void}, Ptr{Cchar}) prob.p bytestring(name)
+    @glpk_ccall set_prob_name Void (Ptr{Void}, Ptr{Cchar}) prob.p string(name)
 end
 
 @compat function set_obj_name(prob::Prob, name::Union{AbstractString,Void})
     @check! _prob(prob)
     name == nothing && (name = "")
     @check _string_length(name, 255)
-    @glpk_ccall set_obj_name Void (Ptr{Void}, Ptr{Cchar}) prob.p bytestring(name)
+    @glpk_ccall set_obj_name Void (Ptr{Void}, Ptr{Cchar}) prob.p string(name)
 end
 
 @compat function set_row_name(prob::Prob, row::Integer, name::Union{AbstractString,Void})
@@ -681,7 +681,7 @@ end
     @check _row_is_valid(prob, row)
     name == nothing && (name = "")
     @check _string_length(name, 255)
-    @glpk_ccall set_row_name Void (Ptr{Void}, Cint, Ptr{Cchar}) prob.p row bytestring(name)
+    @glpk_ccall set_row_name Void (Ptr{Void}, Cint, Ptr{Cchar}) prob.p row string(name)
 end
 
 @compat function set_col_name(prob::Prob, col::Integer, name::Union{AbstractString,Void})
@@ -689,7 +689,7 @@ end
     @check _col_is_valid(prob, col)
     name == nothing && (name = "")
     @check _string_length(name, 255)
-    @glpk_ccall set_col_name Void (Ptr{Void}, Cint, Ptr{Cchar}) prob.p col bytestring(name)
+    @glpk_ccall set_col_name Void (Ptr{Void}, Cint, Ptr{Cchar}) prob.p col string(name)
 end
 
 function set_obj_dir(prob::Prob, dir::Integer)
@@ -879,14 +879,14 @@ function get_prob_name(prob::Prob)
     @check! _prob(prob)
     name_cstr = @glpk_ccall get_prob_name Ptr{Cchar} (Ptr{Void},) prob.p
     name_cstr == C_NULL && return ""
-    return bytestring(name_cstr)
+    return unsafe_string(name_cstr)
 end
 
 function get_obj_name(prob::Prob)
     @check! _prob(prob)
     name_cstr = @glpk_ccall get_obj_name Ptr{Cchar} (Ptr{Void},) prob.p
     name_cstr == C_NULL && return ""
-    return bytestring(name_cstr)
+    return unsafe_string(name_cstr)
 end
 
 function get_obj_dir(prob::Prob)
@@ -909,7 +909,7 @@ function get_row_name(prob::Prob, row::Integer)
     @check _row_is_valid(prob, row)
     name_cstr = @glpk_ccall get_row_name Ptr{Cchar} (Ptr{Void}, Cint) prob.p row
     name_cstr == C_NULL && return ""
-    return bytestring(name_cstr)
+    return unsafe_string(name_cstr)
 end
 
 function get_col_name(prob::Prob, col::Integer)
@@ -917,7 +917,7 @@ function get_col_name(prob::Prob, col::Integer)
     @check _col_is_valid(prob, col)
     name_cstr = @glpk_ccall get_col_name Ptr{Cchar} (Ptr{Void}, Cint) prob.p col
     name_cstr == C_NULL && return ""
-    return bytestring(name_cstr)
+    return unsafe_string(name_cstr)
 end
 
 function get_row_type(prob::Prob, row::Integer)
@@ -1054,12 +1054,12 @@ end
 
 function find_row(prob::Prob, name::AbstractString)
     @check! _prob(prob)
-    @glpk_ccall find_row Cint (Ptr{Void}, Ptr{Cchar}) prob.p bytestring(name)
+    @glpk_ccall find_row Cint (Ptr{Void}, Ptr{Cchar}) prob.p string(name)
 end
 
 function find_col(prob::Prob, name::AbstractString)
     @check! _prob(prob)
-    @glpk_ccall find_col Cint (Ptr{Void}, Ptr{Cchar}) prob.p bytestring(name)
+    @glpk_ccall find_col Cint (Ptr{Void}, Ptr{Cchar}) prob.p string(name)
 end
 
 function delete_index(prob::Prob)
@@ -1354,7 +1354,7 @@ function read_mps(prob::Prob, format::Integer, param, filename::AbstractString)
     end
 
     @check _file_is_readable(filename)
-    ret = @glpk_ccall read_mps Cint (Ptr{Void}, Cint, Ptr{Void}, Ptr{Cchar}) prob.p format param bytestring(filename)
+    ret = @glpk_ccall read_mps Cint (Ptr{Void}, Cint, Ptr{Void}, Ptr{Cchar}) prob.p format param string(filename)
     @check! _succeeded(ret, "read_mps")
     return ret
 end
@@ -1371,7 +1371,7 @@ function write_mps(prob::Prob, format::Integer, param, filename::AbstractString)
         @check _mps_param(param)
     end
     @check _file_is_writable(filename)
-    ret = @glpk_ccall write_mps Cint (Ptr{Void}, Cint, Ptr{Void}, Ptr{Cchar}) prob.p format param bytestring(filename)
+    ret = @glpk_ccall write_mps Cint (Ptr{Void}, Cint, Ptr{Void}, Ptr{Cchar}) prob.p format param string(filename)
     @check! _succeeded(ret, "write_mps")
     return ret
 end
@@ -1383,7 +1383,7 @@ function read_lp(prob::Prob, param, filename::AbstractString)
     @check! _prob(prob)
     @check _lp_param(param)
     @check _file_is_readable(filename)
-    ret = @glpk_ccall read_lp Cint (Ptr{Void}, Ptr{Void}, Ptr{Cchar}) prob.p param bytestring(filename)
+    ret = @glpk_ccall read_lp Cint (Ptr{Void}, Ptr{Void}, Ptr{Cchar}) prob.p param string(filename)
     @check! _succeeded(ret, "read_lp")
     return ret
 end
@@ -1395,7 +1395,7 @@ function write_lp(prob::Prob, param, filename::AbstractString)
     @check! _prob(prob)
     @check _lp_param(param)
     @check _file_is_writable(filename)
-    ret = @glpk_ccall write_lp Cint (Ptr{Void}, Ptr{Void}, Ptr{Cchar}) prob.p param bytestring(filename)
+    ret = @glpk_ccall write_lp Cint (Ptr{Void}, Ptr{Void}, Ptr{Cchar}) prob.p param string(filename)
     @check! _succeeded(ret, "write_lp")
     return ret
 end
@@ -1407,7 +1407,7 @@ function read_prob(prob::Prob, flags::Integer, filename::AbstractString)
     @check! _prob(prob)
     @check _read_prob_flags(flags)
     @check _file_is_readable(filename)
-    ret = @glpk_ccall read_prob Cint (Ptr{Void}, Cint, Ptr{Cchar}) prob.p flags bytestring(filename)
+    ret = @glpk_ccall read_prob Cint (Ptr{Void}, Cint, Ptr{Cchar}) prob.p flags string(filename)
     @check! _succeeded(ret, "read_prob")
     return ret
 end
@@ -1419,7 +1419,7 @@ function write_prob(prob::Prob, flags::Integer, filename::AbstractString)
     @check! _prob(prob)
     @check _write_prob_flags(flags)
     @check _file_is_writable(filename)
-    ret = @glpk_ccall write_prob Cint (Ptr{Void}, Cint, Ptr{Cchar}) prob.p flags bytestring(filename)
+    ret = @glpk_ccall write_prob Cint (Ptr{Void}, Cint, Ptr{Cchar}) prob.p flags string(filename)
     @check! _succeeded(ret, "write_prob")
     return ret
 end
@@ -1430,7 +1430,7 @@ write_prob(prob::Prob, filename::AbstractString) =
 function mpl_read_model(tran::MathProgWorkspace, filename::AbstractString, skip::Integer)
     @check! _mpl_workspace(tran)
     @check _file_is_readable(filename)
-    ret = @glpk_ccall mpl_read_model Cint (Ptr{Void}, Ptr{Cchar}, Cint) tran.p bytestring(filename) skip
+    ret = @glpk_ccall mpl_read_model Cint (Ptr{Void}, Ptr{Cchar}, Cint) tran.p string(filename) skip
     @check! _succeeded(ret, "mpl_read_model")
     return ret
 end
@@ -1438,7 +1438,7 @@ end
 function mpl_read_data(tran::MathProgWorkspace, filename::AbstractString)
     @check! _mpl_workspace(tran)
     @check _file_is_readable(filename)
-    ret = @glpk_ccall mpl_read_data Cint (Ptr{Void}, Ptr{Cchar}) tran.p bytestring(filename)
+    ret = @glpk_ccall mpl_read_data Cint (Ptr{Void}, Ptr{Cchar}) tran.p string(filename)
     @check! _succeeded(ret, "mpl_read_data")
     return ret
 end
@@ -1449,7 +1449,7 @@ end
         cfilename = C_NULL
     else
         @check _file_is_writable(filename)
-        cfilename = bytestring(filename)
+        cfilename = string(filename)
     end
     ret = @glpk_ccall mpl_generate Cint (Ptr{Void}, Ptr{Cchar}) tran.p cfilename
     @check! _succeeded(ret, "mpl_generate")
@@ -1476,7 +1476,7 @@ end
 function print_sol(prob::Prob, filename::AbstractString)
     @check! _prob(prob)
     @check _file_is_writable(filename)
-    ret = @glpk_ccall print_sol Cint (Ptr{Void}, Ptr{Cchar}) prob.p bytestring(filename)
+    ret = @glpk_ccall print_sol Cint (Ptr{Void}, Ptr{Cchar}) prob.p string(filename)
     @check! _succeeded(ret, "print_sol")
     return ret
 end
@@ -1484,7 +1484,7 @@ end
 function read_sol(prob::Prob, filename::AbstractString)
     @check! _prob(prob)
     @check _file_is_readable(filename)
-    ret = @glpk_ccall read_sol Cint (Ptr{Void}, Ptr{Cchar}) prob.p bytestring(filename)
+    ret = @glpk_ccall read_sol Cint (Ptr{Void}, Ptr{Cchar}) prob.p string(filename)
     @check! _succeeded(ret, "read_sol")
     return ret
 end
@@ -1492,7 +1492,7 @@ end
 function write_sol(prob::Prob, filename::AbstractString)
     @check! _prob(prob)
     @check _file_is_writable(filename)
-    ret = @glpk_ccall write_sol Cint (Ptr{Void}, Ptr{Cchar}) prob.p bytestring(filename)
+    ret = @glpk_ccall write_sol Cint (Ptr{Void}, Ptr{Cchar}) prob.p string(filename)
     @check! _succeeded(ret, "write_sol")
     return ret
 end
@@ -1500,7 +1500,7 @@ end
 function print_ipt(prob::Prob, filename::AbstractString)
     @check! _prob(prob)
     @check _file_is_writable(filename)
-    ret = @glpk_ccall print_ipt Cint (Ptr{Void}, Ptr{Cchar}) prob.p bytestring(filename)
+    ret = @glpk_ccall print_ipt Cint (Ptr{Void}, Ptr{Cchar}) prob.p string(filename)
     @check! _succeeded(ret, "print_ipt")
     return ret
 end
@@ -1508,7 +1508,7 @@ end
 function read_ipt(prob::Prob, filename::AbstractString)
     @check! _prob(prob)
     @check _file_is_readable(filename)
-    ret = @glpk_ccall read_ipt Cint (Ptr{Void}, Ptr{Cchar}) prob.p bytestring(filename)
+    ret = @glpk_ccall read_ipt Cint (Ptr{Void}, Ptr{Cchar}) prob.p string(filename)
     @check! _succeeded(ret, "read_ipt")
     return ret
 end
@@ -1516,7 +1516,7 @@ end
 function write_ipt(prob::Prob, filename::AbstractString)
     @check! _prob(prob)
     @check _file_is_writable(filename)
-    ret = @glpk_ccall write_ipt Cint (Ptr{Void}, Ptr{Cchar}) prob.p bytestring(filename)
+    ret = @glpk_ccall write_ipt Cint (Ptr{Void}, Ptr{Cchar}) prob.p string(filename)
     @check! _succeeded(ret, "write_ipt")
     return ret
 end
@@ -1524,7 +1524,7 @@ end
 function print_mip(prob::Prob, filename::AbstractString)
     @check! _prob(prob)
     @check _file_is_writable(filename)
-    ret = @glpk_ccall print_mip Cint (Ptr{Void}, Ptr{Cchar}) prob.p bytestring(filename)
+    ret = @glpk_ccall print_mip Cint (Ptr{Void}, Ptr{Cchar}) prob.p string(filename)
     @check! _succeeded(ret, "print_mip")
     return ret
 end
@@ -1532,7 +1532,7 @@ end
 function read_mip(prob::Prob, filename::AbstractString)
     @check! _prob(prob)
     @check _file_is_readable(filename)
-    ret = @glpk_ccall read_mip Cint (Ptr{Void}, Ptr{Cchar}) prob.p bytestring(filename)
+    ret = @glpk_ccall read_mip Cint (Ptr{Void}, Ptr{Cchar}) prob.p string(filename)
     @check! _succeeded(ret, "read_mip")
     return ret
 end
@@ -1540,7 +1540,7 @@ end
 function write_mip(prob::Prob, filename::AbstractString)
     @check! _prob(prob)
     @check _file_is_writable(filename)
-    ret = @glpk_ccall write_mip Cint (Ptr{Void}, Ptr{Cchar}) prob.p bytestring(filename)
+    ret = @glpk_ccall write_mip Cint (Ptr{Void}, Ptr{Cchar}) prob.p string(filename)
     @check! _succeeded(ret, "write_mip")
     return ret
 end
@@ -1563,7 +1563,7 @@ function print_ranges(prob::Prob, len::Integer, list::VecOrNothing, flags::Integ
         list32p = C_NULL
     end
 
-    @glpk_ccall print_ranges Cint (Ptr{Void}, Cint, Ptr{Cint}, Cint, Ptr{Cchar}) prob.p len list32p flags bytestring(filename)
+    @glpk_ccall print_ranges Cint (Ptr{Void}, Cint, Ptr{Cint}, Cint, Ptr{Cchar}) prob.p len list32p flags string(filename)
 end
 
 print_ranges(prob::Prob, list::VecOrNothing, flags::Integer, filename::AbstractString) =
@@ -2071,7 +2071,7 @@ end
     end
     @check _constr_type_is_valid(constr_type)
 
-    @glpk_ccall ios_add_row Cint (Ptr{Void}, Ptr{Cchar}, Cint, Cint, Cint, Ptr{Cint}, Ptr{Cdouble}, Cint, Cdouble) tree bytestring(name) klass flags len ind32p val64p constr_type rhs
+    @glpk_ccall ios_add_row Cint (Ptr{Void}, Ptr{Cchar}, Cint, Cint, Cint, Ptr{Cint}, Ptr{Cdouble}, Cint, Cdouble) tree string(name) klass flags len ind32p val64p constr_type rhs
 end
 
 ios_add_row(tree::Ptr{Void}, klass::Integer, flags::Integer, len::Integer, ind::VecOrNothing, val::VecOrNothing,
@@ -2122,7 +2122,7 @@ function term_out(flag::Integer)
 end
 
 function open_tee(filename::AbstractString)
-    ret = @glpk_ccall open_tee Cint (Ptr{Cchar},) bytestring(filename)
+    ret = @glpk_ccall open_tee Cint (Ptr{Cchar},) string(filename)
     @check! _open_tee_succeeded(ret)
     return ret
 end
@@ -2181,7 +2181,7 @@ end
 function read_cnfsat(prob::Prob, filename::AbstractString)
     @check! _prob(prob)
     @check _file_is_readable(filename)
-    ret = @glpk_ccall read_cnfsat Cint (Ptr{Void}, Ptr{Cchar}) prob.p bytestring(filename)
+    ret = @glpk_ccall read_cnfsat Cint (Ptr{Void}, Ptr{Cchar}) prob.p string(filename)
     @check! _succeeded(ret, "read_cnfsat")
     return ret
 end
@@ -2194,7 +2194,7 @@ end
 function write_cnfsat(prob::Prob, filename::AbstractString)
     @check! _prob(prob)
     @check _file_is_writable(filename)
-    ret = @glpk_ccall write_cnfsat Cint (Ptr{Void}, Ptr{Cchar}) prob.p bytestring(filename)
+    ret = @glpk_ccall write_cnfsat Cint (Ptr{Void}, Ptr{Cchar}) prob.p string(filename)
     @check! _succeeded(ret, "write_cnfsat")
     return ret
 end
