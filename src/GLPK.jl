@@ -642,8 +642,8 @@ end
 # one.
 # The general translation rules are:
 #
-#  * function names tranlsate like this: glp_func -> GLPK.func
-#  * constant names tranlsate like this: GLPK_CONST -> GLPK.CONST
+#  * function names translate like this: glp_func -> GLPK.func
+#  * constant names translate like this: GLPK_CONST -> GLPK.CONST
 #  * whenever the C library accepts NULL as argument,
 #    the Julia one will accept the nothing constant.
 #  * vectors do not need to have an extra element at the
