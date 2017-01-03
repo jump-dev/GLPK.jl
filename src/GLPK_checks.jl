@@ -116,11 +116,11 @@ function _bounds_type_is_valid(bounds_type::Integer)
     return true
 end
 
-function _bounds_are_valid(bounds_type::Integer, lb::Real, ub::Real)
+function _bounds_are_valid(bounds_type::Integer, lb::Real, ub::Real, name::String)
     if bounds_type == DB && lb > ub
-        throw(GLPKError("invalid bounds for double-bounded variable: $lb > $ub"))
+        throw(GLPKError("invalid bounds for double-bounded $name: $lb > $ub"))
     elseif bounds_type == FX && lb != ub
-        throw(GLPKError("invalid bounds for fixed variable: $lb != $ub"))
+        throw(GLPKError("invalid bounds for fixed $name: $lb != $ub"))
     end
     return true
 end
