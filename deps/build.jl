@@ -1,8 +1,5 @@
 using BinDeps
 
-using Compat
-using Compat: unsafe_string, is_apple
-
 @BinDeps.setup
 
 include("verreq.jl")
@@ -12,16 +9,8 @@ glpkdllname = "glpk_$(replace(glpkdefver, ".", "_"))"
 
 const _dlsym = (VERSION >= v"0.4.0-dev+3844" ? Libdl.dlsym : dlsym)
 
-if VERSION >= v"0.4-dev"
-    function string_version(str)
-        VersionNumber(str)
-    end
-else
-    function string_version(str)
-        major_ver, minor_ver = match(r"(\d+)\.(\d+)", str).captures
-        # No need for @compat since this is only on <= 0.3
-        VersionNumber(parseint(major_ver), parseint(minor_ver))
-    end
+function string_version(str)
+    VersionNumber(str)
 end
 
 function glpkvalidate(name, handle)
@@ -37,8 +26,8 @@ julia_usrdir = normpath("$JULIA_HOME/../") # This is a stopgap, we need a better
 libdirs = AbstractString["$(julia_usrdir)/lib"]
 includedirs = AbstractString["$(julia_usrdir)/include"]
 
-@compat provides(Sources, Dict(URI("http://ftp.gnu.org/gnu/glpk/$glpkname.tar.gz") => glpkdep), os = :Unix)
-@compat provides(BuildProcess, Dict(
+provides(Sources, Dict(URI("http://ftp.gnu.org/gnu/glpk/$glpkname.tar.gz") => glpkdep), os = :Unix)
+provides(BuildProcess, Dict(
     Autotools(libtarget = joinpath("src", ".libs", "libglpk.la"),
               configure_options = AbstractString["--with-gmp"],
               lib_dirs = libdirs,
@@ -59,4 +48,4 @@ end
 provides(Binaries, URI("https://bintray.com/artifact/download/tkelman/generic/win$glpkname.zip"),
          glpkdep, unpacked_dir="$glpkname/w$(Sys.WORD_SIZE)", os = :Windows)
 
-@compat @BinDeps.install Dict(:libglpk => :libglpk)
+@BinDeps.install Dict(:libglpk => :libglpk)
