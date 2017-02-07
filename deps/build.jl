@@ -7,15 +7,9 @@ include("verreq.jl")
 glpkname = "glpk-$glpkdefver"
 glpkdllname = "glpk_$(replace(glpkdefver, ".", "_"))"
 
-const _dlsym = (VERSION >= v"0.4.0-dev+3844" ? Libdl.dlsym : dlsym)
-
-function string_version(str)
-    VersionNumber(str)
-end
-
 function glpkvalidate(name, handle)
-    ver_str = unsafe_string(ccall(_dlsym(handle, :glp_version), Ptr{UInt8}, ()))
-    ver = string_version(ver_str)
+    ver_str = unsafe_string(ccall(Libdl.dlsym(handle, :glp_version), Ptr{UInt8}, ()))
+    ver = VersionNumber(ver_str)
     glpkminver <= ver <= glpkmaxver
 end
 glpkdep = library_dependency("libglpk", aliases = [glpkdllname],
@@ -23,8 +17,8 @@ glpkdep = library_dependency("libglpk", aliases = [glpkdllname],
 
 # Build from sources (used by Linux, BSD)
 julia_usrdir = normpath("$JULIA_HOME/../") # This is a stopgap, we need a better builtin solution to get the included libraries
-libdirs = AbstractString["$(julia_usrdir)/lib"]
-includedirs = AbstractString["$(julia_usrdir)/include"]
+libdirs = String["$(julia_usrdir)/lib"]
+includedirs = String["$(julia_usrdir)/include"]
 
 provides(Sources, Dict(URI("http://ftp.gnu.org/gnu/glpk/$glpkname.tar.gz") => glpkdep), os = :Unix)
 provides(BuildProcess, Dict(
