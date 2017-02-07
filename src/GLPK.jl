@@ -712,7 +712,7 @@ function set_row_bnds(prob::Prob, row::Integer, bounds_type::Integer, lb::Real, 
     @check! _prob(prob)
     @check _row_is_valid(prob, row)
     @check _bounds_type_is_valid(bounds_type)
-    @check _bounds_are_valid(bounds_type, lb, ub)
+    @check _bounds_are_valid(bounds_type, lb, ub, "constraint")
     @glpk_ccall set_row_bnds Void (Ptr{Void}, Cint, Cint, Cdouble, Cdouble) prob.p row bounds_type lb ub
 end
 
@@ -720,7 +720,7 @@ function set_col_bnds(prob::Prob, col::Integer, bounds_type::Integer, lb::Real, 
     @check! _prob(prob)
     @check _col_is_valid(prob, col)
     @check _bounds_type_is_valid(bounds_type)
-    @check _bounds_are_valid(bounds_type, lb, ub)
+    @check _bounds_are_valid(bounds_type, lb, ub, "variable")
     @glpk_ccall set_col_bnds Void (Ptr{Void}, Cint, Cint, Cdouble, Cdouble) prob.p col bounds_type lb ub
 end
 
