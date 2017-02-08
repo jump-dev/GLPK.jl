@@ -186,8 +186,6 @@ export
 
 import Base.setindex!, Base.getindex
 
-using Compat
-
 ## Shared library interface setup
 #{{{
 if isfile(joinpath(dirname(@__FILE__),"..","deps","deps.jl"))
@@ -233,7 +231,7 @@ end
 # (since we import structs from the header,
 # we must ensure that the binary is the correct
 # one)
-@compat function version()
+function version()
     vstr = unsafe_string(@glpk_ccall version Ptr{Cchar} ())
     return tuple(map(x->parse(Int, x), split(vstr, '.'))...)
 end
@@ -247,10 +245,6 @@ function __init__()
     global const MINOR_VERSION = minor_ver
 end
 
-if VERSION < v"0.4-dev"
-    __init__()
-end
-
 #}}}
 
 ## Preliminary definitions
@@ -260,7 +254,7 @@ end
 
 abstract Param
 
-@compat function setindex!{T<:Param}(param::T, val, field_name::AbstractString)
+function setindex!{T<:Param}(param::T, val, field_name::AbstractString)
     s = Symbol(field_name)
     i = findfirst(x->x==s, fieldnames(T))
     i > 0 || error("Parameter type $T has no field $field_name")
@@ -277,14 +271,14 @@ end
 # In this framework, optional arguments can be passed either
 # as an empty vector [] or as the 'nothing' constant
 
-typealias VecOrNothing @compat Union{AbstractVector,Void}
-@compat cint_vec(a::Void) = Cint[]
+typealias VecOrNothing Union{AbstractVector,Void}
+cint_vec(a::Void) = Cint[]
 cint_vec(a::AbstractVector) = convert(Vector{Cint}, a)
 
-@compat cdouble_vec(a::Void) = Cdouble[]
+cdouble_vec(a::Void) = Cdouble[]
 cdouble_vec(a::AbstractVector) = convert(Vector{Cdouble}, a)
 
-@compat vecornothing_length(a::Void) = 0
+vecornothing_length(a::Void) = 0
 vecornothing_length(a) = length(a)
 
 #}}}
@@ -662,21 +656,21 @@ end
 
 include("GLPK_checks.jl")
 
-@compat function set_prob_name(prob::Prob, name::Union{AbstractString,Void})
+function set_prob_name(prob::Prob, name::Union{AbstractString,Void})
     @check! _prob(prob)
     name == nothing && (name = "")
     @check _string_length(name, 255)
     @glpk_ccall set_prob_name Void (Ptr{Void}, Ptr{Cchar}) prob.p string(name)
 end
 
-@compat function set_obj_name(prob::Prob, name::Union{AbstractString,Void})
+function set_obj_name(prob::Prob, name::Union{AbstractString,Void})
     @check! _prob(prob)
     name == nothing && (name = "")
     @check _string_length(name, 255)
     @glpk_ccall set_obj_name Void (Ptr{Void}, Ptr{Cchar}) prob.p string(name)
 end
 
-@compat function set_row_name(prob::Prob, row::Integer, name::Union{AbstractString,Void})
+function set_row_name(prob::Prob, row::Integer, name::Union{AbstractString,Void})
     @check! _prob(prob)
     @check _row_is_valid(prob, row)
     name == nothing && (name = "")
@@ -684,7 +678,7 @@ end
     @glpk_ccall set_row_name Void (Ptr{Void}, Cint, Ptr{Cchar}) prob.p row string(name)
 end
 
-@compat function set_col_name(prob::Prob, col::Integer, name::Union{AbstractString,Void})
+function set_col_name(prob::Prob, col::Integer, name::Union{AbstractString,Void})
     @check! _prob(prob)
     @check _col_is_valid(prob, col)
     name == nothing && (name = "")
@@ -967,7 +961,7 @@ function get_num_nz(prob::Prob)
     @glpk_ccall get_num_nz Cint (Ptr{Void},) prob.p
 end
 
-@compat function get_mat_row(prob::Prob, row::Integer, ind::Union{Vector{Cint},Void}, val::Union{Vector{Cdouble},Void})
+function get_mat_row(prob::Prob, row::Integer, ind::Union{Vector{Cint},Void}, val::Union{Vector{Cdouble},Void})
     @check! _prob(prob)
     @check _row_is_valid(prob, row)
     numel = @glpk_ccall get_mat_row Cint (Ptr{Void}, Cint, Ptr{Cint}, Ptr{Cdouble}) prob.p row C_NULL C_NULL
@@ -996,8 +990,8 @@ function get_mat_row(prob::Prob, row::Integer)
     numel = @glpk_ccall get_mat_row Cint (Ptr{Void}, Cint, Ptr{Cint}, Ptr{Cdouble}) prob.p row C_NULL C_NULL
     numel == 0 && return (Cint[], Cdouble[])
 
-    ind = Array(Cint, numel)
-    val = Array(Cdouble, numel)
+    ind = Array{Cint}(numel)
+    val = Array{Cdouble}(numel)
 
     off32 = sizeof(Cint)
     ind32p = pointer(ind) - off32
@@ -1007,7 +1001,7 @@ function get_mat_row(prob::Prob, row::Integer)
     return ind, val
 end
 
-@compat function get_mat_col(prob::Prob, col::Integer, ind::Union{Vector{Cint},Void}, val::Union{Vector{Cdouble},Void})
+function get_mat_col(prob::Prob, col::Integer, ind::Union{Vector{Cint},Void}, val::Union{Vector{Cdouble},Void})
     @check! _prob(prob)
     @check _col_is_valid(prob, col)
     numel = @glpk_ccall get_mat_col Cint (Ptr{Void}, Cint, Ptr{Cint}, Ptr{Cdouble}) prob.p col C_NULL C_NULL
@@ -1036,8 +1030,8 @@ function get_mat_col(prob::Prob, col::Integer)
     numel = @glpk_ccall get_mat_col Cint (Ptr{Void}, Cint, Ptr{Cint}, Ptr{Cdouble}) prob.p col C_NULL C_NULL
     numel == 0 && return (Cint[], Cdouble[])
 
-    ind = Array(Cint, numel)
-    val = Array(Cdouble, numel)
+    ind = Array{Cint}(numel)
+    val = Array{Cdouble}(numel)
 
     off32 = sizeof(Cint)
     ind32p = pointer(ind) - off32
@@ -1137,7 +1131,7 @@ function simplex(prob::Prob, param::SimplexParam)
     @check! _prob(prob)
     return @glpk_ccall simplex Cint (Ptr{Void}, Ptr{SimplexParam}) prob.p &param
 end
-@compat function simplex(prob::Prob, param::Void)
+function simplex(prob::Prob, param::Void)
     @check! _prob(prob)
     return @glpk_ccall simplex Cint (Ptr{Void}, Ptr{Void}) prob.p C_NULL
 end
@@ -1147,7 +1141,7 @@ function exact(prob::Prob, param::SimplexParam)
     @check! _prob(prob)
     return @glpk_ccall exact Cint (Ptr{Void}, Ptr{SimplexParam}) prob.p &param
 end
-@compat function exact(prob::Prob, param::Void)
+function exact(prob::Prob, param::Void)
     @check! _prob(prob)
     return @glpk_ccall exact Cint (Ptr{Void}, Ptr{Void}) prob.p C_NULL
 end
@@ -1222,7 +1216,7 @@ function interior(prob::Prob, param::InteriorParam)
     @check! _prob(prob)
     return @glpk_ccall interior Cint (Ptr{Void}, Ptr{InteriorParam}) prob.p &param
 end
-@compat function interior(prob::Prob, param::Void)
+function interior(prob::Prob, param::Void)
     @check! _prob(prob)
     return @glpk_ccall interior Cint (Ptr{Void}, Ptr{Void}) prob.p C_NULL
 end
@@ -1293,7 +1287,7 @@ function intopt(prob::Prob, param::IntoptParam)
     @check! _prob(prob)
     return @glpk_ccall intopt Cint (Ptr{Void}, Ptr{IntoptParam}) prob.p &param
 end
-@compat function intopt(prob::Prob, param::Void)
+function intopt(prob::Prob, param::Void)
     @check! _prob(prob)
     return @glpk_ccall intopt Cint (Ptr{Void}, Ptr{Void}) prob.p C_NULL
 end
@@ -1334,10 +1328,10 @@ function check_kkt(prob::Prob, sol::Integer, cond::Integer)
     @check _sol_param(sol)
     @check _kkt_cond_param(cond, sol)
 
-    ae_max = Array(Cdouble, 1)
-    ae_ind = Array(Cint, 1)
-    re_max = Array(Cdouble, 1)
-    re_ind = Array(Cint, 1)
+    ae_max = Array{Cdouble}(1)
+    ae_ind = Array{Cint}(1)
+    re_max = Array{Cdouble}(1)
+    re_ind = Array{Cint}(1)
 
     @glpk_ccall check_kkt Void (Ptr{Void}, Cint, Cint, Ptr{Cdouble}, Ptr{Cint}, Ptr{Cdouble}, Ptr{Cint}) prob.p sol cond pointer(ae_max) pointer(ae_ind) pointer(re_max) pointer(re_ind)
 
@@ -1443,7 +1437,7 @@ function mpl_read_data(tran::MathProgWorkspace, filename::AbstractString)
     return ret
 end
 
-@compat function mpl_generate(tran::MathProgWorkspace, filename::Union{AbstractString,Void})
+function mpl_generate(tran::MathProgWorkspace, filename::Union{AbstractString,Void})
     @check! _mpl_workspace(tran)
     if filename == nothing
         cfilename = C_NULL
@@ -1602,7 +1596,7 @@ function set_bfcp(prob::Prob, param::BasisFactParam)
     @check! _prob(prob)
     return @glpk_ccall set_bfcp Void (Ptr{Void}, Ptr{BasisFactParam}) prob.p &param
 end
-@compat function set_bfcp(prob::Prob, param::Void)
+function set_bfcp(prob::Prob, param::Void)
     @check! _prob(prob)
     return @glpk_ccall set_bfcp Void (Ptr{Void}, Ptr{Void}) prob.p C_NULL
 end
@@ -1686,8 +1680,8 @@ function eval_tab_row(prob::Prob, k::Integer)
     @check _rowcol_is_valid(k, k_max)
     @check _var_is_basic(prob, k)
 
-    ind = Array(Cint, k_max)
-    val = Array(Cdouble, k_max)
+    ind = Array{Cint}(k_max)
+    val = Array{Cdouble}(k_max)
 
     off32 = sizeof(Cint)
     off64 = sizeof(Cdouble)
@@ -1736,8 +1730,8 @@ function eval_tab_col(prob::Prob, k::Integer)
     @check _rowcol_is_valid(k, k_max)
     @check _var_is_non_basic(prob, k)
 
-    ind = Array(Cint, k_max)
-    val = Array(Cdouble, k_max)
+    ind = Array{Cint}(k_max)
+    val = Array{Cdouble}(k_max)
 
     off32 = sizeof(Cint)
     off64 = sizeof(Cdouble)
@@ -1877,10 +1871,10 @@ function analyze_bound(prob::Prob, k::Integer)
     @check _rowcol_is_valid(prob, k)
     @check _var_is_non_basic(prob, k)
 
-    limit1 = Array(Cdouble, 1)
-    var1 = Array(Cint, 1)
-    limit2 = Array(Cdouble, 1)
-    var2 = Array(Cint, 1)
+    limit1 = Array{Cdouble}(1)
+    var1 = Array{Cint}(1)
+    limit2 = Array{Cdouble}(1)
+    var2 = Array{Cint}(1)
 
     @glpk_ccall analyze_bound Void (Ptr{Void}, Cint, Ptr{Cdouble}, Ptr{Cint}, Ptr{Cdouble}, Ptr{Cint}) prob.p k pointer(limit1) pointer(var1) pointer(limit2) pointer(var2)
 
@@ -1896,12 +1890,12 @@ function analyze_coef(prob::Prob, k::Integer)
     @check _rowcol_is_valid(prob, k)
     @check _var_is_basic(prob, k)
 
-    coef1 = Array(Cdouble, 1)
-    var1 = Array(Cint, 1)
-    value1 = Array(Cdouble, 1)
-    coef2 = Array(Cdouble, 1)
-    var2 = Array(Cint, 1)
-    value2 = Array(Cdouble, 1)
+    coef1 = Array{Cdouble}(1)
+    var1 = Array{Cint}(1)
+    value1 = Array{Cdouble}(1)
+    coef2 = Array{Cdouble}(1)
+    var2 = Array{Cint}(1)
+    value2 = Array{Cdouble}(1)
 
     @glpk_ccall analyze_coef Void (Ptr{Void}, Cint, Ptr{Cdouble}, Ptr{Cint}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cint}, Ptr{Cdouble}) prob.p k pointer(coef1) pointer(var1) pointer(value1) pointer(coef2) pointer(var2) pointer(value2)
 
@@ -1988,9 +1982,9 @@ end
 
 function ios_tree_size(tree::Ptr{Void})
     @check! _tree(tree)
-    a_cnt = Array(Cint, 1)
-    n_cnt = Array(Cint, 1)
-    t_cnt = Array(Cint, 1)
+    a_cnt = Array{Cint}(1)
+    n_cnt = Array{Cint}(1)
+    t_cnt = Array{Cint}(1)
     @glpk_ccall ios_tree_size Void (Ptr{Void}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}) tree pointer(a_cnt) pointer(n_cnt) pointer(t_cnt)
 
     return a_cnt[1], n_cnt[1], t_cnt[1]
@@ -2045,7 +2039,7 @@ function ios_pool_size(tree::Ptr{Void})
     @glpk_ccall ios_pool_size Cint (Ptr{Void},) tree
 end
 
-@compat function ios_add_row(tree::Ptr{Void}, name::Union{AbstractString,Void}, klass::Integer, flags::Integer,
+function ios_add_row(tree::Ptr{Void}, name::Union{AbstractString,Void}, klass::Integer, flags::Integer,
                      len::Integer, ind::VecOrNothing, val::VecOrNothing, constr_type::Integer, rhs::Real)
 
     @check! _tree(tree)
@@ -2078,13 +2072,13 @@ ios_add_row(tree::Ptr{Void}, klass::Integer, flags::Integer, len::Integer, ind::
             constr_type::Integer, rhs::Real) =
     ios_add_row(tree, nothing, klass, flags, len, ind, val, constr_type, rhs)
 
-@compat function ios_add_row(tree::Ptr{Void}, name::Union{AbstractString,Void}, klass::Integer, flags::Integer,
+function ios_add_row(tree::Ptr{Void}, name::Union{AbstractString,Void}, klass::Integer, flags::Integer,
                      ind::VecOrNothing, val::VecOrNothing, constr_type::Integer, rhs::Real)
     @check! _vectors_all_same_size(ind, val)
     ios_add_row(tree, name, klass, flags, length(ind), ind, val, constr_type, rhs)
 end
 
-@compat ios_add_row(tree::Ptr{Void}, name::Union{AbstractString,Void}, klass::Integer, ind::VecOrNothing, val::VecOrNothing,
+ios_add_row(tree::Ptr{Void}, name::Union{AbstractString,Void}, klass::Integer, ind::VecOrNothing, val::VecOrNothing,
             constr_type::Integer, rhs::Real) =
     ios_add_row(tree, name, klass, 0, length(ind), ind, val, constr_type, rhs)
 
@@ -2151,13 +2145,13 @@ mem_usage(count, cpeak, total, tpeak) =
     error("unsupported. Use GLPK.mem_usage() instead.")
 
 function mem_usage()
-    data32 = Array(Cint, 2)
+    data32 = Array{Cint}(2)
     data32_p = pointer(data32)
     off32 = sizeof(Cint)
     count_p = data32_p
     cpeak_p = data32_p + off32
 
-    data64 = Array(Clong, 2)
+    data64 = Array{Clong}(2)
     data64_p = pointer(data64)
     off64 = sizeof(Clong)
 

@@ -4,7 +4,7 @@ Julia GLPK module
 
 | **Documentation**                                                               | **PackageEvaluator**                                            | **Build Status**                                                                                |
 |:-------------------------------------------------------------------------------:|:---------------------------------------------------------------:|:-----------------------------------------------------------------------------------------------:|
-| [![][docs-stable-img]][docs-stable-url] [![][docs-latest-img]][docs-latest-url] | [![][pkg-0.4-img]][pkg-0.4-url] [![][pkg-0.5-img]][pkg-0.5-url] | [![][travis-img]][travis-url] [![][appveyor-img]][appveyor-url] [![][coveralls-img]][coveralls-url] |
+| [![][docs-stable-img]][docs-stable-url] [![][docs-latest-img]][docs-latest-url] | [![][pkg-0.5-img]][pkg-0.5-url] [![][pkg-0.6-img]][pkg-0.6-url] | [![][travis-img]][travis-url] [![][appveyor-img]][appveyor-url] [![][coveralls-img]][coveralls-url] |
 
 
 GLPK.jl is a wrapper for the [GNU Linear Programming Kit library](http://www.gnu.org/software/glpk).
@@ -44,7 +44,7 @@ julia> Pkg.build("GLPK")
 
 ## Project Status
 
-The package is tested against Julia `0.4`, `0.5` and *current* `0.6-dev` on Linux, OS X, and Windows.
+The package is tested against Julia `0.5` and *current* `0.6-dev` on Linux, OS X, and Windows.
 
 [docs-latest-img]: https://img.shields.io/badge/docs-latest-blue.svg
 [docs-latest-url]: https://gplkjl.readthedocs.org/en/latest/glpk.html
@@ -61,7 +61,7 @@ The package is tested against Julia `0.4`, `0.5` and *current* `0.6-dev` on Linu
 [coveralls-img]: https://img.shields.io/coveralls/JuliaOpt/GLPK.jl.svg
 [coveralls-url]: https://coveralls.io/r/JuliaOpt/GLPK.jl
 
-[pkg-0.4-img]: http://pkg.julialang.org/badges/GLPK_0.4.svg
-[pkg-0.4-url]: http://pkg.julialang.org/?pkg=GLPK
+[pkg-0.6-img]: http://pkg.julialang.org/badges/GLPK_0.6.svg
+[pkg-0.6-url]: http://pkg.julialang.org/?pkg=GLPK
 [pkg-0.5-img]: http://pkg.julialang.org/badges/GLPK_0.5.svg
 [pkg-0.5-url]: http://pkg.julialang.org/?pkg=GLPK
