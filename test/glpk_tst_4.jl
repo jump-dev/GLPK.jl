@@ -1,4 +1,3 @@
-using Compat
 using Base.Test
 import GLPK
 
@@ -14,7 +13,7 @@ function var_is_basic(lp::GLPK.Prob, k::Integer)
     end
 end
 
-@compat function glpk_tst_4()
+function glpk_tst_4()
     prev_term_out = GLPK.term_out(GLPK.OFF)
 
     datadir = joinpath(dirname(@__FILE__), "data")
