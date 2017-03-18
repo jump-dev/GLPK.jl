@@ -92,12 +92,14 @@ function glpk_tst_4()
 
     for i = 1:100
         ia, ja, val = findnz(sprand(Int(cols), 1, 0.5))
-        GLPK.transform_row(mip, round(Int32, ia), val)
+        # TODO: replace the map with round.(Int32, ia) when julia 0.5 support is dropped
+        GLPK.transform_row(mip, map(x->round(Int32, x), ia), val)
     end
 
     for i = 1:100
         ia, ja, val = findnz(sprand(Int(rows), 1, 0.5))
-        GLPK.transform_col(mip, round(Int32, ia), val)
+        # TODO: replace the map with round.(Int32, ia) when julia 0.5 support is dropped
+        GLPK.transform_col(mip, map(x->round(Int32, x), ia), val)
     end
 
     for i = 1:100
@@ -118,10 +120,10 @@ function glpk_tst_4()
         dir = 2 * rand(Bool) - 1
         eps = 1e-9
 
-        basic = map(x->var_is_basic(mip, x), ia)
+        nonbasic = map(x->!var_is_basic(mip, x), ia)
 
-        ia = ia[!basic]
-        val = val[!basic]
+        ia = ia[nonbasic]
+        val = val[nonbasic]
 
         drt = GLPK.dual_rtest(mip, ia, val, dir, eps)
     end
