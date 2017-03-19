@@ -4,6 +4,7 @@ os:
   - osx
 julia:
   - 0.5
+  - 0.6
   - nightly
 env:
   matrix:
@@ -20,7 +21,7 @@ addons:
 #  - if [[ -a .git/shallow ]]; then git fetch --unshallow; fi
 #  - julia --check-bounds=yes -e 'Pkg.clone(pwd()); Pkg.build("GLPK"); Pkg.test("GLPK")'
 after_success:
-  - julia -e 'cd(Pkg.dir("GLPK")); Pkg.add("Coverage"); using Coverage; Coveralls.submit(process_folder())'
+  - julia --check-bounds=yes --inline=no -e 'cd(Pkg.dir("GLPK")); Pkg.add("Coverage"); using Coverage; Coveralls.submit(process_folder())'
 branches:
   except:
     - release-0.1

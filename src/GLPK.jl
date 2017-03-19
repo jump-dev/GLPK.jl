@@ -4,6 +4,8 @@
 
 module GLPK
 
+using Compat
+
 ## Exports
 #{{{
 export
@@ -252,7 +254,7 @@ end
 
 # General structure for the parameters types
 
-abstract Param
+@compat abstract type Param end
 
 function setindex!{T<:Param}(param::T, val, field_name::AbstractString)
     s = Symbol(field_name)
@@ -271,7 +273,7 @@ end
 # In this framework, optional arguments can be passed either
 # as an empty vector [] or as the 'nothing' constant
 
-typealias VecOrNothing Union{AbstractVector,Void}
+const VecOrNothing = Union{AbstractVector,Void}
 cint_vec(a::Void) = Cint[]
 cint_vec(a::AbstractVector) = convert(Vector{Cint}, a)
 
@@ -1899,7 +1901,7 @@ function analyze_coef(prob::Prob, k::Integer)
 
     @glpk_ccall analyze_coef Void (Ptr{Void}, Cint, Ptr{Cdouble}, Ptr{Cint}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cint}, Ptr{Cdouble}) prob.p k pointer(coef1) pointer(var1) pointer(value1) pointer(coef2) pointer(var2) pointer(value2)
 
-    return coef1[1], var1[1], value1[1], coef2[1], var2[1], value2[1] 
+    return coef1[1], var1[1], value1[1], coef2[1], var2[1], value2[1]
 end
 
 function ios_reason(tree::Ptr{Void})
