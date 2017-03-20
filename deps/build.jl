@@ -5,14 +5,16 @@ using BinDeps
 include("verreq.jl")
 
 glpkname = "glpk-$glpkdefver"
+glpkwinname = "glpk-$glpkwinver"
 glpkdllname = "glpk_$(replace(glpkdefver, ".", "_"))"
+glpkwindllname = "glpk_$(replace(glpkwinver, ".", "_"))"
 
 function glpkvalidate(name, handle)
     ver_str = unsafe_string(ccall(Libdl.dlsym(handle, :glp_version), Ptr{UInt8}, ()))
     ver = VersionNumber(ver_str)
     glpkminver <= ver <= glpkmaxver
 end
-glpkdep = library_dependency("libglpk", aliases = [glpkdllname],
+glpkdep = library_dependency("libglpk", aliases = [glpkdllname,glpkwindllname],
                              validate = glpkvalidate)
 
 # Build from sources (used by Linux, BSD)
@@ -39,7 +41,7 @@ if is_apple()
 end
 
 # Windows
-provides(Binaries, URI("https://bintray.com/artifact/download/tkelman/generic/win$glpkname.zip"),
-         glpkdep, unpacked_dir="$glpkname/w$(Sys.WORD_SIZE)", os = :Windows)
+provides(Binaries, URI("https://bintray.com/artifact/download/tkelman/generic/win$glpkwinname.zip"),
+         glpkdep, unpacked_dir="$glpkwinname/w$(Sys.WORD_SIZE)", os = :Windows)
 
 @BinDeps.install Dict(:libglpk => :libglpk)
