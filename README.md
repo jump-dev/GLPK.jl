@@ -55,8 +55,8 @@ The package is tested against Julia `0.5` and *current* `0.6-dev` on Linux, OS X
 [travis-img]: https://api.travis-ci.org/JuliaOpt/GLPK.jl.svg?branch=master
 [travis-url]: https://travis-ci.org/JuliaOpt/GLPK.jl
 
-[appveyor-img]: https://ci.appveyor.com/api/projects/status/9yaxhsw24br4c0ux/branch/master?svg=true
-[appveyor-url]: https://ci.appveyor.com/project/tkelman/glpk-jl/branch/master
+[appveyor-img]: https://ci.appveyor.com/api/projects/status/4t5e2dir3gp7fb6h?svg=true
+[appveyor-url]: https://ci.appveyor.com/project/JuliaOpt/glpk-jl
 
 [coveralls-img]: https://img.shields.io/coveralls/JuliaOpt/GLPK.jl.svg
 [coveralls-url]: https://coveralls.io/r/JuliaOpt/GLPK.jl
