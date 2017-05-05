@@ -34,10 +34,7 @@ provides(BuildProcess, Dict(
 # Homebrew (OS X section)
 if is_apple()
     using Homebrew
-    if Homebrew.installed("glpk") # remove old conflicting version
-        Homebrew.rm("glpk")
-    end
-    provides(Homebrew.HB, "glpk452", glpkdep, os = :Darwin)
+    provides(Homebrew.HB, "staticfloat/juliadeps/glpk461", glpkdep, os = :Darwin)
 end
 
 # Windows
