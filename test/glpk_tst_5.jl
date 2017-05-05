@@ -18,7 +18,7 @@ function glpk_tst_5()
     finally
         isfile(cnfcopy) && rm(cnfcopy)
     end
-    if GLPK.version() >= (4, 57)
+    if GLPK.version() >= (4, 57) && Sys.WORD_SIZE != sizeof(Cint) * 8
         # in api/minisat1.c, there is:
         #if (sizeof(void *) != sizeof(int))
         #{  xprintf("glp_minisat1: sorry, MiniSat solver is not supported "
