@@ -2,6 +2,8 @@
 ### GLPK API Wrapper
 ###
 
+__precompile__()
+
 module GLPK
 
 using Compat
