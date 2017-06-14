@@ -42,9 +42,6 @@ end
     # GMP
     using WinRPM
     WinRPM.install("libgmp10", yes = true)
-    push!(WinRPM.sources, "https://cache.julialang.org/http://download.opensuse.org/repositories/home:/blegat:/branches:/windows:/mingw:/win32/openSUSE_13.2")
-    push!(WinRPM.sources, "https://cache.julialang.org/http://download.opensuse.org/repositories/home:/blegat:/branches:/windows:/mingw:/win64/openSUSE_13.2")
-    WinRPM.update()
     provides(WinRPM.RPM, "glpk-devel", [glpkdep], os = :Windows)
 end
 
