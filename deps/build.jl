@@ -44,6 +44,7 @@ end
 
 # Windows
 @static if is_windows()
+    using WinRPM
     provides(WinRPM.RPM, "libgmp10", [gmpdep], os = :Windows)
     provides(WinRPM.RPM, "glpk-devel", [glpkdep], os = :Windows)
 end
