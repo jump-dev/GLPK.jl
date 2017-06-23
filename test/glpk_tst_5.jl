@@ -27,6 +27,11 @@ function glpk_tst_5()
         #   goto done;
         #}
         expected_ret = GLPK.EFAIL
+
+    elseif (4, 62) <= GLPK.version() && Sys.WORD_SIZE != sizeof(Csize_t) * 8
+        # changed condition to:
+        # if (sizeof(void *) != sizeof(size_t))
+        expected_ret = GLPK.EFAIL
     else
         expected_ret = 0
     end
