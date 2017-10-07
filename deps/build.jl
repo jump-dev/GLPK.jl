@@ -19,6 +19,7 @@ depends = []
     gmpdep = library_dependency("libgmp", aliases = ["libgmp-10", "libgmp10"])
     push!(depends, gmpdep)
 end
+@show depends
 glpkdep = library_dependency("libglpk", aliases = ["libglpk-40"], # it is called libglpk-40 on the glpk-devel WinRPM package
                              depends = depends, validate = glpkvalidate)
 
@@ -49,4 +50,4 @@ end
     provides(WinRPM.RPM, "glpk-devel", [glpkdep], os = :Windows)
 end
 
-@BinDeps.install Dict(:libglpk => :libglpk)
+@BinDeps.install Dict(:libgmp => :libgmp, :libglpk => :libglpk)
