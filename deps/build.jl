@@ -50,4 +50,4 @@ end
     provides(WinRPM.RPM, "glpk-devel", [glpkdep], os = :Windows)
 end
 
-@BinDeps.install Dict(:libgmp => :libgmp, :libglpk => :libglpk)
+@BinDeps.install Dict(:libgmp => :libgmp)
