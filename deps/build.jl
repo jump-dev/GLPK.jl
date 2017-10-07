@@ -52,6 +52,4 @@ end
     provides(WinRPM.RPM, "glpk-devel", [glpkdep], os = :Windows)
 end
 
-@show BinDeps.debug("GLPK")
-
 @BinDeps.install Dict(:libglpk => :libglpk)
