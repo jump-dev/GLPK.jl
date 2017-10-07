@@ -16,7 +16,9 @@ function glpkvalidate(name, handle)
 end
 depends = []
 @static if is_windows()
-    gmpdep = library_dependency("libgmp", aliases = ["libgmp-10", "libgmp10"])
+    # If it is called libgmp, it will detect julia/bin/libgmp.dll but libglpk doesn't seem be be satisfied
+    # with it, we need to install libgmp10.
+    gmpdep = library_dependency("libgmp10", aliases = ["libgmp-10", "libgmp10"])
     push!(depends, gmpdep)
 end
 @show depends
@@ -50,4 +52,7 @@ end
     provides(WinRPM.RPM, "glpk-devel", [glpkdep], os = :Windows)
 end
 
-@BinDeps.install Dict(:libgmp => :libgmp)
+@show BinDeps.debug("libgmp10")
+@show BinDeps.debug("glpk-devel")
+
+@BinDeps.install Dict(:libglpk => :libglpk)
