@@ -41,6 +41,8 @@ end
 @static if is_windows()
     using WinRPM
     provides(WinRPM.RPM, "glpk-devel", [glpkdep], os = :Windows)
+    provides(WinRPM.RPM, "libglpk40", [glpkdep], os = :Windows)
+    provides(WinRPM.RPM, "glpk", [glpkdep], os = :Windows)
 end
 
 @BinDeps.install Dict(:libglpk => :libglpk)
