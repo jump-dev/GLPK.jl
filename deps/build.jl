@@ -14,16 +14,8 @@ function glpkvalidate(name, handle)
     ver = VersionNumber(ver_str)
     glpkminver <= ver <= glpkmaxver
 end
-depends = []
-@static if is_windows()
-    # If it is called libgmp, it will detect julia/bin/libgmp.dll but libglpk doesn't seem be be satisfied
-    # with it, we need to install libgmp10.
-    gmpdep = library_dependency("libgmp10", aliases = ["libgmp-10", "libgmp10"])
-    push!(depends, gmpdep)
-end
-@show depends
 glpkdep = library_dependency("libglpk", aliases = ["libglpk-40"], # it is called libglpk-40 on the glpk-devel WinRPM package
-                             depends = depends, validate = glpkvalidate)
+                             validate = glpkvalidate)
 
 # Build from sources (used by Linux, BSD)
 julia_usrdir = normpath("$JULIA_HOME/../") # This is a stopgap, we need a better builtin solution to get the included libraries
@@ -48,7 +40,6 @@ end
 # Windows
 @static if is_windows()
     using WinRPM
-    provides(WinRPM.RPM, "libgmp10", [gmpdep], os = :Windows)
     provides(WinRPM.RPM, "glpk-devel", [glpkdep], os = :Windows)
 end
 
