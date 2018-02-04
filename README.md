@@ -4,7 +4,7 @@ Julia GLPK module
 
 | **Documentation**                                                               | **PackageEvaluator**                                            | **Build Status**                                                                                |
 |:-------------------------------------------------------------------------------:|:---------------------------------------------------------------:|:-----------------------------------------------------------------------------------------------:|
-| [![][docs-stable-img]][docs-stable-url] [![][docs-latest-img]][docs-latest-url] | [![][pkg-0.5-img]][pkg-0.5-url] [![][pkg-0.6-img]][pkg-0.6-url] | [![][travis-img]][travis-url] [![][appveyor-img]][appveyor-url] [![][coveralls-img]][coveralls-url] |
+| [![][docs-stable-img]][docs-stable-url] [![][docs-latest-img]][docs-latest-url] | [![][pkg-0.6-img]][pkg-0.6-url] [![][pkg-0.7-img]][pkg-0.7-url] | [![][travis-img]][travis-url] [![][appveyor-img]][appveyor-url] [![][coveralls-img]][coveralls-url] |
 
 
 GLPK.jl is a wrapper for the [GNU Linear Programming Kit library](http://www.gnu.org/software/glpk).
@@ -63,5 +63,5 @@ The package is tested against Julia `0.5` and *current* `0.6-dev` on Linux, OS X
 
 [pkg-0.6-img]: http://pkg.julialang.org/badges/GLPK_0.6.svg
 [pkg-0.6-url]: http://pkg.julialang.org/?pkg=GLPK
-[pkg-0.5-img]: http://pkg.julialang.org/badges/GLPK_0.5.svg
-[pkg-0.5-url]: http://pkg.julialang.org/?pkg=GLPK
+[pkg-0.7-img]: http://pkg.julialang.org/badges/GLPK_0.7.svg
+[pkg-0.7-url]: http://pkg.julialang.org/?pkg=GLPK
