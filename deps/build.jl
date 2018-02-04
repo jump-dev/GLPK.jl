@@ -18,7 +18,12 @@ glpkdep = library_dependency("libglpk", aliases = [glpkdllname,glpkwindllname],
                              validate = glpkvalidate)
 
 # Build from sources (used by Linux, BSD)
-julia_usrdir = normpath("$JULIA_HOME/../") # This is a stopgap, we need a better builtin solution to get the included libraries
+if VERSION >= v"0.7-"
+    bindir = Base.Sys.BINDIR
+else
+    bindir = JULIA_HOME
+end
+julia_usrdir = normpath("$bindir/../") # This is a stopgap, we need a better builtin solution to get the included libraries
 libdirs = String["$(julia_usrdir)/lib"]
 includedirs = String["$(julia_usrdir)/include"]
 
