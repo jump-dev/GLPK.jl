@@ -1,4 +1,5 @@
 using Base.Test
+using Compat
 import GLPK
 
 function glpk_tst_6()
@@ -19,7 +20,7 @@ function glpk_tst_6()
     params.presolve = GLPK.ON
     params.cb_size = 1
 
-    function cb_callback(tree::Ptr{Void}, info::Ptr{Void})
+    function cb_callback(tree::Ptr{Cvoid}, info::Ptr{Cvoid})
         reason = GLPK.ios_reason(tree)
         @test reason in [GLPK.ISELECT, GLPK.IPREPRO, GLPK.IROWGEN, GLPK.IHEUR,
                          GLPK.ICUTGEN, GLPK.IBRANCH, GLPK.IBINGO]
@@ -81,11 +82,11 @@ function glpk_tst_6()
         return nothing
     end
 
-    params.cb_func = cfunction(cb_callback, Void, (Ptr{Void}, Ptr{Void}))
+    params.cb_func = cfunction(cb_callback, Cvoid, Tuple{Ptr{Cvoid}, Ptr{Cvoid}})
 
     @test GLPK.intopt(mip, params) == 0
 
-    GLPK.mpl_postsolve(tran, mip, GLPK.MIP) 
+    GLPK.mpl_postsolve(tran, mip, GLPK.MIP)
 
     GLPK.term_out(prev_term_out)
 end

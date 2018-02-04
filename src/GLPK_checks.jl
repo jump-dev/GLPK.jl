@@ -16,16 +16,20 @@
 # GLPK anyway (but will likely produce a fatal error if they fail, while Julia
 # handles things more gracefully).
 
+if VERSION < v"0.7-"
+    objectid(x) = object_id(x)
+end
+
 let valid_objs = Dict{UInt, Bool}()
     global jl_obj_is_valid, _add_obj, _del_obj, _del_all_objs
     function jl_obj_is_valid(x)
-        haskey(valid_objs, object_id(x))
+        haskey(valid_objs, objectid(x))
     end
     function _add_obj(x)
-        valid_objs[object_id(x)] = true
+        valid_objs[objectid(x)] = true
     end
     function _del_obj(x)
-        delete!(valid_objs, object_id(x))
+        delete!(valid_objs, objectid(x))
     end
     function _del_all_objs()
         empty!(valid_objs)
@@ -75,7 +79,7 @@ function _string_length(s::AbstractString, maxl::Integer)
 end
 
 function _row_is_valid(prob::Prob, row::Integer)
-    rows = @glpk_ccall get_num_rows Cint (Ptr{Void},) prob.p
+    rows = @glpk_ccall get_num_rows Cint (Ptr{Cvoid},) prob.p
     if (row < 1 || row > rows)
         throw(GLPKError("invalid row $row (must be 1 <= row <= $rows)"))
     end
@@ -83,7 +87,7 @@ function _row_is_valid(prob::Prob, row::Integer)
 end
 
 function _col_is_valid(prob::Prob, col::Integer)
-    cols = @glpk_ccall get_num_cols Cint (Ptr{Void},) prob.p
+    cols = @glpk_ccall get_num_cols Cint (Ptr{Cvoid},) prob.p
     if (col < 1 || col > cols)
         throw(GLPKError("invalid col $col (must be 1 <= col <= $cols)"))
     end
@@ -91,7 +95,7 @@ function _col_is_valid(prob::Prob, col::Integer)
 end
 
 function _col_is_valid_w0(prob::Prob, col::Integer)
-    cols = @glpk_ccall get_num_cols Cint (Ptr{Void},) prob.p
+    cols = @glpk_ccall get_num_cols Cint (Ptr{Cvoid},) prob.p
     if (col < 0 || col > cols)
         throw(GLPKError("invalid col $col (must be 0 <= col <= $cols)"))
     end
@@ -153,8 +157,8 @@ function _vectors_all_same_size(vec0::VecOrNothing, vecs::VecOrNothing...)
 end
 
 function _indices_vectors_dup(prob::Prob, numel::Integer, ia::Vector{Cint}, ja::Vector{Cint})
-    rows = @glpk_ccall get_num_rows Cint (Ptr{Void},) prob.p
-    cols = @glpk_ccall get_num_cols Cint (Ptr{Void},) prob.p
+    rows = @glpk_ccall get_num_rows Cint (Ptr{Cvoid},) prob.p
+    cols = @glpk_ccall get_num_cols Cint (Ptr{Cvoid},) prob.p
     #numel = length(ia)
 
     off32 = sizeof(Cint)
@@ -180,7 +184,7 @@ function _rows_and_cols(rows::Integer, cols::Integer)
 end
 
 function _rows_ids_size(prob::Prob, min_size::Integer, num_rows::Integer, rows_ids::Vector{Cint})
-    rows = @glpk_ccall get_num_rows Cint (Ptr{Void},) prob.p
+    rows = @glpk_ccall get_num_rows Cint (Ptr{Cvoid},) prob.p
     if num_rows < min_size || num_rows > rows
         throw(GLPKError("invalid vector size: $num_rows (min=$min_size max=$rows)"))
     end
@@ -194,8 +198,8 @@ function _rows_ids_size(prob::Prob, min_size::Integer, num_rows::Integer, rows_i
 end
 
 function _rows_ids_content(prob::Prob, num_rows::Integer, rows_ids::Vector{Cint})
-    rows = @glpk_ccall get_num_rows Cint (Ptr{Void},) prob.p
-    ind_set = IntSet()
+    rows = @glpk_ccall get_num_rows Cint (Ptr{Cvoid},) prob.p
+    ind_set = BitSet()
     union!(ind_set, rows_ids[1 : num_rows])
     if minimum(ind_set) < 1 || maximum(ind_set) > rows
         throw(GLPKError("index out of bounds (min=1 max=$rows)"))
@@ -206,7 +210,7 @@ function _rows_ids_content(prob::Prob, num_rows::Integer, rows_ids::Vector{Cint}
 end
 
 function _cols_ids_size(prob::Prob, min_size::Integer, num_cols::Integer, cols_ids::Vector{Cint})
-    cols = @glpk_ccall get_num_cols Cint (Ptr{Void},) prob.p
+    cols = @glpk_ccall get_num_cols Cint (Ptr{Cvoid},) prob.p
     if num_cols < min_size || num_cols > cols
         throw(GLPKError("invalid vector size: $num_cols (min=$min_size max=$cols)"))
     end
@@ -220,8 +224,8 @@ function _cols_ids_size(prob::Prob, min_size::Integer, num_cols::Integer, cols_i
 end
 
 function _cols_ids_content(prob::Prob, num_cols::Integer, cols_ids::Vector{Cint})
-    cols = @glpk_ccall get_num_cols Cint (Ptr{Void},) prob.p
-    ind_set = IntSet()
+    cols = @glpk_ccall get_num_cols Cint (Ptr{Cvoid},) prob.p
+    ind_set = BitSet()
     union!(ind_set, cols_ids[1 : num_cols])
     if minimum(ind_set) < 1 || maximum(ind_set) > cols
         throw(GLPKError("index out of bounds (min=1 max=$cols)"))
@@ -235,8 +239,8 @@ function _list_ids(prob::Prob, len::Integer, list_ids::Vector{Cint})
     if len == 0
         return true
     end
-    rows = @glpk_ccall get_num_rows Cint (Ptr{Void},) prob.p
-    cols = @glpk_ccall get_num_cols Cint (Ptr{Void},) prob.p
+    rows = @glpk_ccall get_num_rows Cint (Ptr{Cvoid},) prob.p
+    cols = @glpk_ccall get_num_cols Cint (Ptr{Cvoid},) prob.p
     # note1 the documentation does not mention forbidding duplicates in this case
     # note2 the size should already be checked as this function is only called
     #       by GLPK.print_ranges
@@ -254,7 +258,7 @@ function _list_ids(prob::Prob, len::Integer, list_ids::Vector{Cint})
 end
 
 function _status_is_optimal(prob::Prob)
-    ret = @glpk_ccall get_status Cint (Ptr{Void},) prob.p
+    ret = @glpk_ccall get_status Cint (Ptr{Cvoid},) prob.p
     if ret == OPT
         throw(GLPKError("current basic solution is not optimal"))
     end
@@ -262,7 +266,7 @@ function _status_is_optimal(prob::Prob)
 end
 
 function _bf_exists(prob::Prob)
-    ret = @glpk_ccall bf_exists Cint (Ptr{Void},) prob.p
+    ret = @glpk_ccall bf_exists Cint (Ptr{Cvoid},) prob.p
     if ret == 0
         throw(GLPKError("no bf solution found (use GLPK.factorize)"))
     end
@@ -270,14 +274,14 @@ function _bf_exists(prob::Prob)
 end
 
 function _var_is_basic(prob::Prob, ind::Integer)
-    rows = @glpk_ccall get_num_rows Cint (Ptr{Void},) prob.p
+    rows = @glpk_ccall get_num_rows Cint (Ptr{Cvoid},) prob.p
     if ind <= rows
-        j = @glpk_ccall get_row_stat Cint (Ptr{Void}, Cint) prob.p ind
+        j = @glpk_ccall get_row_stat Cint (Ptr{Cvoid}, Cint) prob.p ind
         if j != BS
             throw(GLPKError("variable $ind is non-basic"))
         end
     else
-        j = @glpk_ccall get_col_stat Cint (Ptr{Void}, Cint) prob.p ind-rows
+        j = @glpk_ccall get_col_stat Cint (Ptr{Cvoid}, Cint) prob.p ind-rows
         if j != BS
             throw(GLPKError("variable $ind is non-basic"))
         end
@@ -285,14 +289,14 @@ function _var_is_basic(prob::Prob, ind::Integer)
 end
 
 function _var_is_non_basic(prob::Prob, ind::Integer)
-    rows = @glpk_ccall get_num_rows Cint (Ptr{Void},) prob.p
+    rows = @glpk_ccall get_num_rows Cint (Ptr{Cvoid},) prob.p
     if ind <= rows
-        j = @glpk_ccall get_row_stat Cint (Ptr{Void}, Cint) prob.p ind
+        j = @glpk_ccall get_row_stat Cint (Ptr{Cvoid}, Cint) prob.p ind
         if j == BS
             throw(GLPKError("variable $ind is basic"))
         end
     else
-        j = @glpk_ccall get_col_stat Cint (Ptr{Void}, Cint) prob.p ind-rows
+        j = @glpk_ccall get_col_stat Cint (Ptr{Cvoid}, Cint) prob.p ind-rows
         if j == BS
             throw(GLPKError("variable $ind is basic"))
         end
@@ -300,14 +304,14 @@ function _var_is_non_basic(prob::Prob, ind::Integer)
 end
 
 function _is_prim_feasible(prob::Prob)
-    if FEAS != @glpk_ccall get_prim_stat Cint (Ptr{Void},) prob.p
+    if FEAS != @glpk_ccall get_prim_stat Cint (Ptr{Cvoid},) prob.p
         throw(GLPKError("problem is not primal feasible"))
     end
     return true
 end
 
 function _is_dual_feasible(prob::Prob)
-    if FEAS != @glpk_ccall get_dual_stat Cint (Ptr{Void},) prob.p
+    if FEAS != @glpk_ccall get_dual_stat Cint (Ptr{Cvoid},) prob.p
         throw(GLPKError("problem is not dual feasible"))
     end
     return true
@@ -456,8 +460,8 @@ function _rowcol_is_valid(k::Integer, k_max::Integer)
 end
 
 function _rowcol_is_valid(prob::Prob, k::Integer)
-    rows = @glpk_ccall get_num_rows Cint (Ptr{Void},) prob.p
-    cols = @glpk_ccall get_num_cols Cint (Ptr{Void},) prob.p
+    rows = @glpk_ccall get_num_rows Cint (Ptr{Cvoid},) prob.p
+    cols = @glpk_ccall get_num_cols Cint (Ptr{Cvoid},) prob.p
 
     k_max = rows + cols
 
@@ -479,33 +483,33 @@ function _eps_is_valid(eps::Real)
     return true
 end
 
-function _tree(tree::Ptr{Void})
+function _tree(tree::Ptr{Cvoid})
     if tree == C_NULL
         throw(GLPKError("invalid tree pointer"))
     end
     return true
 end
 
-function _reason(tree::Ptr{Void}, allowed::Vector{Cint})
-    reason = @glpk_ccall ios_reason Cint (Ptr{Void},) tree
+function _reason(tree::Ptr{Cvoid}, allowed::Vector{Cint})
+    reason = @glpk_ccall ios_reason Cint (Ptr{Cvoid},) tree
     if !(reason in allowed)
         throw(GLPKError("callback operation not allowed at current stage"))
     end
     return true
 end
 
-function _can_branch(tree::Ptr{Void}, col::Integer)
-    if 0 == @glpk_ccall ios_can_branch Cint (Ptr{Void}, Cint) tree col
+function _can_branch(tree::Ptr{Cvoid}, col::Integer)
+    if 0 == @glpk_ccall ios_can_branch Cint (Ptr{Cvoid}, Cint) tree col
         throw(GLPKError("column $col cannot branch"))
     end
     return true
 end
 
-function _ios_node_is_valid(tree::Ptr{Void}, node::Integer)
-    valid_nodes = IntSet()
+function _ios_node_is_valid(tree::Ptr{Cvoid}, node::Integer)
+    valid_nodes = BitSet()
     n = 0
     while true
-        n = @glpk_ccall ios_next_node Cint (Ptr{Void}, Cint) tree n
+        n = @glpk_ccall ios_next_node Cint (Ptr{Cvoid}, Cint) tree n
         if n == 0
             break
         end
@@ -515,7 +519,7 @@ function _ios_node_is_valid(tree::Ptr{Void}, node::Integer)
         p = n
         while !(p in valid_nodes)
             push!(valid_nodes, p)
-            p = @glpk_ccall ios_up_node Cint (Ptr{Void}, Cint) tree p
+            p = @glpk_ccall ios_up_node Cint (Ptr{Cvoid}, Cint) tree p
             if p == 0
                 break
             end
@@ -527,10 +531,10 @@ function _ios_node_is_valid(tree::Ptr{Void}, node::Integer)
     throw(GLPKError("invalid node $node"))
 end
 
-function _ios_node_is_active(tree::Ptr{Void}, node::Integer)
+function _ios_node_is_active(tree::Ptr{Cvoid}, node::Integer)
     c = 0
     while node > c
-        c = @glpk_ccall ios_next_node Cint (Ptr{Void}, Cint) tree c
+        c = @glpk_ccall ios_next_node Cint (Ptr{Cvoid}, Cint) tree c
         if c == 0
             break
         end
@@ -568,8 +572,8 @@ function _constr_type_is_valid(constr_type::Integer)
     return true
 end
 
-function _ios_row_is_valid(tree::Ptr{Void}, row::Integer)
-    size = @glpk_ccall ios_pool_size Cint (Ptr{Void},) tree
+function _ios_row_is_valid(tree::Ptr{Cvoid}, row::Integer)
+    size = @glpk_ccall ios_pool_size Cint (Ptr{Cvoid},) tree
     if !(1 <= row <= size)
         throw(GLPKError("invalid ios row $row (must be 1 <= row <= $size)"))
     end
