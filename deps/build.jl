@@ -14,7 +14,7 @@ function glpkvalidate(name, handle)
     ver = VersionNumber(ver_str)
     glpkminver <= ver <= glpkmaxver
 end
-glpkdep = library_dependency("libglpk", aliases = [glpkdllname,glpkwindllname],
+glpkdep = library_dependency("libglpk", aliases = ["libglpk-40"], # it is called libglpk-40 on the glpk-devel WinRPM package
                              validate = glpkvalidate)
 
 # Build from sources (used by Linux, BSD)
@@ -43,7 +43,11 @@ if is_apple()
 end
 
 # Windows
-provides(Binaries, URI("https://bintray.com/artifact/download/tkelman/generic/win$glpkwinname.zip"),
-         glpkdep, unpacked_dir="$glpkwinname/w$(Sys.WORD_SIZE)", os = :Windows)
+@static if is_windows()
+    using WinRPM
+    provides(WinRPM.RPM, "glpk-devel", [glpkdep], os = :Windows)
+    provides(WinRPM.RPM, "libglpk40", [glpkdep], os = :Windows)
+    provides(WinRPM.RPM, "glpk", [glpkdep], os = :Windows)
+end
 
 @BinDeps.install Dict(:libglpk => :libglpk)
