@@ -1,4 +1,5 @@
-using Base.Test
+using Compat.Test
+using Compat.SparseArrays
 import GLPK
 
 # Basically, same example as in the GLPK manual

@@ -1,10 +1,10 @@
-using Base.Test
-using Compat
+using Compat.Test
 import GLPK
+using Compat
 
 function glpk_tst_6()
     datadir = joinpath(dirname(@__FILE__), "data")
-    isdir(datadir) || (datadir = joinpath(Pkg.dir(), "GLPK.jl", "test", "data"))
+    @assert isdir(datadir)
 
     prev_term_out = GLPK.term_out(GLPK.OFF)
 

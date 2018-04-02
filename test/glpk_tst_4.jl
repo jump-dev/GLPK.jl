@@ -1,4 +1,4 @@
-using Base.Test
+using Compat.Test
 import GLPK
 
 # Test Basis Factorization stuff, plus
@@ -17,7 +17,7 @@ function glpk_tst_4()
     prev_term_out = GLPK.term_out(GLPK.OFF)
 
     datadir = joinpath(dirname(@__FILE__), "data")
-    isdir(datadir) || (datadir = joinpath(Pkg.dir(), "GLPK.jl", "test", "data"))
+    @assert isdir(datadir)
 
     mip = GLPK.Prob()
     tran = GLPK.MathProgWorkspace()
