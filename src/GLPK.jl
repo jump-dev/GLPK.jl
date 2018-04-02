@@ -7,6 +7,7 @@ __precompile__()
 module GLPK
 
 using Compat
+using Compat.SparseArrays
 
 ## Exports
 #{{{
@@ -340,9 +341,17 @@ mutable struct Prob
         prob = new(p)
         _add_obj(prob)
         if create
-            finalizer(prob, delete_prob)
+            if VERSION >= v"0.7-"
+                finalizer(delete_prob, prob)
+            else
+                finalizer(prob, delete_prob)
+            end
         else
-            finalizer(prob, _del_obj)
+            if VERSION >= v"0.7-"
+                finalizer(_del_obj, prob)
+            else
+                finalizer(prob, _del_obj)
+            end
         end
         return prob
     end
@@ -600,7 +609,11 @@ mutable struct MathProgWorkspace
         tran = @glpk_ccall mpl_alloc_wksp Ptr{Cvoid} ()
         wksp = new(tran)
         _add_obj(wksp)
-        finalizer(wksp, GLPK.mpl_free_wksp)
+        if VERSION >= v"0.7-"
+            finalizer(GLPK.mpl_free_wksp, wksp)
+        else
+            finalizer(wksp, GLPK.mpl_free_wksp)
+        end
         return wksp
     end
 end
@@ -805,7 +818,7 @@ function load_matrix(prob::Prob, ia::VecOrNothing, ja::VecOrNothing, ar::VecOrNo
     load_matrix(prob, l, ia, ja, ar)
 end
 
-function load_matrix(prob::Prob, a::SparseArrays.AbstractSparseMatrix)
+function load_matrix(prob::Prob, a::Compat.SparseArrays.AbstractSparseMatrix)
     (ia, ja, ar) = findnz(a)
     load_matrix(prob, ia, ja, ar)
 end
@@ -992,8 +1005,8 @@ function get_mat_row(prob::Prob, row::Integer)
     numel = @glpk_ccall get_mat_row Cint (Ptr{Cvoid}, Cint, Ptr{Cint}, Ptr{Cdouble}) prob.p row C_NULL C_NULL
     numel == 0 && return (Cint[], Cdouble[])
 
-    ind = Array{Cint}(uninitialized, numel)
-    val = Array{Cdouble}(uninitialized, numel)
+    ind = Array{Cint}(undef, numel)
+    val = Array{Cdouble}(undef, numel)
 
     off32 = sizeof(Cint)
     ind32p = pointer(ind) - off32
@@ -1032,8 +1045,8 @@ function get_mat_col(prob::Prob, col::Integer)
     numel = @glpk_ccall get_mat_col Cint (Ptr{Cvoid}, Cint, Ptr{Cint}, Ptr{Cdouble}) prob.p col C_NULL C_NULL
     numel == 0 && return (Cint[], Cdouble[])
 
-    ind = Array{Cint}(uninitialized, numel)
-    val = Array{Cdouble}(uninitialized, numel)
+    ind = Array{Cint}(undef, numel)
+    val = Array{Cdouble}(undef, numel)
 
     off32 = sizeof(Cint)
     ind32p = pointer(ind) - off32
@@ -1682,8 +1695,8 @@ function eval_tab_row(prob::Prob, k::Integer)
     @check _rowcol_is_valid(k, k_max)
     @check _var_is_basic(prob, k)
 
-    ind = Array{Cint}(uninitialized, k_max)
-    val = Array{Cdouble}(uninitialized, k_max)
+    ind = Array{Cint}(undef, k_max)
+    val = Array{Cdouble}(undef, k_max)
 
     off32 = sizeof(Cint)
     off64 = sizeof(Cdouble)
@@ -1732,8 +1745,8 @@ function eval_tab_col(prob::Prob, k::Integer)
     @check _rowcol_is_valid(k, k_max)
     @check _var_is_non_basic(prob, k)
 
-    ind = Array{Cint}(uninitialized, k_max)
-    val = Array{Cdouble}(uninitialized, k_max)
+    ind = Array{Cint}(undef, k_max)
+    val = Array{Cdouble}(undef, k_max)
 
     off32 = sizeof(Cint)
     off64 = sizeof(Cdouble)
@@ -2147,13 +2160,13 @@ mem_usage(count, cpeak, total, tpeak) =
     error("unsupported. Use GLPK.mem_usage() instead.")
 
 function mem_usage()
-    data32 = Array{Cint}(uninitialized, 2)
+    data32 = Array{Cint}(undef, 2)
     data32_p = pointer(data32)
     off32 = sizeof(Cint)
     count_p = data32_p
     cpeak_p = data32_p + off32
 
-    data64 = Array{Clong}(uninitialized, 2)
+    data64 = Array{Clong}(undef, 2)
     data64_p = pointer(data64)
     off64 = sizeof(Clong)
 
