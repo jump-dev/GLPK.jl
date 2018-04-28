@@ -3,6 +3,12 @@ using GLPK, Base.Test, MathOptInterface, MathOptInterface.Test
 const MOIT = MathOptInterface.Test
 
 @testset "MathOptInterfaceGLPK" begin
+    @testset "Atomic Tests" begin
+        config = MOIT.TestConfig()
+        solver = GLPKOptimizerLP()
+        MOIT.atomictest(solver, config)
+    end
+
     @testset "Linear tests" begin
         linconfig_nocertificate = MOIT.TestConfig(infeas_certificates=false)
         solver = GLPKOptimizerLP()
