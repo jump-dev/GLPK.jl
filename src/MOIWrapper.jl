@@ -569,13 +569,12 @@ function LQOI.lqs_chgobj!(instance::GLPKOptimizer, colvec, coefvec)
     nothing
 end
 
-# LQOI.lqs_chgobjsen(m, symbol)
-# TODO improve min max names
+# TODO(odow): improve min max names
 function LQOI.lqs_chgobjsen!(instance::GLPKOptimizer, sense)
     m = instance.inner
-    if sense == :Min
+    if sense == :min
         GLPK.set_obj_dir(m, GLPK.MIN)
-    elseif sense == :Max
+    elseif sense == :max
         GLPK.set_obj_dir(m, GLPK.MAX)
     else
         error("Unrecognized objective sense $sense")
