@@ -448,8 +448,8 @@ end
 # LQOI.lqs_chgsense!(m, rowvec, sensevec)
 # TODO fix types
 function LQOI.lqs_chgsense!(instance::GLPKOptimizer, rowvec, sensevec)
-    for i in eachindex(rowvec)
-        changesense!(instance, rowvec[i], sensevec[i])
+    for (row, sense) in zip(rowvec, sensevec)
+        changesense!(instance, row, sense)
     end
     nothing
 end
