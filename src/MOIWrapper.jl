@@ -563,13 +563,12 @@ function LQOI.lqs_chgobj!(instance::GLPKOptimizer, colvec, coefvec)
         new_coefvec[val] = coefvec[ind]
     end
     m = instance.inner
-    for i in eachindex(new_colvec)
-        GLPK.set_obj_coef(m, new_colvec[i], new_coefvec[i])
+    for (col, val) in zip(colvec, coefvec)
+        GLPK.set_obj_coef(m, col, coef)
     end
     nothing
 end
 
-# TODO(odow): improve min max names
 function LQOI.lqs_chgobjsen!(instance::GLPKOptimizer, sense)
     m = instance.inner
     if sense == :min
