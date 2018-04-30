@@ -3,16 +3,16 @@ using GLPK, Base.Test, MathOptInterface, MathOptInterface.Test
 const MOIT = MathOptInterface.Test
 
 @testset "MathOptInterfaceGLPK" begin
-    @testset "Atomic Tests" begin
+    @testset "Unit Tests" begin
         @testset "LP solver" begin
             config = MOIT.TestConfig()
             solver = GLPKOptimizerLP()
-            MOIT.atomictest(solver, config, ["singlevariable_obj"])
+            MOIT.unittest(solver, config, ["solve_singlevariable_obj"])
         end
         @testset "MIP solver" begin
             solver = GLPKOptimizerMIP()
             config = MOIT.TestConfig(duals=false)
-            MOIT.atomictest(solver, config, ["singlevariable_obj"])
+            MOIT.unittest(solver, config, ["solve_singlevariable_obj"])
         end
     end
 

@@ -563,7 +563,7 @@ function LQOI.lqs_chgobj!(instance::GLPKOptimizer, colvec, coefvec)
         new_coefvec[val] = coefvec[ind]
     end
     m = instance.inner
-    for (col, val) in zip(colvec, coefvec)
+    for (col, coef) in zip(new_colvec, new_coefvec)
         GLPK.set_obj_coef(m, col, coef)
     end
     nothing
