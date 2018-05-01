@@ -254,36 +254,32 @@ function LQOI.lqs_chgbds!(instance::GLPKOptimizer, colvec, valvec, sensevec)
 end
 
 
-# LQOI.lqs_getlb(m, col)
-LQOI.lqs_getlb(instance::GLPKOptimizer, col) = GLPK.get_col_lb(instance.inner, col)
+function LQOI.get_variable_lowerbound(instance::GLPKOptimizer, col)
+    GLPK.get_col_lb(instance.inner, col)
+end
 
-# LQOI.lqs_getub(m, col)
-LQOI.lqs_getub(instance::GLPKOptimizer, col) = GLPK.get_col_ub(instance.inner, col)
+function LQOI.get_variable_upperbound(instance::GLPKOptimizer, col)
+    GLPK.get_col_ub(instance.inner, col)
+end
 
-# LQOI.lqs_getnumrows(m)
-LQOI.lqs_getnumrows(instance::GLPKOptimizer) = GLPK.get_num_rows(instance.inner)
+function LQOI.get_number_linear_constraints(instance::GLPKOptimizer)
+    GLPK.get_num_rows(instance.inner)
+end
 
-# LQOI.lqs_addrows!(m, rowvec, colvec, coefvec, sensevec, rhsvec)
-function LQOI.lqs_addrows!(instance::GLPKOptimizer, rowvec, colvec, coefvec, sensevec, rhsvec)
+function LQOI.add_linear_constraints!(instance::GLPKOptimizer, rowvec, colvec, coefvec, sensevec, rhsvec)
     m = instance.inner
-
     nrows = length(rhsvec)
-
     if nrows <= 0
-        error("nor row to be added")
+        error("no row to be added")
     elseif nrows == 1
         addrow!(m, colvec::Vector, coefvec::Vector, sensevec[1], rhsvec[1])
-
     else
-
         push!(rowvec, length(colvec)+1)
-
         for i in 1:(length(rowvec)-1)
-            inds = colvec[rowvec[i]:rowvec[i+1]-1]
+            inds  = colvec[rowvec[i]:rowvec[i+1]-1]
             coefs = coefvec[rowvec[i]:rowvec[i+1]-1]
             addrow!(m, inds, coefs, sensevec[i], rhsvec[i])
         end
-
     end
     nothing
 end
@@ -320,6 +316,39 @@ function addrow!(lp::GLPK.Prob, colidx::Vector, colcoef::Vector, sense::Cchar, r
     return
 end
 
+function LQOI.get_rhs(instance::GLPKOptimizer, row)
+    m = instance.inner
+    sense = GLPK.get_row_type(m, row)
+    if sense == GLPK.LO
+        return GLPK.get_row_lb(m, row)
+    elseif sense == GLPK.FX
+        return GLPK.get_row_lb(m, row)
+    elseif sense == GLPK.DB
+        return GLPK.get_row_lb(m, row)
+    else
+        return GLPK.get_row_ub(m, row)
+    end
+end
+
+function LQOI.get_linear_constraint(instance::GLPKOptimizer, idx)
+    lp = instance.inner
+    colidx, coefs = GLPK.get_mat_row(lp, idx)
+    return colidx-1, coefs
+end
+
+# LQOI.lqs_getcoef(m, row, col) #??
+# TODO improve
+function LQOI.lqs_getcoef(instance::GLPKOptimizer, row, col)
+    lp = instance.inner
+    colidx, coefs = GLPK.get_mat_row(lp, row)
+    idx = findfirst(colidx, col)
+    if idx > 0
+        return coefs[idx]
+    else
+        return 0.0
+    end
+end
+
 function setrhs(instance::GLPKOptimizer, idx::Integer, rhs::Real)
     lp = instance.inner
 
@@ -351,42 +380,6 @@ function setrhs(instance::GLPKOptimizer, idx::Integer, rhs::Real)
 
     GLPK.set_row_bnds(lp, idx, bt, rowlb, rowub)
 end
-# LQOI.lqs_getrhs(m, rowvec)
-function LQOI.lqs_getrhs(instance::GLPKOptimizer, row)
-    m = instance.inner
-    sense = GLPK.get_row_type(m, row)
-    if sense == GLPK.LO
-        return GLPK.get_row_lb(m, row)
-    elseif sense == GLPK.FX
-        return GLPK.get_row_lb(m, row)
-    elseif sense == GLPK.DB
-        return GLPK.get_row_lb(m, row)
-    else
-        return GLPK.get_row_ub(m, row)
-    end
-end
-# colvec, coef = LQOI.lqs_getrows(m, rowvec)
-# TODO improve
-function LQOI.lqs_getrows(instance::GLPKOptimizer, idx)
-    lp = instance.inner
-    colidx, coefs = GLPK.get_mat_row(lp, idx)
-    return colidx-1, coefs
-end
-
-# LQOI.lqs_getcoef(m, row, col) #??
-# TODO improve
-function LQOI.lqs_getcoef(instance::GLPKOptimizer, row, col)
-    lp = instance.inner
-    colidx, coefs = GLPK.get_mat_row(lp, row)
-    idx = findfirst(colidx, col)
-    if idx > 0
-        return coefs[idx]
-    else
-        return 0.0
-    end
-end
-
-# LQOI.lqs_chgcoef!(m, row, col, coef)
 function LQOI.lqs_chgcoef!(instance::GLPKOptimizer, row, col, coef)
     if row == 0
         lp = instance.inner
