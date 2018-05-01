@@ -499,23 +499,10 @@ function translatesense(sense)
     end
 end
 
-const VAR_TYPE_MAP = Dict{Symbol,Cchar}(
-    :CONTINUOUS => Cchar('C'),
-    :INTEGER => Cchar('I'),
-    :BINARY => Cchar('B')
-)
-LQOI.lqs_vartype_map(m::GLPKOptimizer) = VAR_TYPE_MAP
-
 # LQOI.lqs_addsos(m, colvec, valvec, typ)
 LQOI.lqs_addsos!(instance::GLPKOptimizer, colvec, valvec, typ) = GLPK.add_sos!(instance.inner, typ, colvec, valvec)
 # LQOI.lqs_delsos(m, idx, idx)
 LQOI.lqs_delsos!(instance::GLPKOptimizer, idx1, idx2) = error("cant del SOS")
-
-const SOS_TYPE_MAP = Dict{Symbol,Symbol}(
-    :SOS1 => :SOS1,#Cchar('1'),
-    :SOS2 => :SOS2#Cchar('2')
-)
-LQOI.lqs_sertype_map(m::GLPKOptimizer) = SOS_TYPE_MAP
 
 # LQOI.lqs_getsos(m, idx)
 # TODO improve getting processes
@@ -539,13 +526,6 @@ function LQOI.lqs_chgrngval!(instance::GLPKOptimizer, rows, vals)
     end
     nothing
 end
-const CTR_TYPE_MAP = Dict{Symbol,Cchar}(
-    :RANGE => Cchar('R'),
-    :LOWER => Cchar('G'),
-    :UPPER => Cchar('L'),
-    :EQUALITY => Cchar('E')
-)
-LQOI.lqs_ctrtype_map(m::GLPKOptimizer) = CTR_TYPE_MAP
 
 #=
     Objective
