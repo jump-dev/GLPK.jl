@@ -552,7 +552,7 @@ LQOI.solve_mip_problem!(instance::GLPKOptimizer) = opt!(instance)
 
 LQOI.solve_linear_problem!(instance::GLPKOptimizer) = opt!(instance)
 
-function LQOI.get_terminationstatus(model::GLPKOptimizerMIP)
+function LQOI.get_termination_status(model::GLPKOptimizerMIP)
 
     if model.userlimit
         return MOI.OtherLimit
@@ -582,7 +582,7 @@ function LQOI.get_terminationstatus(model::GLPKOptimizerMIP)
     end
 end
 
-function LQOI.get_terminationstatus(model::GLPKOptimizerLP)
+function LQOI.get_termination_status(model::GLPKOptimizerLP)
     s = lp_status(model)
     if s == GLPK.OPT
         return MOI.Success
@@ -612,7 +612,7 @@ function lp_status(lpm::GLPKOptimizerLP)
     s = get_status(lpm.inner)
 end
 
-function LQOI.get_primalstatus(model::GLPKOptimizerMIP)
+function LQOI.get_primal_status(model::GLPKOptimizerMIP)
     m = model.inner
     s = GLPK.mip_status(model.inner)
     out = MOI.UnknownResultStatus
@@ -622,7 +622,7 @@ function LQOI.get_primalstatus(model::GLPKOptimizerMIP)
     return out
 end
 
-function LQOI.get_primalstatus(model::GLPKOptimizerLP)
+function LQOI.get_primal_status(model::GLPKOptimizerLP)
     m = model.inner
     s = lp_status(model)
     out = MOI.UnknownResultStatus
@@ -632,11 +632,11 @@ function LQOI.get_primalstatus(model::GLPKOptimizerLP)
     return out
 end
 
-function LQOI.get_dualstatus(model::GLPKOptimizerMIP)
+function LQOI.get_dual_status(model::GLPKOptimizerMIP)
     return MOI.UnknownResultStatus
 end
 
-function LQOI.get_dualstatus(model::GLPKOptimizerLP)
+function LQOI.get_dual_status(model::GLPKOptimizerLP)
     m = model.inner
     s = lp_status(model)
     out = MOI.UnknownResultStatus
@@ -690,10 +690,10 @@ function LQOI.get_linear_primal_solution!(lpm::GLPKOptimizerLP, place)
     return nothing
 end
 
-# function LQOI.get_reducedcosts!(instance::GLPKOptimizerMIP, place)
+# function LQOI.get_variable_dual_solution!(instance::GLPKOptimizerMIP, place)
 # end
 
-function LQOI.get_reducedcosts!(lpm::GLPKOptimizerLP, place)
+function LQOI.get_variable_dual_solution!(lpm::GLPKOptimizerLP, place)
     lp = lpm.inner
     if lpm.method == :Simplex || lpm.method == :Exact
         get_col_dual = GLPK.get_col_dual
@@ -752,9 +752,9 @@ LQOI.get_relative_mip_gap(instance::GLPKOptimizer) = abs(GLPK.mip_obj_val(instan
 # LQOI.get_node_count(m)
 # LQOI.get_node_count(instance::GLPKOptimizer) = -1
 
-LQOI.get_farkasdual!(instance::GLPKOptimizer, place) = getinfeasibilityray(instance, place)
+LQOI.get_farkas_dual!(instance::GLPKOptimizer, place) = getinfeasibilityray(instance, place)
 
-LQOI.get_unboundedray!(instance::GLPKOptimizer, place) = getunboundedray(instance, place)
+LQOI.get_unbounded_ray!(instance::GLPKOptimizer, place) = getunboundedray(instance, place)
 
 function MOI.free!(instance::GLPKOptimizer) end
 
