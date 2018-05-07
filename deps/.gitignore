@@ -3,3 +3,4 @@ builds
 downloads
 src
 deps.jl
+glpk*
