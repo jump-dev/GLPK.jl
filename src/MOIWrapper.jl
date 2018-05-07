@@ -58,7 +58,7 @@ import GLPK.Prob
 const Model = GLPK.Prob
 Model(env) = Model()
 
-LQOI.LinQuadModel(::Type{M},env) where M<:GLPKOptimizer = GLPK.Prob()
+LQOI.LinearQuadraticModel(::Type{M},env) where M<:GLPKOptimizer = GLPK.Prob()
 
 mutable struct GLPKOptimizerLP <: GLPKOptimizer
     LQOI.@LinQuadOptimizerBase
@@ -185,7 +185,7 @@ LQOI.supported_constraints(s::GLPKOptimizerLP) = SUPPORTED_CONSTRAINTS_LP
     Main
 =#
 
-function LQOI.lqs_chgbds!(instance::GLPKOptimizer, colvec, valvec, sensevec)
+function LQOI.change_variable_bounds!(instance::GLPKOptimizer, colvec, valvec, sensevec)
     m = instance.inner
     for i in eachindex(colvec)
         colub = Inf
@@ -469,10 +469,6 @@ function LQOI.get_sos_constraint(instance::GLPKOptimizer, idx)
 
     return indices, weights, types == Cchar('1') ? :SOS1 : :SOS2
 end
-
-# LQOI.get_number_quadratic_constraints(instance::GLPKOptimizer) = error("GLPK does not support quadratic ocnstraints")
-#
-# LQOI.add_quadratic_constraint!(instance::GLPKOptimizer, cols,coefs,rhs,sense, I,J,V) = error("GLPK does not support quadratic ocnstraints")
 
 function LQOI.change_range_value!(instance::GLPKOptimizer, rows, vals)
     lp = instance.inner
