@@ -178,9 +178,9 @@ function MOI.empty!(m::GLPKOptimizer)
     MOI.empty!(m,nothing)
 end
 
-LQOI.lqs_supported_objectives(s::GLPKOptimizer) = SUPPORTED_OBJECTIVES
-LQOI.lqs_supported_constraints(s::GLPKOptimizerMIP) = SUPPORTED_CONSTRAINTS_MIP
-LQOI.lqs_supported_constraints(s::GLPKOptimizerLP) = SUPPORTED_CONSTRAINTS_LP
+LQOI.supported_objectives(s::GLPKOptimizer) = SUPPORTED_OBJECTIVES
+LQOI.supported_constraints(s::GLPKOptimizerMIP) = SUPPORTED_CONSTRAINTS_MIP
+LQOI.supported_constraints(s::GLPKOptimizerLP) = SUPPORTED_CONSTRAINTS_LP
 #=
     inner wrapper
 =#
@@ -492,22 +492,22 @@ function translatesense(sense)
 end
 
 # LQOI.lqs_addsos(m, colvec, valvec, typ)
-LQOI.lqs_addsos!(instance::GLPKOptimizer, colvec, valvec, typ) = GLPK.add_sos!(instance.inner, typ, colvec, valvec)
+LQOI.add_sos_constraint!(instance::GLPKOptimizer, colvec, valvec, typ) = GLPK.add_sos!(instance.inner, typ, colvec, valvec)
 # LQOI.lqs_delsos(m, idx, idx)
-LQOI.lqs_delsos!(instance::GLPKOptimizer, idx1, idx2) = error("cant del SOS")
+LQOI.delete_sos!(instance::GLPKOptimizer, idx1, idx2) = error("cant del SOS")
 
-# LQOI.lqs_getsos(m, idx)
+# LQOI.get_sos_constraint(m, idx)
 # TODO improve getting processes
-function LQOI.lqs_getsos(instance::GLPKOptimizer, idx)
+function LQOI.get_sos_constraint(instance::GLPKOptimizer, idx)
     indices, weights, types = GLPK.getsos(instance.inner, idx)
 
     return indices, weights, types == Cchar('1') ? :SOS1 : :SOS2
 end
-# LQOI.lqs_getnumqconstrs(m)
-LQOI.lqs_getnumqconstrs(instance::GLPKOptimizer) = error("GLPK does not support quadratic ocnstraints")
+# LQOI.get_number_quadratic_constraints(m)
+LQOI.get_number_quadratic_constraints(instance::GLPKOptimizer) = error("GLPK does not support quadratic ocnstraints")
 
 # LQOI.lqs_addqconstr(m, cols,coefs,rhs,sense, I,J,V)
-LQOI.lqs_addqconstr!(instance::GLPKOptimizer, cols,coefs,rhs,sense, I,J,V) = error("GLPK does not support quadratic ocnstraints")
+LQOI.add_quadratic_constraint!(instance::GLPKOptimizer, cols,coefs,rhs,sense, I,J,V) = error("GLPK does not support quadratic ocnstraints")
 
 # LQOI.lqs_chgrngval
 function LQOI.lqs_chgrngval!(instance::GLPKOptimizer, rows, vals)
@@ -540,7 +540,7 @@ function LQOI.set_linear_objective!(instance::GLPKOptimizer, colvec, coefvec)
     nothing
 end
 
-function LQOI.change_objectivesense!(instance::GLPKOptimizer, sense)
+function LQOI.change_objective_sense!(instance::GLPKOptimizer, sense)
     m = instance.inner
     if sense == :min
         GLPK.set_obj_dir(m, GLPK.MIN)
@@ -551,15 +551,12 @@ function LQOI.change_objectivesense!(instance::GLPKOptimizer, sense)
     end
 end
 
-function LQOI.get_linearobjective(instance::GLPKOptimizer)
+function LQOI.get_linear_objective!(instance::GLPKOptimizer, x::Vector{Float64})
     m = instance.inner
     n = GLPK.get_num_cols(m)
-    obj = Array{Float64}(n)
-    for c = 1:n
-        l = GLPK.get_obj_coef(m, c)
-        obj[c] = l
+    for col = 1:length(x)
+        x[col] = GLPK.get_obj_coef(m, col)
     end
-    return obj
 end
 
 function LQOI.get_objectivesense(instance::GLPKOptimizer)
@@ -597,7 +594,7 @@ function LQOI.delete_variables!(instance::GLPKOptimizer, col, col2)
 end
 
 # LQOI.lqs_addmipstarts(m, colvec, valvec)
-LQOI.lqs_addmipstarts!(instance::GLPKOptimizer, colvec, valvec) = nothing
+LQOI.add_mip_starts!(instance::GLPKOptimizer, colvec, valvec) = nothing
 #=
     Solve
 =#
@@ -799,9 +796,9 @@ function LQOI.get_linear_dual_solution!(lpm::GLPKOptimizerLP, place)
     return nothing
 end
 
-LQOI.get_objectivevalue(instance::GLPKOptimizerMIP) = GLPK.mip_obj_val(instance.inner)
+LQOI.get_objective_value(instance::GLPKOptimizerMIP) = GLPK.mip_obj_val(instance.inner)
 
-function LQOI.get_objectivevalue(lpm::GLPKOptimizerLP)
+function LQOI.get_objective_value(lpm::GLPKOptimizerLP)
     if lpm.method == :Simplex || lpm.method == :Exact
         get_obj_val = GLPK.get_obj_val
     elseif lpm.method == :InteriorPoint
@@ -815,17 +812,17 @@ end
 # LQOI.lqs_getbestobjval(m)
 LQOI.lqs_getbestobjval(instance::GLPKOptimizerMIP) = instance.objbound
 
-# LQOI.lqs_getmiprelgap(m)
-LQOI.lqs_getmiprelgap(instance::GLPKOptimizer) = abs(GLPK.mip_obj_val(instance.inner)-instance.objbound)/(1e-9+GLPK.mip_obj_val(instance.inner))
+# LQOI.get_relative_mip_gap(m)
+LQOI.get_relative_mip_gap(instance::GLPKOptimizer) = abs(GLPK.mip_obj_val(instance.inner)-instance.objbound)/(1e-9+GLPK.mip_obj_val(instance.inner))
 
-# LQOI.lqs_getitcnt(m)
-LQOI.lqs_getitcnt(instance::GLPKOptimizer)  = -1
+# LQOI.get_iteration_count(m)
+# LQOI.get_iteration_count(instance::GLPKOptimizer)  = -1
 
 # LQOI.lqs_getbaritcnt(m)
-LQOI.lqs_getbaritcnt(instance::GLPKOptimizer) = -1
+# LQOI.lqs_getbaritcnt(instance::GLPKOptimizer) = -1
 
-# LQOI.lqs_getnodecnt(m)
-LQOI.lqs_getnodecnt(instance::GLPKOptimizer) = -1
+# LQOI.get_node_count(m)
+# LQOI.get_node_count(instance::GLPKOptimizer) = -1
 
 LQOI.get_farkasdual!(instance::GLPKOptimizer, place) = getinfeasibilityray(instance, place)
 
