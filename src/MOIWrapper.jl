@@ -261,6 +261,24 @@ function LQOI.add_linear_constraints!(instance::GLPKOptimizer, rowvec, colvec, c
     nothing
 end
 
+function LQOI.add_ranged_constraints!(instance::GLPKOptimizer, rows, cols, coefs, lowerbound, upperbound)
+    row1 = GLPK.get_num_rows(instance.inner)
+    LQOI.add_linear_constraints!(instance, rows, cols, coefs,
+        fill(Cchar('R'), length(rows)), lowerbound)
+    row2 = GLPK.get_num_rows(instance.inner)
+    for (i,row) in enumerate((row1+1):row2)
+        GLPK.set_row_bnds(instance.inner, row, GLPK.DB, lowerbound[i], upperbound[i])
+    end
+    nothing
+end
+
+function LQOI.modify_ranged_constraints!(instance::GLPKOptimizer, rows, lowerbounds, upperbounds)
+    for (row, lb, ub) in zip(rows, lowerbounds, upperbounds)
+        setrhs(instance, row, lb)
+        GLPK.set_row_bnds(instance.inner, row, GLPK.DB, lb, ub)
+    end
+end
+
 function addrow!(lp::GLPK.Prob, colidx::Vector, colcoef::Vector, sense::Cchar, rhs::Real)
     if length(colidx) != length(colcoef)
         error("colidx and colcoef have different legths")
@@ -470,14 +488,7 @@ function LQOI.get_sos_constraint(instance::GLPKOptimizer, idx)
     return indices, weights, types == Cchar('1') ? :SOS1 : :SOS2
 end
 
-function LQOI.change_range_value!(instance::GLPKOptimizer, rows, vals)
-    lp = instance.inner
-    for i in eachindex(rows)
-        l = GLPK.get_row_lb(lp, rows[i])
-        GLPK.set_row_bnds(lp, rows[i], GLPK.DB, l, l+vals[i])
-    end
-    nothing
-end
+
 
 # LQOI.lqs_copyquad(m, intvec,intvec, floatvec) #?
 # LQOI.lqs_copyquad!(instance::GLPKOptimizer, I, J, V) = error("GLPK does no support quadratics")
