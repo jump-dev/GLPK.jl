@@ -2,10 +2,10 @@ import Base.copy
 
 export GLPKOptimizerLP, GLPKOptimizerMIP
 
-using MathOptInterface
-const MOI = MathOptInterface
 using LinQuadOptInterface
+
 const LQOI = LinQuadOptInterface
+const MOI  = LQOI.MOI
 
 # Many functions in this module are adapted from GLPKMathProgInterface.jl. This is the copyright notice:
 ## Copyright (c) 2013: Carlo Baldassi
