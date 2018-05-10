@@ -26,6 +26,7 @@ const MOI  = LQOI.MOI
 ## SOFTWARE.
 
 const SUPPORTED_OBJECTIVES = [
+    LQOI.SinVar,
     LQOI.Linear
 ]
 const SUPPORTED_CONSTRAINTS_LP = [

@@ -15,10 +15,16 @@ sudo: false # use a docker worker
 addons:
   apt_packages:
   - libgmp-dev
-# uncomment the following lines to override the default test script
-#script:
-#  - if [[ -a .git/shallow ]]; then git fetch --unshallow; fi
-#  - julia --check-bounds=yes -e 'Pkg.clone(pwd()); Pkg.build("GLPK"); Pkg.test("GLPK")'
+
+# This replaces the `git fetch --unshallow` in the default Julia Travis script
+git:
+  depth: 99999999
+
+script:
+  # TODO: stop cloning LinQuadOptInterface when it's published
+  - julia -e 'Pkg.clone("https://github.com/JuliaOpt/LinQuadOptInterface.jl"); Pkg.build("LinQuadOptInterface")'
+  - julia --check-bounds=yes -e 'Pkg.clone(pwd()); Pkg.build("GLPK"); Pkg.test("GLPK")'
+
 after_success:
   - julia --check-bounds=yes --inline=no -e 'cd(Pkg.dir("GLPK")); Pkg.add("Coverage"); using Coverage; Coveralls.submit(process_folder())'
 branches:
