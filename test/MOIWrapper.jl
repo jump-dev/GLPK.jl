@@ -12,12 +12,15 @@ const MOIT = MathOptInterface.Test
                 "test_scalarquadratic_in_lessthan",
                 "test_scalarquadratic_in_equalto",
                 "test_scalarquadratic_in_interval",
+
                 "test_singlevariable_in_zeroone",
                 "test_singlevariable_in_integer",
+                "test_singlevariable_in_semiinteger",
+                "test_singlevariable_in_semicontinuous",
+
                 "test_vectorofvariables_in_sos1",
                 "test_vectorofvariables_in_sos2",
-                "test_singlevariable_in_semiinteger",
-                "test_singlevariable_in_semicontinuous"
+                "test_vectorofvariables_in_reals"
             ])
         end
         @testset "MIP solver" begin
@@ -28,8 +31,11 @@ const MOIT = MathOptInterface.Test
                 "test_scalarquadratic_in_lessthan",
                 "test_scalarquadratic_in_equalto",
                 "test_scalarquadratic_in_interval",
+
                 "test_vectorofvariables_in_sos1",
                 "test_vectorofvariables_in_sos2",
+                "test_vectorofvariables_in_reals",
+
                 "test_singlevariable_in_semiinteger",
                 "test_singlevariable_in_semicontinuous"
             ])
