@@ -7,12 +7,32 @@ const MOIT = MathOptInterface.Test
         @testset "LP solver" begin
             config = MOIT.TestConfig()
             solver = GLPKOptimizerLP()
-            MOIT.unittest(solver, config)
+            MOIT.unittest(solver, config, [
+                "test_scalarquadratic_in_greaterthan",
+                "test_scalarquadratic_in_lessthan",
+                "test_scalarquadratic_in_equalto",
+                "test_scalarquadratic_in_interval",
+                "test_singlevariable_in_zeroone",
+                "test_singlevariable_in_integer",
+                "test_vectorofvariables_in_sos1",
+                "test_vectorofvariables_in_sos2",
+                "test_singlevariable_in_semiinteger",
+                "test_singlevariable_in_semicontinuous"
+            ])
         end
         @testset "MIP solver" begin
             solver = GLPKOptimizerMIP()
             config = MOIT.TestConfig(duals=false)
-            MOIT.unittest(solver, config)
+            MOIT.unittest(solver, config, [
+                "test_scalarquadratic_in_greaterthan",
+                "test_scalarquadratic_in_lessthan",
+                "test_scalarquadratic_in_equalto",
+                "test_scalarquadratic_in_interval",
+                "test_vectorofvariables_in_sos1",
+                "test_vectorofvariables_in_sos2",
+                "test_singlevariable_in_semiinteger",
+                "test_singlevariable_in_semicontinuous"
+            ])
         end
     end
 
