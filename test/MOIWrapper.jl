@@ -18,6 +18,8 @@ const MOIT = MathOptInterface.Test
                 "test_singlevariable_in_semiinteger",
                 "test_singlevariable_in_semicontinuous",
 
+                "test_vectoraffine_in_reals",
+
                 "test_vectorofvariables_in_sos1",
                 "test_vectorofvariables_in_sos2",
                 "test_vectorofvariables_in_reals"
@@ -35,6 +37,8 @@ const MOIT = MathOptInterface.Test
                 "test_vectorofvariables_in_sos1",
                 "test_vectorofvariables_in_sos2",
                 "test_vectorofvariables_in_reals",
+
+                "test_vectoraffine_in_reals",
 
                 "test_singlevariable_in_semiinteger",
                 "test_singlevariable_in_semicontinuous"
