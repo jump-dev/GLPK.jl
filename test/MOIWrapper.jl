@@ -1,5 +1,6 @@
 using GLPK, Base.Test, MathOptInterface, MathOptInterface.Test
 
+const MOI  = MathOptInterface
 const MOIT = MathOptInterface.Test
 
 @testset "MathOptInterfaceGLPK" begin
@@ -7,42 +8,42 @@ const MOIT = MathOptInterface.Test
         @testset "LP solver" begin
             config = MOIT.TestConfig()
             solver = GLPKOptimizerLP()
-            MOIT.unittest(solver, config, [
-                "test_scalarquadratic_in_greaterthan",
-                "test_scalarquadratic_in_lessthan",
-                "test_scalarquadratic_in_equalto",
-                "test_scalarquadratic_in_interval",
 
-                "test_singlevariable_in_zeroone",
-                "test_singlevariable_in_integer",
-                "test_singlevariable_in_semiinteger",
-                "test_singlevariable_in_semicontinuous",
+            MOIT.basic_constraint_tests(solver, config;
+                exclude = [
+                    (MOI.ScalarAffineFunction{Float64}, MOI.Interval{Float64})
+                ]
+            )
 
-                "test_vectoraffine_in_reals",
+            MOIT.basic_constraint_tests(solver, config;
+                get_constraint_function = false,
+                get_constraint_set      = false,
+                include = [
+                    (MOI.ScalarAffineFunction{Float64}, MOI.Interval{Float64})
+                ]
+            )
 
-                "test_vectorofvariables_in_sos1",
-                "test_vectorofvariables_in_sos2",
-                "test_vectorofvariables_in_reals"
-            ])
+            MOIT.unittest(solver, config)
         end
         @testset "MIP solver" begin
             solver = GLPKOptimizerMIP()
             config = MOIT.TestConfig(duals=false)
-            MOIT.unittest(solver, config, [
-                "test_scalarquadratic_in_greaterthan",
-                "test_scalarquadratic_in_lessthan",
-                "test_scalarquadratic_in_equalto",
-                "test_scalarquadratic_in_interval",
 
-                "test_vectorofvariables_in_sos1",
-                "test_vectorofvariables_in_sos2",
-                "test_vectorofvariables_in_reals",
+            MOIT.basic_constraint_tests(solver, config;
+                exclude = [
+                    (MOI.ScalarAffineFunction{Float64}, MOI.Interval{Float64})
+                ]
+            )
 
-                "test_vectoraffine_in_reals",
+            MOIT.basic_constraint_tests(solver, config;
+                get_constraint_function = false,
+                get_constraint_set      = false,
+                include = [
+                    (MOI.ScalarAffineFunction{Float64}, MOI.Interval{Float64})
+                ]
+            )
 
-                "test_singlevariable_in_semiinteger",
-                "test_singlevariable_in_semicontinuous"
-            ])
+            MOIT.unittest(solver, config)
         end
     end
 
