@@ -244,33 +244,32 @@ function LQOI.get_number_linear_constraints(instance::GLPKOptimizer)
     GLPK.get_num_rows(instance.inner)
 end
 
-function LQOI.add_linear_constraints!(instance::GLPKOptimizer, rowvec, colvec, coefvec, sensevec, rhsvec)
+function LQOI.add_linear_constraints!(instance::GLPKOptimizer,
+        A::LQOI.CSRMatrix{Float64}, senses::Vector{Cchar}, rhs::Vector{Float64})
     m = instance.inner
-    nrows = length(rhsvec)
+    nrows = length(rhs)
     if nrows <= 0
         error("no row to be added")
     elseif nrows == 1
-        addrow!(m, colvec::Vector, coefvec::Vector, sensevec[1], rhsvec[1])
+        addrow!(m, A.column_indices, A.data, senses[1], rhs[1])
     else
-        push!(rowvec, length(colvec)+1)
-        for i in 1:(length(rowvec)-1)
-            inds  = colvec[rowvec[i]:rowvec[i+1]-1]
-            coefs = coefvec[rowvec[i]:rowvec[i+1]-1]
-            addrow!(m, inds, coefs, sensevec[i], rhsvec[i])
+        push!(A.row_pointers, length(A.column_indices)+1)
+        for i in 1:nrows
+            indices = A.row_pointers[i]:A.row_pointers[i+1]-1
+            addrow!(m, A.column_indices[indices], A.data[indices], senses[i], rhs[i])
         end
+        pop!(A.row_pointers)
     end
-    nothing
 end
 
-function LQOI.add_ranged_constraints!(instance::GLPKOptimizer, rows, cols, coefs, lowerbound, upperbound)
+function LQOI.add_ranged_constraints!(instance::GLPKOptimizer, A::LQOI.CSRMatrix{Float64}, lowerbound::Vector{Float64}, upperbound::Vector{Float64})
     row1 = GLPK.get_num_rows(instance.inner)
-    LQOI.add_linear_constraints!(instance, rows, cols, coefs,
-        fill(Cchar('R'), length(rows)), lowerbound)
+    LQOI.add_linear_constraints!(instance, A,
+        fill(Cchar('R'), length(lowerbound)), lowerbound)
     row2 = GLPK.get_num_rows(instance.inner)
     for (i,row) in enumerate((row1+1):row2)
         GLPK.set_row_bnds(instance.inner, row, GLPK.DB, lowerbound[i], upperbound[i])
     end
-    nothing
 end
 
 function LQOI.modify_ranged_constraints!(instance::GLPKOptimizer, rows, lowerbounds, upperbounds)
