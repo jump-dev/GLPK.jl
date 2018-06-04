@@ -275,7 +275,7 @@ end
 
 function LQOI.modify_ranged_constraints!(instance::GLPKOptimizer, rows, lowerbounds, upperbounds)
     for (row, lb, ub) in zip(rows, lowerbounds, upperbounds)
-        setrhs(instance, row, lb)
+        LQOI.change_rhs_coefficient!(instance, row, lb)
         GLPK.set_row_bnds(instance.inner, row, GLPK.DB, lb, ub)
     end
 end
@@ -333,7 +333,7 @@ function LQOI.get_linear_constraint(instance::GLPKOptimizer, idx)
     return colidx-1, coefs
 end
 
-function setrhs(instance::GLPKOptimizer, idx::Integer, rhs::Real)
+function LQOI.change_rhs_coefficient!(instance::GLPKOptimizer, idx::Integer, rhs::Real)
     lp = instance.inner
 
     l = GLPK.get_row_lb(lp, idx)
@@ -365,19 +365,12 @@ function setrhs(instance::GLPKOptimizer, idx::Integer, rhs::Real)
     GLPK.set_row_bnds(lp, idx, bt, rowlb, rowub)
 end
 
-function LQOI.change_coefficient!(instance::GLPKOptimizer, row, col, coef)
-    if row == 0
-        lp = instance.inner
-        GLPK.set_obj_coef(lp, col, coef)
-    elseif col == 0
-        setrhs(instance, row, coef)
-    else
-        chgmatcoef!(instance, row, col, coef)
-    end
-    return nothing
+function LQOI.change_objective_coefficient!(instance::GLPKOptimizer, col, coef)
+    lp = instance.inner
+    GLPK.set_obj_coef(lp, col, coef)
 end
 
-function chgmatcoef!(instance::GLPKOptimizer, row, col, coef)
+function LQOI.change_matrix_coefficient!(instance::GLPKOptimizer, row, col, coef)
     lp = instance.inner
     colidx, coefs = GLPK.get_mat_row(lp, row)
     idx = findfirst(colidx, col)
