@@ -251,12 +251,12 @@ function LQOI.add_linear_constraints!(instance::GLPKOptimizer,
     if nrows <= 0
         error("no row to be added")
     elseif nrows == 1
-        addrow!(m, A.column_indices, A.data, senses[1], rhs[1])
+        addrow!(m, A.columns, A.coefficients, senses[1], rhs[1])
     else
-        push!(A.row_pointers, length(A.column_indices)+1)
+        push!(A.row_pointers, length(A.columns)+1)
         for i in 1:nrows
             indices = A.row_pointers[i]:A.row_pointers[i+1]-1
-            addrow!(m, A.column_indices[indices], A.data[indices], senses[i], rhs[i])
+            addrow!(m, A.columns[indices], A.coefficients[indices], senses[i], rhs[i])
         end
         pop!(A.row_pointers)
     end
