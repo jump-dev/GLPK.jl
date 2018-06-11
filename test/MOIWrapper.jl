@@ -9,19 +9,7 @@ const MOIT = MathOptInterface.Test
             config = MOIT.TestConfig()
             solver = GLPKOptimizerLP()
 
-            MOIT.basic_constraint_tests(solver, config;
-                exclude = [
-                    (MOI.ScalarAffineFunction{Float64}, MOI.Interval{Float64})
-                ]
-            )
-
-            MOIT.basic_constraint_tests(solver, config;
-                get_constraint_function = false,
-                get_constraint_set      = false,
-                include = [
-                    (MOI.ScalarAffineFunction{Float64}, MOI.Interval{Float64})
-                ]
-            )
+            MOIT.basic_constraint_tests(solver, config)
 
             MOIT.unittest(solver, config, [
                 "solve_qp_edge_cases",
@@ -32,19 +20,7 @@ const MOIT = MathOptInterface.Test
             solver = GLPKOptimizerMIP()
             config = MOIT.TestConfig(duals=false)
 
-            MOIT.basic_constraint_tests(solver, config;
-                exclude = [
-                    (MOI.ScalarAffineFunction{Float64}, MOI.Interval{Float64})
-                ]
-            )
-
-            MOIT.basic_constraint_tests(solver, config;
-                get_constraint_function = false,
-                get_constraint_set      = false,
-                include = [
-                    (MOI.ScalarAffineFunction{Float64}, MOI.Interval{Float64})
-                ]
-            )
+            MOIT.basic_constraint_tests(solver, config)
 
             MOIT.unittest(solver, config, [
                 "solve_qp_edge_cases",

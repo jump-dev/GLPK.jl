@@ -279,6 +279,10 @@ function LQOI.modify_ranged_constraints!(instance::GLPKOptimizer, rows, lowerbou
     end
 end
 
+function LQOI.get_range(m::GLPKOptimizer, row::Int)
+    GLPK.get_row_lb(m.inner, row), GLPK.get_row_ub(m.inner, row)
+end
+
 function addrow!(lp::GLPK.Prob, colidx::Vector, colcoef::Vector, sense::Cchar, rhs::Real)
     if length(colidx) != length(colcoef)
         error("colidx and colcoef have different legths")
