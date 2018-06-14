@@ -333,7 +333,8 @@ end
 function LQOI.get_linear_constraint(instance::GLPKOptimizer, idx)
     lp = instance.inner
     colidx, coefs = GLPK.get_mat_row(lp, idx)
-    return colidx-1, coefs
+    # note: we return 1-indexed columns here
+    return colidx, coefs
 end
 
 function LQOI.change_rhs_coefficient!(instance::GLPKOptimizer, idx::Integer, rhs::Real)
