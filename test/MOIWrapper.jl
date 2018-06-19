@@ -15,6 +15,12 @@ const MOIT = MathOptInterface.Test
                 "solve_qp_edge_cases",
                 "solve_qcp_edge_cases"
             ])
+
+            MOIT.modificationtest(solver, config, [
+                "solve_multirow_vectoraffine_nonpos",
+                "solve_transform_singlevariable_lessthan",
+                "solve_func_scalaraffine_lessthan"
+            ])
         end
         @testset "MIP solver" begin
             solver = GLPKOptimizerMIP()
@@ -25,6 +31,12 @@ const MOIT = MathOptInterface.Test
             MOIT.unittest(solver, config, [
                 "solve_qp_edge_cases",
                 "solve_qcp_edge_cases"
+            ])
+
+            MOIT.modificationtest(solver, config, [
+                "solve_multirow_vectoraffine_nonpos",
+                "solve_transform_singlevariable_lessthan",
+                "solve_func_scalaraffine_lessthan"
             ])
         end
     end
