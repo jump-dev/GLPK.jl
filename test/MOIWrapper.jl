@@ -9,7 +9,11 @@ const MOIT = MathOptInterface.Test
             config = MOIT.TestConfig()
             solver = GLPKOptimizerLP()
 
-            MOIT.basic_constraint_tests(solver, config)
+            # TODO(@odow): see MathOptInterface Issue #404
+            # The basic constraint tests incorrectly add multiple constraints
+            # that are illegal, e.g., two SingleVariable-in-ZeroOne constraints
+            # for the same variable.
+            # MOIT.basic_constraint_tests(solver, config)
 
             MOIT.unittest(solver, config, [
                 "solve_qp_edge_cases",
@@ -24,7 +28,11 @@ const MOIT = MathOptInterface.Test
             solver = GLPKOptimizerMIP()
             config = MOIT.TestConfig(duals=false)
 
-            MOIT.basic_constraint_tests(solver, config)
+            # TODO(@odow): see MathOptInterface Issue #404
+            # The basic constraint tests incorrectly add multiple constraints
+            # that are illegal, e.g., two SingleVariable-in-ZeroOne constraints
+            # for the same variable.
+            # MOIT.basic_constraint_tests(solver, config)
 
             MOIT.unittest(solver, config, [
                 "solve_qp_edge_cases",
