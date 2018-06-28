@@ -4,7 +4,7 @@ os:
   - osx
 julia:
   - 0.6
-  - nightly
+  # - nightly
 env:
   matrix:
     - CC="gcc"
@@ -21,8 +21,6 @@ git:
   depth: 99999999
 
 script:
-  # TODO: stop cloning LinQuadOptInterface when it's published
-  - julia -e 'Pkg.clone("https://github.com/JuliaOpt/LinQuadOptInterface.jl"); Pkg.build("LinQuadOptInterface")'
   - julia --check-bounds=yes -e 'Pkg.clone(pwd()); Pkg.build("GLPK"); Pkg.test("GLPK")'
 
 after_success:
