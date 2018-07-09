@@ -3,6 +3,8 @@ import Base.copy
 export GLPKOptimizerLP, GLPKOptimizerMIP
 
 using LinQuadOptInterface
+import Compat.LinearAlgebra
+using Nullables
 
 const LQOI = LinQuadOptInterface
 const MOI  = LQOI.MOI
@@ -65,7 +67,7 @@ mutable struct GLPKOptimizerLP <: GLPKOptimizer
     LQOI.@LinQuadOptimizerBase
     method::Symbol
     param::Union{GLPK.SimplexParam, GLPK.InteriorParam}
-    GLPKOptimizerLP(::Void) = new()
+    GLPKOptimizerLP(::Nothing) = new()
 end
 function GLPKOptimizerLP(presolve = false, method = :Simplex;kwargs...)
     if !(method in [:Simplex,:Exact,:InteriorPoint])
@@ -114,16 +116,16 @@ mutable struct GLPKOptimizerMIP <: GLPKOptimizer
 
     param::GLPK.IntoptParam
     smplxparam::GLPK.SimplexParam
-    # lazycb::Union{Function,Void}
-    # cutcb::Union{Function,Void}
-    # heuristiccb::Union{Function,Void}
-    # infocb::Union{Function,Void}
+    # lazycb::Union{Function,Nothing}
+    # cutcb::Union{Function,Nothing}
+    # heuristiccb::Union{Function,Nothing}
+    # infocb::Union{Function,Nothing}
     objbound::Float64
     # cbdata::MathProgCallbackData
     binaries::Vector{Int}
     userlimit::Bool
 
-    GLPKOptimizerMIP(::Void) = new()
+    GLPKOptimizerMIP(::Nothing) = new()
 end
 
 
@@ -144,7 +146,7 @@ function GLPKOptimizerMIP(presolve = false; kwargs...)
         lpm.param.presolve = GLPK.ON
     end
 
-    # lpm.param.cb_func = cfunction(_internal_callback, Void, (Ptr{Void}, Ptr{Void}))
+    # lpm.param.cb_func = cfunction(_internal_callback, Nothing, (Ptr{Cvoid}, Ptr{Cvoid}))
     # lpm.param.cb_info = pointer_from_objref(lpm.cbdata)
 
     for (k,v) in kwargs
@@ -377,7 +379,7 @@ end
 function LQOI.change_matrix_coefficient!(instance::GLPKOptimizer, row, col, coef)
     lp = instance.inner
     colidx, coefs = GLPK.get_mat_row(lp, row)
-    idx = findfirst(colidx, col)
+    idx = something(findfirst(isequal(col), colidx), 0)
     if idx > 0
         coefs[idx] = coef
     else
@@ -827,7 +829,7 @@ end
 function getvarLB(lpm::GLPKOptimizer)
     lp = lpm.inner
     n = GLPK.get_num_cols(lp)
-    lb = Array{Float64}(n)
+    lb = Array{Float64}(undef, n)
     for c = 1:n
         l = GLPK.get_col_lb(lp, c)
         if l <= -realmax(Float64)
@@ -873,7 +875,7 @@ end
 function getvarUB(lpm::GLPKOptimizer)
     lp = lpm.inner
     n = GLPK.get_num_cols(lp)
-    ub = Array{Float64}(n)
+    ub = Array{Float64}(undef, n)
     for c = 1:n
         u = GLPK.get_col_ub(lp, c)
         if u >= realmax(Float64)
@@ -925,7 +927,7 @@ const vartype_map = Dict(
 function getvartype(lpm::GLPKOptimizer)
     lp = lpm.inner
     ncol = GLPK.get_num_cols(lp)
-    coltype = Array{Symbol}(ncol)
+    coltype = Array{Symbol}(undef, ncol)
     for i in 1:ncol
         ct = GLPK.get_col_kind(lp, i)
         coltype[i] = vartype_map[ct]
@@ -1068,7 +1070,7 @@ function getunboundedray(lpm::GLPKOptimizerLP, ray)
         end
 
         if (GLPK.get_obj_dir(lp) == GLPK.MAX) $ (get_dual(lp, k) > 0)
-            scale!(ray, -1.0)
+            LinearAlgebra.scale!(ray, -1.0)
         end
     else
         for i = 1:n
