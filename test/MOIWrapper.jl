@@ -1,4 +1,4 @@
-using GLPK, Base.Test, MathOptInterface, MathOptInterface.Test
+using GLPK, Compat.Test, MathOptInterface, MathOptInterface.Test
 
 const MOI  = MathOptInterface
 const MOIT = MathOptInterface.Test

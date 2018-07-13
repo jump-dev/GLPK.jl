@@ -224,7 +224,7 @@ end
 
 macro glpk_ccall(f, args...)
     quote
-        ccall((:glp_error_hook, libglpk), Cvoid, (Ptr{Cvoid}, Ptr{Cvoid}), cfunction(_err_hook, Cvoid, Tuple{Ptr{Cvoid}}), C_NULL)
+        ccall((:glp_error_hook, libglpk), Cvoid, (Ptr{Cvoid}, Ptr{Cvoid}), @cfunction(_err_hook, Cvoid, (Ptr{Cvoid},)), C_NULL)
         ret = ccall(($"glp_$f", libglpk), $(map(esc,args)...))
         ccall((:glp_error_hook, libglpk), Cvoid, (Ptr{Cvoid}, Ptr{Cvoid}), C_NULL, C_NULL)
         ret
