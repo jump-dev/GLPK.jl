@@ -1,37 +1,17 @@
-import Base.copy
-
-export GLPKOptimizerLP, GLPKOptimizerMIP
-
 using LinQuadOptInterface
+
 import Compat.LinearAlgebra
 using Nullables
 
 const LQOI = LinQuadOptInterface
 const MOI  = LQOI.MOI
 
-# Many functions in this module are adapted from GLPKMathProgInterface.jl. This is the copyright notice:
-## Copyright (c) 2013: Carlo Baldassi
-## Permission is hereby granted, free of charge, to any person obtaining a copy
-## of this software and associated documentation files (the "Software"), to deal
-## in the Software without restriction, including without limitation the rights
-## to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-## copies of the Software, and to permit persons to whom the Software is
-## furnished to do so, subject to the following conditions:
-## The above copyright notice and this permission notice shall be included in
-## all copies or substantial portions of the Software.
-## THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-## IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-## FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-## AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-## LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-## OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-## SOFTWARE.
-
 const SUPPORTED_OBJECTIVES = [
     LQOI.SinVar,
     LQOI.Linear
 ]
-const SUPPORTED_CONSTRAINTS_LP = [
+
+const SUPPORTED_CONSTRAINTS = [
     (LQOI.Linear, LQOI.EQ),
     (LQOI.Linear, LQOI.LE),
     (LQOI.Linear, LQOI.GE),
@@ -45,244 +25,146 @@ const SUPPORTED_CONSTRAINTS_LP = [
     (LQOI.VecVar, MOI.Zeros),
     (LQOI.VecLin, MOI.Nonnegatives),
     (LQOI.VecLin, MOI.Nonpositives),
-    (LQOI.VecLin, MOI.Zeros)
-]
-const SUPPORTED_CONSTRAINTS_MIP = vcat(SUPPORTED_CONSTRAINTS_LP, [
+    (LQOI.VecLin, MOI.Zeros),
     (LQOI.SinVar, MOI.ZeroOne),
-    (LQOI.SinVar, MOI.Integer),
-    # (VecVar, LQOI.SOS1),
-    # (VecVar, LQOI.SOS2),
-])
+    (LQOI.SinVar, MOI.Integer)
+]
 
-abstract type GLPKOptimizer <: LQOI.LinQuadOptimizer end
-
-import GLPK.Prob
-
-const Model = GLPK.Prob
-Model(env) = Model()
-
-LQOI.LinearQuadraticModel(::Type{M},env) where M<:GLPKOptimizer = GLPK.Prob()
-
-mutable struct GLPKOptimizerLP <: GLPKOptimizer
+mutable struct Optimizer <: LQOI.LinQuadOptimizer
     LQOI.@LinQuadOptimizerBase
+    presolve::Bool
     method::Symbol
-    param::Union{GLPK.SimplexParam, GLPK.InteriorParam}
-    GLPKOptimizerLP(::Nothing) = new()
-end
-function GLPKOptimizerLP(presolve = false, method = :Simplex;kwargs...)
-    if !(method in [:Simplex,:Exact,:InteriorPoint])
-        error("""
-        Unknown method for GLPK LP solver: $method
-            Allowed methods:
-                :Simplex
-                :Exact
-                :InteriorPoint""")
-    end
-    if method == :Simplex || method == :Exact
-        param = GLPK.SimplexParam()
-        if presolve
-            param.presolve = GLPK.ON
-        end
-    elseif method == :InteriorPoint
-        param = GLPK.InteriorParam()
-        if presolve
-            warn("Ignored option: presolve")
-        end
-    else
-        error("This is a bug")
-    end
-    param.msg_lev = GLPK.MSG_ERR
-    for (k,v) in kwargs
-        i = findfirst(x->x==k, fieldnames(typeof(param)))
-        if i > 0
-            t = typeof(param).types[i]
-            setfield!(param, i, convert(t, v))
-        else
-            warn("Ignored option: $(string(k))")
-        end
-    end
-
-    m = GLPKOptimizerLP(nothing)
-    m.param = param
-    m.method = method
-    MOI.empty!(m)
-
-    return m
-end
-
-mutable struct GLPKOptimizerMIP <: GLPKOptimizer
-
-    LQOI.@LinQuadOptimizerBase
-
-    param::GLPK.IntoptParam
-    smplxparam::GLPK.SimplexParam
-    # lazycb::Union{Function,Nothing}
-    # cutcb::Union{Function,Nothing}
-    # heuristiccb::Union{Function,Nothing}
-    # infocb::Union{Function,Nothing}
-    objbound::Float64
-    # cbdata::MathProgCallbackData
+    interior::GLPK.InteriorParam
+    intopt::GLPK.IntoptParam
+    simplex::SimplexParam
+    solver_status::Int32
+    last_solved_by_mip::Bool
+    # See https://github.com/JuliaOpt/GLPKMathProgInterface.jl/pull/15
+    # for why this is necesary. GLPK interacts weirdly with binary variables and
+    # bound modification. So lets set binary variables as "Integer" with [0,1]
+    # bounds that we enforce just before solve.
     binaries::Vector{Int}
-    userlimit::Bool
-
-    GLPKOptimizerMIP(::Nothing) = new()
+    Optimizer(::Nothing) = new()
+end
+function Optimizer(presolve=false, method=:Simplex; kwargs...)
+    optimizer = Optimizer(nothing)
+    MOI.empty!(optimizer)
+    optimizer.presolve = presolve
+    optimizer.method   = method
+    optimizer.interior = GLPK.InteriorParam()
+    optimizer.intopt   = GLPK.IntoptParam()
+    optimizer.simplex  = GLPK.SimplexParam()
+    solver_status      = Int32(0)
+    optimizer.last_solved_by_mip = false
+    optimizer.binaries = Int[]
+    return optimizer
 end
 
+LQOI.LinearQuadraticModel(::Type{Optimizer}, env) = GLPK.Prob()
 
-function GLPKOptimizerMIP(presolve = false; kwargs...)
+LQOI.supported_objectives(model::Optimizer) = SUPPORTED_OBJECTIVES
+LQOI.supported_constraints(model::Optimizer) = SUPPORTED_CONSTRAINTS
 
-    env = nothing
-    lpm = GLPKOptimizerMIP(nothing)
-    lpm.param = GLPK.IntoptParam()
-    lpm.smplxparam = GLPK.SimplexParam()
-    lpm.objbound = -Inf
-    lpm.binaries = Int[]
-    lpm.userlimit = false
-    MOI.empty!(lpm)
-
-    lpm.param.msg_lev = GLPK.MSG_ERR
-    lpm.smplxparam.msg_lev = GLPK.MSG_ERR
-    if presolve
-        lpm.param.presolve = GLPK.ON
-    end
-
-    # lpm.param.cb_func = cfunction(_internal_callback, Nothing, (Ptr{Cvoid}, Ptr{Cvoid}))
-    # lpm.param.cb_info = pointer_from_objref(lpm.cbdata)
-
-    for (k,v) in kwargs
-        if k in [:cb_func, :cb_info]
-            warn("ignored option: $(string(k)); use the MathProgBase callback interface instead")
-            continue
-        end
-        i = findfirst(x->x==k, fieldnames(typeof(lpm.param)))
-        s = findfirst(x->x==k, fieldnames(typeof(lpm.smplxparam)))
-        if !(i > 0 || s > 0)
-            warn("Ignored option: $(string(k))")
-            continue
-        end
-        if i > 0
-            t = typeof(lpm.param).types[i]
-            setfield!(lpm.param, i, convert(t, v))
-        end
-        if s > 0
-            t = typeof(lpm.smplxparam).types[s]
-            setfield!(lpm.smplxparam, s, convert(t, v))
-        end
-    end
-
-    return lpm
-end
-
-function MOI.empty!(m::GLPKOptimizer)
-    MOI.empty!(m,nothing)
-end
-
-LQOI.supported_objectives(s::GLPKOptimizer) = SUPPORTED_OBJECTIVES
-LQOI.supported_constraints(s::GLPKOptimizerMIP) = SUPPORTED_CONSTRAINTS_MIP
-LQOI.supported_constraints(s::GLPKOptimizerLP) = SUPPORTED_CONSTRAINTS_LP
-#=
-    inner wrapper
-=#
-
-#=
-    Main
-=#
-
-function LQOI.change_variable_bounds!(instance::GLPKOptimizer, colvec, valvec, sensevec)
-    m = instance.inner
-    for i in eachindex(colvec)
-        colub = Inf
-        collb = -Inf
-        bt = GLPK.DB
-        if sensevec[i] == Cchar('E')
-            colub = valvec[i]
-            collb = valvec[i]
-            bt = GLPK.FX
-        elseif sensevec[i] == Cchar('L')
-            collb = valvec[i]
-            colub = Inf
-            u = GLPK.get_col_ub(m, colvec[i])
-            if u < 1e100
-                bt = GLPK.DB
-                colub = u
+function LQOI.change_variable_bounds!(model::Optimizer,
+          columns::Vector{Int}, new_bounds::Vector{Float64},
+          senses::Vector{Cchar})
+    for (column, bound, sense) in zip(columns, new_bounds, senses)
+        new_upper = Inf
+        new_lower = -Inf
+        bound_type = GLPK.DB
+        if sense == Cchar('E')
+            new_upper = bound
+            new_lower = bound
+            bound_type = GLPK.FX
+        elseif sense == Cchar('L')
+            current_upper_bound = GLPK.get_col_ub(model.inner, column)
+            new_lower = bound
+            if current_upper_bound < 1e100
+                new_upper = current_upper_bound
+                bound_type = GLPK.DB
             else
-                bt = GLPK.LO
+                new_upper = Inf
+                bound_type = GLPK.LO
             end
-        elseif sensevec[i] == Cchar('U')
-            colub = valvec[i]
-            collb = -Inf
-            l = GLPK.get_col_lb(m, colvec[i])
-            if l > -1e100
-                bt = GLPK.DB
-                collb = l
+        elseif sense == Cchar('U')
+            current_lower_bound = GLPK.get_col_lb(model.inner, column)
+            new_upper = bound
+            if current_lower_bound > -1e100
+                new_lower = current_lower_bound
+                bound_type = GLPK.DB
             else
-                bt = GLPK.UP
+                new_lower = -Inf
+                bound_type = GLPK.UP
             end
         else
-            error("invalid bound type")
+            error("Variable sense $(sense) not recognised.")
         end
-        if colub > 1e100 && collb < -1e100
-            bt = GLPK.FR
-            colub = Inf
-            collb = -Inf
-        elseif colub == collb
-            bt = GLPK.FX
+        if new_upper > 1e100 && new_lower < -1e100
+            bound_type = GLPK.FR
+            new_upper = Inf
+            new_lower = -Inf
+        elseif new_lower == new_upper
+            bound_type = GLPK.FX
         end
-        GLPK.set_col_bnds(m, colvec[i], bt, collb, colub)
+        GLPK.set_col_bnds(model.inner, column, bound_type, new_lower,
+                          new_upper)
     end
-
 end
 
-
-function LQOI.get_variable_lowerbound(instance::GLPKOptimizer, col)
-    GLPK.get_col_lb(instance.inner, col)
+function LQOI.get_variable_lowerbound(model::Optimizer, col)
+    GLPK.get_col_lb(model.inner, col)
 end
 
-function LQOI.get_variable_upperbound(instance::GLPKOptimizer, col)
-    GLPK.get_col_ub(instance.inner, col)
+function LQOI.get_variable_upperbound(model::Optimizer, col)
+    GLPK.get_col_ub(model.inner, col)
 end
 
-function LQOI.get_number_linear_constraints(instance::GLPKOptimizer)
-    GLPK.get_num_rows(instance.inner)
+function LQOI.get_number_linear_constraints(model::Optimizer)
+    GLPK.get_num_rows(model.inner)
 end
 
-function LQOI.add_linear_constraints!(instance::GLPKOptimizer,
+function LQOI.add_linear_constraints!(model::Optimizer,
         A::LQOI.CSRMatrix{Float64}, senses::Vector{Cchar}, rhs::Vector{Float64})
-    m = instance.inner
     nrows = length(rhs)
     if nrows <= 0
         error("no row to be added")
     elseif nrows == 1
-        addrow!(m, A.columns, A.coefficients, senses[1], rhs[1])
+        addrow!(model.inner, A.columns, A.coefficients, senses[1], rhs[1])
     else
         push!(A.row_pointers, length(A.columns)+1)
         for i in 1:nrows
             indices = A.row_pointers[i]:A.row_pointers[i+1]-1
-            addrow!(m, A.columns[indices], A.coefficients[indices], senses[i], rhs[i])
+            addrow!(model.inner, A.columns[indices], A.coefficients[indices],
+                    senses[i], rhs[i])
         end
         pop!(A.row_pointers)
     end
 end
 
-function LQOI.add_ranged_constraints!(instance::GLPKOptimizer, A::LQOI.CSRMatrix{Float64}, lowerbound::Vector{Float64}, upperbound::Vector{Float64})
-    row1 = GLPK.get_num_rows(instance.inner)
-    LQOI.add_linear_constraints!(instance, A,
-        fill(Cchar('R'), length(lowerbound)), lowerbound)
-    row2 = GLPK.get_num_rows(instance.inner)
-    for (i,row) in enumerate((row1+1):row2)
-        GLPK.set_row_bnds(instance.inner, row, GLPK.DB, lowerbound[i], upperbound[i])
+function LQOI.add_ranged_constraints!(model::Optimizer,
+        A::LQOI.CSRMatrix{Float64}, lowerbound::Vector{Float64},
+        upperbound::Vector{Float64})
+    row1 = GLPK.get_num_rows(model.inner)
+    LQOI.add_linear_constraints!(model, A,
+                                 fill(Cchar('R'), length(lowerbound)),
+                                 lowerbound)
+    row2 = GLPK.get_num_rows(model.inner)
+    for (row, lower, upper) in zip(row1+1:row2, lowerbound, upperbound)
+        GLPK.set_row_bnds(model.inner, row, GLPK.DB, lower, upper)
     end
 end
 
-function LQOI.modify_ranged_constraints!(instance::GLPKOptimizer, rows, lowerbounds, upperbounds)
-    for (row, lb, ub) in zip(rows, lowerbounds, upperbounds)
-        LQOI.change_rhs_coefficient!(instance, row, lb)
-        GLPK.set_row_bnds(instance.inner, row, GLPK.DB, lb, ub)
+function LQOI.modify_ranged_constraints!(model::Optimizer,
+        rows::Vector{Int}, lowerbounds::Vector{Float64},
+        upperbounds::Vector{Float64})
+    for (row, lower, upper) in zip(rows, lowerbounds, upperbounds)
+        LQOI.change_rhs_coefficient!(model, row, lower)
+        GLPK.set_row_bnds(model.inner, row, GLPK.DB, lower, upper)
     end
 end
 
-function LQOI.get_range(m::GLPKOptimizer, row::Int)
-    GLPK.get_row_lb(m.inner, row), GLPK.get_row_ub(m.inner, row)
+function LQOI.get_range(model::Optimizer, row::Int)
+    GLPK.get_row_lb(model.inner, row), GLPK.get_row_ub(model.inner, row)
 end
 
 function addrow!(lp::GLPK.Prob, colidx::Vector, colcoef::Vector, sense::Cchar, rhs::Real)
@@ -292,7 +174,6 @@ function addrow!(lp::GLPK.Prob, colidx::Vector, colcoef::Vector, sense::Cchar, r
     GLPK.add_rows(lp, 1)
     m = GLPK.get_num_rows(lp)
     GLPK.set_mat_row(lp, m, colidx, colcoef)
-
     if sense == Cchar('E')
         bt = GLPK.FX
         rowlb = rhs
@@ -315,125 +196,101 @@ function addrow!(lp::GLPK.Prob, colidx::Vector, colcoef::Vector, sense::Cchar, r
         bt = GLPK.FR
     end
     GLPK.set_row_bnds(lp, m, bt, rowlb, rowub)
-    return
 end
 
-function LQOI.get_rhs(instance::GLPKOptimizer, row)
-    m = instance.inner
-    sense = GLPK.get_row_type(m, row)
-    if sense == GLPK.LO
-        return GLPK.get_row_lb(m, row)
-    elseif sense == GLPK.FX
-        return GLPK.get_row_lb(m, row)
-    elseif sense == GLPK.DB
-        return GLPK.get_row_lb(m, row)
+function LQOI.get_rhs(model::Optimizer, row)
+    sense = GLPK.get_row_type(model.inner, row)
+    if sense == GLPK.LO || sense == GLPK.FX || sense == GLPK.DB
+        return GLPK.get_row_lb(model.inner, row)
     else
-        return GLPK.get_row_ub(m, row)
+        return GLPK.get_row_ub(model.inner, row)
     end
 end
 
-function LQOI.get_linear_constraint(instance::GLPKOptimizer, idx)
-    lp = instance.inner
-    colidx, coefs = GLPK.get_mat_row(lp, idx)
+function LQOI.get_linear_constraint(model::Optimizer, row::Int)
+    columns, coefficients = GLPK.get_mat_row(model.inner, row)
     # note: we return 1-indexed columns here
-    return colidx, coefs
+    return columns, coefficients
 end
 
-function LQOI.change_rhs_coefficient!(instance::GLPKOptimizer, idx::Integer, rhs::Real)
-    lp = instance.inner
-
-    l = GLPK.get_row_lb(lp, idx)
-    u = GLPK.get_row_ub(lp, idx)
-
-    rowub = Inf
-    rowlb = -Inf
-
-    if l == u
-        bt = GLPK.FX
-        rowlb = rhs
-        rowub = rhs
-    elseif l > -Inf && u < Inf
-        bt = GLPK.FX
-        rowlb = rhs
-        rowub = rhs
-    elseif l > -Inf
-        bt = GLPK.LO
-        rowlb = rhs
-        rowub = Inf
-    elseif u < Inf
-        bt = GLPK.UP
-        rowlb = -Inf
-        rowub = rhs
+function LQOI.change_rhs_coefficient!(model::Optimizer, row::Int,
+                                      rhs::Real)
+    current_lower = GLPK.get_row_lb(model.inner, row)
+    current_upper = GLPK.get_row_ub(model.inner, row)
+    if current_lower == current_upper
+        bound_type = GLPK.FX
+        new_lower_bound = rhs
+        new_upper_bound = rhs
+    elseif current_lower > -Inf && current_upper < Inf
+        bound_type = GLPK.FX
+        new_lower_bound = rhs
+        new_upper_bound = rhs
+    elseif current_lower > -Inf
+        bound_type = GLPK.LO
+        new_lower_bound = rhs
+        new_upper_bound = Inf
+    elseif current_upper < Inf
+        bound_type = GLPK.UP
+        new_lower_bound = -Inf
+        new_upper_bound = rhs
     else
         error("not valid rhs")
     end
-
-    GLPK.set_row_bnds(lp, idx, bt, rowlb, rowub)
+    GLPK.set_row_bnds(model.inner, row, bound_type, new_lower_bound,
+                      new_upper_bound)
 end
 
-function LQOI.change_objective_coefficient!(instance::GLPKOptimizer, col, coef)
-    lp = instance.inner
-    GLPK.set_obj_coef(lp, col, coef)
+function LQOI.change_objective_coefficient!(model::Optimizer, col, coef)
+    GLPK.set_obj_coef(model.inner, col, coef)
 end
 
-function LQOI.change_matrix_coefficient!(instance::GLPKOptimizer, row, col, coef)
-    lp = instance.inner
-    colidx, coefs = GLPK.get_mat_row(lp, row)
-    idx = something(findfirst(isequal(col), colidx), 0)
-    if idx > 0
-        coefs[idx] = coef
+function LQOI.change_matrix_coefficient!(model::Optimizer, row, col, coef)
+    columns, coefficients = GLPK.get_mat_row(model.inner, row)
+    index = findfirst(columns, col)
+    if index > 0
+        coefficients[index] = coef
     else
-        push!(colidx, col)
-        push!(coefs, coef)
+        push!(columns, col)
+        push!(coefficients, coef)
     end
-    GLPK.set_mat_row(lp, row, colidx, coefs)
-    return nothing
+    GLPK.set_mat_row(model.inner, row, columns, coefficients)
 end
 
-function LQOI.delete_linear_constraints!(instance::GLPKOptimizer, rowbeg, rowend)
-
-    m = instance.inner
-
-    idx = collect(rowbeg:rowend)
-
-    GLPK.std_basis(m)
-    GLPK.del_rows(m, length(idx), idx)
-
-    nothing
+function LQOI.delete_linear_constraints!(model::Optimizer, start_row, stop_row)
+    GLPK.std_basis(model.inner)
+    indices = collect(start_row:stop_row)
+    GLPK.del_rows(model.inner, length(indices), indices)
 end
 
-# TODO fix types
-function LQOI.change_variable_types!(instance::GLPKOptimizer, colvec, vartype)
-
-    lp = instance.inner
-    coltype = GLPK.CV
-    for i in eachindex(colvec)
-        if vartype[i] == Cint('I')
-            coltype = GLPK.IV
-        elseif vartype[i] == Cint('C')
-            coltype = GLPK.CV
-        elseif vartype[i] == Cint('B')
-            coltype = GLPK.IV
-            GLPK.set_col_bnds(lp, colvec[i], GLPK.DB, 0.0, 1.0)
+function LQOI.change_variable_types!(model::Optimizer,
+        columns::Vector{Int}, variable_types::Vector)
+    new_vtype = GLPK.CV
+    model.binaries = Int[]
+    for (col, vtype) in zip(columns, variable_types)
+        if vtype == Cint('I')
+            new_vtype = GLPK.IV
+        elseif vtype == Cint('C')
+            new_vtype = GLPK.CV
+        elseif vtype == Cint('B')
+            new_vtype = GLPK.IV
+            push!(model.binaries, col)
         else
-            error("invalid variable type: $(vartype[i])")
+            error("Invalid variable type: $(vtype).")
         end
-        GLPK.set_col_kind(lp, colvec[i], coltype)
+        GLPK.set_col_kind(model.inner, col, new_vtype)
     end
 end
 
-# TODO fix types
-function LQOI.change_linear_constraint_sense!(instance::GLPKOptimizer, rowvec, sensevec)
-    for (row, sense) in zip(rowvec, sensevec)
-        changesense!(instance, row, sense)
+function LQOI.change_linear_constraint_sense!(model::Optimizer, rows, senses)
+    for (row, sense) in zip(rows, senses)
+        changesense!(model, row, sense)
     end
-    nothing
 end
 
-function changesense!(instance::GLPKOptimizer, row, sense)
-    m = instance.inner
+function changesense!(model::Optimizer, row, sense)
+    m = model.inner
     oldsense = GLPK.get_row_type(m, row)
-    newsense = translatesense(sense)
+    newsense = sense_char_to_glpk(sense)
     if oldsense == newsense
         return nothing
     end
@@ -463,7 +320,7 @@ function changesense!(instance::GLPKOptimizer, row, sense)
     nothing
 end
 
-function translatesense(sense)
+function sense_char_to_glpk(sense)
     if sense == Cchar('E')
         return GLPK.FX
     elseif sense == Cchar('R')
@@ -473,62 +330,40 @@ function translatesense(sense)
     elseif sense == Cchar('G')
         return GLPK.LO
     else
-        error("invalid sense")
+        error("Invalid constraint sense: $(sense).")
     end
 end
 
-LQOI.add_sos_constraint!(instance::GLPKOptimizer, colvec, valvec, typ) = GLPK.add_sos!(instance.inner, typ, colvec, valvec)
-
-LQOI.delete_sos!(instance::GLPKOptimizer, idx1, idx2) = error("cant del SOS")
-
-# TODO improve getting processes
-function LQOI.get_sos_constraint(instance::GLPKOptimizer, idx)
-    indices, weights, types = GLPK.getsos(instance.inner, idx)
-
-    return indices, weights, types == Cchar('1') ? :SOS1 : :SOS2
+function LQOI.set_linear_objective!(model::Optimizer, columns, coefficients)
+    ncols = GLPK.get_num_cols(model.inner)
+    new_coefficients = zeros(ncols)
+    for (col, coef) in zip(columns, coefficients)
+        new_coefficients[col] += coef
+    end
+    for (col, coef) in zip(1:ncols, new_coefficients)
+        GLPK.set_obj_coef(model.inner, col, coef)
+    end
 end
 
-
-
-# LQOI.lqs_copyquad(m, intvec,intvec, floatvec) #?
-# LQOI.lqs_copyquad!(instance::GLPKOptimizer, I, J, V) = error("GLPK does no support quadratics")
-
-function LQOI.set_linear_objective!(instance::GLPKOptimizer, colvec, coefvec)
-    ncols = GLPK.get_num_cols(instance.inner)
-    new_colvec = collect(1:ncols)
-    new_coefvec = zeros(ncols)
-    for (ind,val) in enumerate(colvec)
-        new_coefvec[val] = coefvec[ind]
-    end
-    m = instance.inner
-    for (col, coef) in zip(new_colvec, new_coefvec)
-        GLPK.set_obj_coef(m, col, coef)
-    end
-    nothing
-end
-
-function LQOI.change_objective_sense!(instance::GLPKOptimizer, sense)
-    m = instance.inner
+function LQOI.change_objective_sense!(model::Optimizer, sense)
     if sense == :min
-        GLPK.set_obj_dir(m, GLPK.MIN)
+        GLPK.set_obj_dir(model.inner, GLPK.MIN)
     elseif sense == :max
-        GLPK.set_obj_dir(m, GLPK.MAX)
+        GLPK.set_obj_dir(model.inner, GLPK.MAX)
     else
         error("Unrecognized objective sense $sense")
     end
 end
 
-function LQOI.get_linear_objective!(instance::GLPKOptimizer, x::Vector{Float64})
-    m = instance.inner
-    n = GLPK.get_num_cols(m)
-    for col = 1:length(x)
-        x[col] = GLPK.get_obj_coef(m, col)
+function LQOI.get_linear_objective!(model::Optimizer, x::Vector{Float64})
+    @assert length(x) == GLPK.get_num_cols(model.inner)
+    for col in 1:length(x)
+        x[col] = GLPK.get_obj_coef(model.inner, col)
     end
 end
 
-function LQOI.get_objectivesense(instance::GLPKOptimizer)
-
-    s = GLPK.get_obj_dir(instance.inner)
+function LQOI.get_objectivesense(model::Optimizer)
+    s = GLPK.get_obj_dir(model.inner)
     if s == GLPK.MIN
         return MOI.MinSense
     elseif s == GLPK.MAX
@@ -538,545 +373,290 @@ function LQOI.get_objectivesense(instance::GLPKOptimizer)
     end
 end
 
-LQOI.get_number_variables(instance::GLPKOptimizer) = GLPK.get_num_cols(instance.inner)
-
-function LQOI.add_variables!(instance::GLPKOptimizer, int)
-    n = GLPK.get_num_cols(instance.inner)
-    GLPK.add_cols(instance.inner, int)
-    for i in 1:int
-        GLPK.set_col_bnds(instance.inner, n+i, GLPK.FR, -Inf, Inf)
-    end
-    nothing
+function LQOI.get_number_variables(model::Optimizer)
+    GLPK.get_num_cols(model.inner)
 end
 
-function LQOI.delete_variables!(instance::GLPKOptimizer, col, col2)
-    idx = collect(col:col2)
-    GLPK.std_basis(instance.inner)
-    GLPK.del_cols(instance.inner, length(idx), idx)
+function LQOI.add_variables!(model::Optimizer, number_to_add::Int)
+    num_variables = GLPK.get_num_cols(model.inner)
+    GLPK.add_cols(model.inner, number_to_add)
+    for i in 1:number_to_add
+        GLPK.set_col_bnds(model.inner, num_variables+i, GLPK.FR, 0.0, 0.0)
+    end
 end
 
-LQOI.add_mip_starts!(instance::GLPKOptimizer, colvec, valvec) = nothing
+function LQOI.delete_variables!(model::Optimizer, col, col2)
+    GLPK.std_basis(model.inner)
+    columns = collect(col:col2)
+    GLPK.del_cols(model.inner, length(columns), columns)
+end
 
-LQOI.solve_mip_problem!(instance::GLPKOptimizer) = opt!(instance)
+function _certificates_available(model::Optimizer)
+    !model.last_solved_by_mip && (model.method == :Simplex || model.method == :Exact)
+end
 
-# LQOI.solve_quadratic_problem!(instance::GLPKOptimizer) = error("Quadratic solving not supported")
-
-LQOI.solve_linear_problem!(instance::GLPKOptimizer) = opt!(instance)
-
-function LQOI.get_termination_status(model::GLPKOptimizerMIP)
-
-    if model.userlimit
-        return MOI.OtherLimit
-    end
-    s = GLPK.mip_status(model.inner)
-    if s == GLPK.UNDEF
-        if model.param.presolve == GLPK.OFF && GLPK.get_status(model.inner) == GLPK.NOFEAS
-            return MOI.InfeasibleNoResult
-        else
-            return MOI.OtherError
+function LQOI.get_termination_status(model::Optimizer)
+    if model.last_solved_by_mip
+        if model.solver_status in [GLPK.EMIPGAP, GLPK.ETMLIM, GLPK.ESTOP]
+            return MOI.OtherLimit
         end
     end
-    if s == GLPK.OPT
+    status = get_status(model)
+    if status == GLPK.OPT
         return MOI.Success
-    elseif s == GLPK.INFEAS
-        return MOI.InfeasibleNoResult
-    elseif s == GLPK.UNBND
-        return MOI.UnboundedNoResult
-    elseif s == GLPK.FEAS
+    elseif status == GLPK.INFEAS
+        if _certificates_available(model)
+            return MOI.Success
+        else
+            return MOI.InfeasibleNoResult
+        end
+    elseif status == GLPK.UNBND
+        if _certificates_available(model)
+            return MOI.Success
+        else
+            return MOI.UnboundedNoResult
+        end
+    elseif status == GLPK.FEAS
         return MOI.SlowProgress
-    elseif s == GLPK.NOFEAS
-        return MOI.OtherError
-    elseif s == GLPK.UNDEF
-        return MOI.OtherError
-    else
-        error("internal library error")
-    end
-end
-
-function LQOI.get_termination_status(model::GLPKOptimizerLP)
-    s = lp_status(model)
-    if s == GLPK.OPT
-        return MOI.Success
-    elseif s == GLPK.INFEAS
-        return MOI.InfeasibleNoResult
-    elseif s == GLPK.UNBND
-        return MOI.UnboundedNoResult
-    elseif s == GLPK.FEAS
-        return MOI.SlowProgress
-    elseif s == GLPK.NOFEAS
+    elseif status == GLPK.NOFEAS
         return MOI.InfeasibleOrUnbounded
-    elseif s == GLPK.UNDEF
+    elseif status == GLPK.UNDEF
         return MOI.OtherError
     else
-        error("Internal library error")
+        error("Status $(status) not recognised.")
     end
 end
 
-function lp_status(lpm::GLPKOptimizerLP)
-    if lpm.method == :Simplex || lpm.method == :Exact
-        get_status = GLPK.get_status
-    elseif lpm.method == :InteriorPoint
-        get_status = GLPK.ipt_status
+function get_status(model::Optimizer)
+    if model.last_solved_by_mip
+        return GLPK.mip_status(model.inner)
     else
-        error("bug")
+        _check_lp_method(model.method)
+        if model.method == :Simplex || model.method == :Exact
+            return GLPK.get_status(model.inner)
+        elseif model.method == :InteriorPoint
+            return GLPK.ipt_status(model.inner)
+        end
     end
-    s = get_status(lpm.inner)
 end
 
-function LQOI.get_primal_status(model::GLPKOptimizerMIP)
-    m = model.inner
-    s = GLPK.mip_status(model.inner)
-    out = MOI.UnknownResultStatus
-    if s in [GLPK.OPT]#, GLPK.FEAS]
-        out = MOI.FeasiblePoint
+function LQOI.get_primal_status(model::Optimizer)
+    status = get_status(model)
+    if status == GLPK.OPT
+        return MOI.FeasiblePoint
+    elseif status == GLPK.UNBND && _certificates_available(model)
+        return MOI.InfeasibilityCertificate
     end
-    return out
-end
-
-function LQOI.get_primal_status(model::GLPKOptimizerLP)
-    m = model.inner
-    s = lp_status(model)
-    out = MOI.UnknownResultStatus
-    if s in [GLPK.OPT]#, GLPK.FEAS]
-        out = MOI.FeasiblePoint
-    end
-    return out
-end
-
-function LQOI.get_dual_status(model::GLPKOptimizerMIP)
     return MOI.UnknownResultStatus
 end
 
-function LQOI.get_dual_status(model::GLPKOptimizerLP)
-    m = model.inner
-    s = lp_status(model)
-    out = MOI.UnknownResultStatus
-    if s in [GLPK.OPT]#, GLPK.FEAS]
-        out = MOI.FeasiblePoint
+function LQOI.get_dual_status(model::Optimizer)
+    if !model.last_solved_by_mip
+        status = get_status(model.inner)
+        if status == GLPK.OPT
+            return MOI.FeasiblePoint
+        elseif status == GLPK.INFEAS && _certificates_available(model)
+            return MOI.InfeasibilityCertificate
+        end
     end
-    return out
+    return MOI.UnknownResultStatus
 end
 
-function LQOI.get_variable_primal_solution!(instance::GLPKOptimizerMIP, place)
-    lp = instance.inner
-    for c in eachindex(place)
-        place[c] = GLPK.mip_col_val(lp, c)
+function copy_function_result!(dest, foo, model)
+    for i in eachindex(dest)
+        dest[i] = foo(model.inner, i)
     end
 end
 
-function LQOI.get_variable_primal_solution!(lpm::GLPKOptimizerLP, place)
-    lp = lpm.inner
-    if lpm.method == :Simplex || lpm.method == :Exact
-        get_col_prim = GLPK.get_col_prim
-    elseif lpm.method == :InteriorPoint
-        get_col_prim = GLPK.ipt_col_prim
+function _check_lp_method(method)
+    if !(method in [:Simplex, :Exact, :InteriorPoint])
+        error("Method must be one of :Simplex, :Exact, or :InteriorPoint.")
+    end
+end
+
+function LQOI.get_variable_primal_solution!(model::Optimizer, place)
+    if model.last_solved_by_mip
+        copy_function_result!(place, GLPK.mip_col_val, model)
     else
-        error("bug")
-    end
-
-    for c in eachindex(place)
-        place[c] = get_col_prim(lp, c)
-    end
-    return nothing
-end
-
-function LQOI.get_linear_primal_solution!(instance::GLPKOptimizerMIP, place)
-    lp = instance.inner
-    for c in eachindex(place)
-        place[c] = GLPK.mip_row_val(lp, c)
+        _check_lp_method(model.method)
+        if model.method == :Simplex || model.method == :Exact
+            copy_function_result!(place, GLPK.get_col_prim, model)
+        elseif model.method == :InteriorPoint
+            copy_function_result!(place, GLPK.ipt_col_prim, model)
+        end
     end
 end
-function LQOI.get_linear_primal_solution!(lpm::GLPKOptimizerLP, place)
-    lp = lpm.inner
-    if lpm.method == :Simplex || lpm.method == :Exact
-        get_row_prim = GLPK.get_row_prim
-    elseif lpm.method == :InteriorPoint
-        get_row_prim = GLPK.ipt_row_prim
+
+function LQOI.get_linear_primal_solution!(model::Optimizer, place)
+    if model.last_solved_by_mip
+        copy_function_result!(place, GLPK.mip_row_val, model)
     else
-        error("bug")
+        _check_lp_method(model.method)
+        if model.method == :Simplex || model.method == :Exact
+            copy_function_result!(place, GLPK.get_row_prim, model)
+        elseif model.method == :InteriorPoint
+            copy_function_result!(place, GLPK.ipt_row_prim, model)
+        end
     end
-    for r in eachindex(place)
-        place[r] = get_row_prim(lp, r)
-    end
-    return nothing
 end
 
-# function LQOI.get_variable_dual_solution!(instance::GLPKOptimizerMIP, place)
-# end
+function LQOI.get_variable_dual_solution!(model::Optimizer, place)
+    @assert !model.last_solved_by_mip
+    _check_lp_method(model.method)
+    if model.method == :Simplex || model.method == :Exact
+        copy_function_result!(place, GLPK.get_col_dual, model)
+    elseif model.method == :InteriorPoint
+        copy_function_result!(place, GLPK.ipt_col_dual, model)
+    end
+end
 
-function LQOI.get_variable_dual_solution!(lpm::GLPKOptimizerLP, place)
-    lp = lpm.inner
-    if lpm.method == :Simplex || lpm.method == :Exact
-        get_col_dual = GLPK.get_col_dual
-    elseif lpm.method == :InteriorPoint
-        get_col_dual = GLPK.ipt_col_dual
+function LQOI.get_linear_dual_solution!(model::Optimizer, place)
+    @assert !model.last_solved_by_mip
+    _check_lp_method(model.method)
+    if model.method == :Simplex || model.method == :Exact
+        copy_function_result!(place, GLPK.get_row_dual, model)
+    elseif model.method == :InteriorPoint
+        copy_function_result!(place, GLPK.ipt_row_dual, model)
+    end
+end
+
+function LQOI.get_objective_value(model::Optimizer)
+    if model.last_solved_by_mip
+        return GLPK.mip_obj_val(model.inner)
     else
-        error("bug")
+        _check_lp_method(model.method)
+        if model.method == :Simplex || model.method == :Exact
+            return GLPK.get_obj_val(model.inner)
+        elseif model.method == :InteriorPoint
+            return GLPK.ipt_obj_val(model.inner)
+        end
     end
-    for c in eachindex(place)
-        place[c] = get_col_dual(lp, c)
-    end
-    return nothing
 end
 
-# function LQOI.get_linear_dual_solution!(instance::GLPKOptimizerMIP, place)
- # end
-
-function LQOI.get_linear_dual_solution!(lpm::GLPKOptimizerLP, place)
-    lp = lpm.inner
-    if lpm.method == :Simplex || lpm.method == :Exact
-        get_row_dual = GLPK.get_row_dual
-    elseif lpm.method == :InteriorPoint
-        get_row_dual = GLPK.ipt_row_dual
-    else
-        error("bug")
+function LQOI.solve_linear_problem!(model::Optimizer)
+    _check_lp_method(model.method)
+    model.last_solved_by_mip = false
+    if model.method == :Simplex
+        return GLPK.simplex(model.inner, model.simplex)
+    elseif model.method == :Exact
+        return GLPK.exact(model.inner, model.simplex)
+    elseif model.method == :InteriorPoint
+        return GLPK.interior(model.inner, model.interior)
     end
-    for r in eachindex(place)
-        place[r] = get_row_dual(lp, r)
-    end
-    return nothing
 end
-
-LQOI.get_objective_value(instance::GLPKOptimizerMIP) = GLPK.mip_obj_val(instance.inner)
-
-function LQOI.get_objective_value(lpm::GLPKOptimizerLP)
-    if lpm.method == :Simplex || lpm.method == :Exact
-        get_obj_val = GLPK.get_obj_val
-    elseif lpm.method == :InteriorPoint
-        get_obj_val = GLPK.ipt_obj_val
-    else
-        error("bug")
-    end
-    return get_obj_val(lpm.inner)
-end
-
-LQOI.get_objective_bound(instance::GLPKOptimizerMIP) = instance.objbound
-
-LQOI.get_relative_mip_gap(instance::GLPKOptimizer) = abs(GLPK.mip_obj_val(instance.inner)-instance.objbound)/(1e-9+GLPK.mip_obj_val(instance.inner))
-
-# LQOI.get_iteration_count(m)
-# LQOI.get_iteration_count(instance::GLPKOptimizer)  = -1
-
-# LQOI.lqs_getbaritcnt(m)
-# LQOI.lqs_getbaritcnt(instance::GLPKOptimizer) = -1
-
-# LQOI.get_node_count(m)
-# LQOI.get_node_count(instance::GLPKOptimizer) = -1
-
-LQOI.get_farkas_dual!(instance::GLPKOptimizer, place) = getinfeasibilityray(instance, place)
-
-LQOI.get_unbounded_ray!(instance::GLPKOptimizer, place) = getunboundedray(instance, place)
-
-function MOI.free!(instance::GLPKOptimizer) end
 
 """
-    writeproblem(m: :MOI.AbstractOptimizer, filename::String)
-Writes the current problem data to the given file.
-Supported file types are solver-dependent.
+    round_bounds_to_integer(model)::Tuple{Bool, Vector{Float64}, Vector{Float64}}
+
+GLPK does not allow integer variables with fractional bounds. Therefore, we
+round the bounds of binary and integer variables to integer values prior to
+solving.
+
+Returns a tuple of the original bounds, along with a Boolean flag indicating if
+they need to be reset after solve.
 """
-writeproblem(instance::GLPKOptimizer, filename::String, flags::String="") = GLPK.write_model(instance.inner, filename)
-
-
-LQOI.make_problem_type_continuous(instance::GLPKOptimizer) = GLPK._make_problem_type_continuous(instance.inner)
-
-
-#=
-    old helpers
-=#
-function opt!(lpm::GLPKOptimizerLP)
-    # write_lp(lpm.inner, "model.lp")
-    if lpm.method == :Simplex
-        solve = GLPK.simplex
-    elseif lpm.method == :Exact
-        solve = GLPK.exact
-    elseif lpm.method == :InteriorPoint
-        solve = GLPK.interior
-    else
-        error("bug")
+function round_bounds_to_integer(model::Optimizer)
+    num_variables = GLPK.get_num_cols(model.inner)
+    lower_bounds = map(i->GLPK.get_col_lb(model.inner, i), 1:num_variables)
+    upper_bounds = map(i->GLPK.get_col_ub(model.inner, i), 1:num_variables)
+    variable_types = get_variable_types(model)
+    bounds_modified = false
+    for (col, variable_type) in enumerate(variable_types)
+        new_lower = ceil(lower_bounds[col])
+        new_upper = floor(upper_bounds[col])
+        if variable_type == :Bin
+            new_lower = max(0.0, ceil(lower_bounds[col]))
+            new_upper = min(1.0, floor(upper_bounds[col]))
+        elseif variable_type != :Int
+            continue
+        end
+        if lower_bounds[col] != new_lower || upper_bounds[col] != new_upper
+            set_variable_bound(model, col, new_lower, new_upper)
+            bounds_modified = true
+        end
     end
-    return solve(lpm.inner, lpm.param)
+    return bounds_modified, lower_bounds, upper_bounds
 end
 
-function opt!(lpm::GLPKOptimizerMIP)
-    # write_lp(lpm.inner, "model.lp")
-    vartype = getvartype(lpm)
-    lb = getvarLB(lpm)
-    ub = getvarUB(lpm)
-    old_lb = copy(lb)
-    old_ub = copy(ub)
-    for c in 1:length(vartype)
-        vartype[c] in [:Int,:Bin] && (lb[c] = ceil(lb[c]); ub[c] = floor(ub[c]))
-        vartype[c] == :Bin && (lb[c] = max(lb[c],0.0); ub[c] = min(ub[c],1.0))
-    end
-    #lpm.cbdata.vartype = vartype
+function LQOI.solve_mip_problem!(model::Optimizer)
+    bounds_modified, lower_bounds, upper_bounds = round_bounds_to_integer(model)
     try
-        setvarLB!(lpm, lb)
-        setvarUB!(lpm, ub)
-        if lpm.param.presolve == GLPK.OFF
-            ret_ps = GLPK.simplex(lpm.inner, lpm.smplxparam)
-            ret_ps != 0 && return ret_ps
+        if model.intopt.presolve == GLPK.OFF
+            status = GLPK.simplex(model.inner, model.simplex)
+            if status != 0
+                model.last_solved_by_mip = false
+                model.solver_status = status
+                return
+            end
         end
-        ret = GLPK.intopt(lpm.inner, lpm.param)
-        if ret == GLPK.EMIPGAP || ret == GLPK.ETMLIM || ret == GLPK.ESTOP
-            lpm.userlimit = true
-        end
+        model.solver_status = GLPK.intopt(model.inner, model.intopt)
+        model.last_solved_by_mip = true
     finally
-        setvarLB!(lpm, old_lb)
-        setvarUB!(lpm, old_ub)
+        if bounds_modified
+            for (col, (lower, upper)) in enumerate(zip(lower_bounds, upper_bounds))
+                set_variable_bound(model, col, lower, upper)
+            end
+        end
     end
 end
 
-function getvarLB(lpm::GLPKOptimizer)
-    lp = lpm.inner
-    n = GLPK.get_num_cols(lp)
-    lb = Array{Float64}(undef, n)
-    for c = 1:n
-        l = GLPK.get_col_lb(lp, c)
-        if l <= -realmax(Float64)
-            l = -Inf
-        end
-        lb[c] = l
+function set_variable_bound(model::Optimizer, col::Int, lower::Float64,
+                            upper::Float64)
+    if upper >= realmax(Float64)
+        upper = Inf
     end
-    return lb
-end
-
-function setvarLB!(lpm::GLPKOptimizer, collb)
-    lp = lpm.inner
-    n = GLPK.get_num_cols(lp)
-    if nonnull(collb) && length(collb) != n
-        error("invalid size of collb")
+    if lower <= -realmax(Float64)
+        lower = -Inf
     end
-    for c = 1:n
-        u = GLPK.get_col_ub(lp, c)
-        if u >= realmax(Float64)
-            u = Inf
-        end
-        if nonnull(collb) && collb[c] != -Inf
-            l = collb[c]
-            if u < Inf
-                if l != u
-                    GLPK.set_col_bnds(lp, c, GLPK.DB, l, u)
-                else
-                    GLPK.set_col_bnds(lp, c, GLPK.FX, l, u)
-                end
+    if upper < Inf
+        if lower > -Inf
+            if lower == upper
+                GLPK.set_col_bnds(model.inner, col, GLPK.FX, lower, upper)
             else
-                GLPK.set_col_bnds(lp, c, GLPK.LO, l, 0.0)
+                GLPK.set_col_bnds(model.inner, col, GLPK.DB, lower, upper)
             end
         else
-            if u < Inf
-                GLPK.set_col_bnds(lp, c, GLPK.UP, 0.0, u)
-            else
-                GLPK.set_col_bnds(lp, c, GLPK.FR, 0.0, 0.0)
-            end
+            GLPK.set_col_bnds(model.inner, col, GLPK.UP, 0.0, upper)
         end
-    end
-end
-
-function getvarUB(lpm::GLPKOptimizer)
-    lp = lpm.inner
-    n = GLPK.get_num_cols(lp)
-    ub = Array{Float64}(undef, n)
-    for c = 1:n
-        u = GLPK.get_col_ub(lp, c)
-        if u >= realmax(Float64)
-            u = Inf
-        end
-        ub[c] = u
-    end
-    return ub
-end
-
-function setvarUB!(lpm::GLPKOptimizer, colub)
-    lp = lpm.inner
-    n = GLPK.get_num_cols(lp)
-    if nonnull(colub) && length(colub) != n
-        error("invalid size of colub")
-    end
-    for c = 1:n
-        l = GLPK.get_col_lb(lp, c)
-        if l <= -realmax(Float64)
-            l = -Inf
-        end
-        if nonnull(colub) && colub[c] != Inf
-            u = colub[c]
-            if l > -Inf
-                if l != u
-                    GLPK.set_col_bnds(lp, c, GLPK.DB, l, u)
-                else
-                    GLPK.set_col_bnds(lp, c, GLPK.FX, l, u)
-                end
-            else
-                GLPK.set_col_bnds(lp, c, GLPK.UP, 0.0, u)
-            end
+    else
+        if lower > -Inf
+            GLPK.set_col_bnds(model.inner, col, GLPK.LO, lower, 0.0)
         else
-            if l > -Inf
-                GLPK.set_col_bnds(lp, c, GLPK.LO, l, 0.0)
-            else
-                GLPK.set_col_bnds(lp, c, GLPK.FR, 0.0, 0.0)
-            end
+            GLPK.set_col_bnds(model.inner, col, GLPK.FR, 0.0, 0.0)
         end
     end
 end
 
-const vartype_map = Dict(
+const VARIABLE_TYPE_MAP = Dict(
     GLPK.CV => :Cont,
     GLPK.IV => :Int,
     GLPK.BV => :Bin
 )
 
-function getvartype(lpm::GLPKOptimizer)
-    lp = lpm.inner
-    ncol = GLPK.get_num_cols(lp)
-    coltype = Array{Symbol}(undef, ncol)
+function get_variable_types(model::Optimizer)
+    ncol = GLPK.get_num_cols(model.inner)
+    col_types = fill(:Cont, ncol)
     for i in 1:ncol
-        ct = GLPK.get_col_kind(lp, i)
-        coltype[i] = vartype_map[ct]
-        if i in lpm.binaries
-            coltype[i] = :Bin
-        elseif coltype[i] == :Bin # GLPK said it was binary, but we didn't tell it
-            coltype[i] = :Int
+        col_type = GLPK.get_col_kind(model.inner, i)
+        col_types[i] = VARIABLE_TYPE_MAP[col_type]
+        if i in model.binaries
+            # See the note in the definition of Optimizer about this.
+            col_types[i] = :Bin
+        elseif col_types[i] == :Bin
+            # We never set a variable as binary. GLPK must have made a mistake
+            # and inferred so based on bounds?
+            col_types[i] = :Int
         end
     end
-    return coltype
-end
-nonnull(x) = (x != nothing && !isempty(x))
-
-# The functions getinfeasibilityray and getunboundedray are adapted from code
-# taken from the LEMON C++ optimization library. This is the copyright notice:
-#
-### Copyright (C) 2003-2010
-### Egervary Jeno Kombinatorikus Optimalizalasi Kutatocsoport
-### (Egervary Research Group on Combinatorial Optimization, EGRES).
-###
-### Permission to use, modify and distribute this software is granted
-### provided that this copyright notice appears in all copies. For
-### precise terms see the accompanying LICENSE file.
-###
-### This software is provided "AS IS" with no warranty of any kind,
-### express or implied, and with no claim as to its suitability for any
-### purpose.
-
-function getinfeasibilityray(lpm::GLPKOptimizerLP, ray)
-    lp = lpm.inner
-
-    if lpm.method == :Simplex || lpm.method == :Exact
-    elseif lpm.method == :InteriorPoint
-        error("getinfeasibilityray is not available when using the InteriorPoint method")
-    else
-        error("bug")
-    end
-
-    m = GLPK.get_num_rows(lp)
-
-    # ray = zeros(m)
-    @assert length(ray) == m
-
-    ur = GLPK.get_unbnd_ray(lp)
-    if ur != 0
-        if ur <= m
-            k = ur
-            get_stat = GLPK.get_row_stat
-            get_bind = GLPK.get_row_bind
-            get_prim = GLPK.get_row_prim
-            get_ub = GLPK.get_row_ub
-        else
-            k = ur - m
-            get_stat = GLPK.get_col_stat
-            get_bind = GLPK.get_col_bind
-            get_prim = GLPK.get_col_prim
-            get_ub = GLPK.get_col_ub
-        end
-
-        get_stat(lp, k) == GLPK.BS || error("unbounded ray is primal (use getunboundedray)")
-
-        ray[get_bind(lp, k)] = (get_prim(lp, k) > get_ub(lp, k)) ? -1 : 1
-
-        GLPK.btran(lp, ray)
-    else
-        eps = 1e-7
-        for i = 1:m
-            idx = GLPK.get_bhead(lp, i)
-            if idx <= m
-                k = idx
-                get_prim = GLPK.get_row_prim
-                get_ub = GLPK.get_row_ub
-                get_lb = GLPK.get_row_lb
-            else
-                k = idx - m
-                get_prim = GLPK.get_col_prim
-                get_ub = GLPK.get_col_ub
-                get_lb = GLPK.get_col_lb
-            end
-
-            res = get_prim(lp, k)
-            if res > get_ub(lp, k) + eps
-                ray[i] = -1
-            elseif res < get_lb(lp, k) - eps
-                ray[i] = 1
-            else
-                continue # ray[i] == 0
-            end
-
-            if idx <= m
-                ray[i] *= GLPK.get_rii(lp, k)
-            else
-                ray[i] /= GLPK.get_sjj(lp, k)
-            end
-        end
-
-        GLPK.btran(lp, ray)
-
-        for i = 1:m
-            ray[i] /= GLPK.get_rii(lp, i)
-        end
-    end
-
-    return nothing
+    return col_types
 end
 
-function getunboundedray(lpm::GLPKOptimizerLP, ray)
-    lp = lpm.inner
+include("infeasibility_certificates.jl")
 
-    if lpm.method == :Simplex || lpm.method == :Exact
-    elseif lpm.method == :InteriorPoint
-        error("getunboundedray is not available when using the InteriorPoint method")
-    else
-        error("bug")
-    end
+function LQOI.get_farkas_dual!(model::Optimizer, place)
+    get_infeasibility_ray(model, place)
+end
 
-    m = GLPK.get_num_rows(lp)
-    n = GLPK.get_num_cols(lp)
-
-    # ray = zeros(n)
-    @assert length(ray) == n
-
-    ur = GLPK.get_unbnd_ray(lp)
-    if ur != 0
-        if ur <= m
-            k = ur
-            get_stat = GLPK.get_row_stat
-            get_dual = GLPK.get_row_dual
-        else
-            k = ur - m
-            get_stat = GLPK.get_col_stat
-            get_dual = GLPK.get_col_dual
-            ray[k] = 1
-        end
-
-        get_stat(lp, k) != GLPK.BS || error("unbounded ray is dual (use getinfeasibilityray)")
-
-        for (ri, rv) in zip(GLPK.eval_tab_col(lp, ur)...)
-            ri > m && (ray[ri - m] = rv)
-        end
-
-        if (GLPK.get_obj_dir(lp) == GLPK.MAX) $ (get_dual(lp, k) > 0)
-            LinearAlgebra.scale!(ray, -1.0)
-        end
-    else
-        for i = 1:n
-            ray[i] = GLPK.get_col_prim(lp, i)
-        end
-    end
-
-    return nothing
+function LQOI.get_unbounded_ray!(model::Optimizer, place)
+    get_unbounded_ray(model, place)
 end
