@@ -10,39 +10,37 @@ const MOIT = MathOptInterface.Test
     # MOIT.basic_constraint_tests(solver, config)
 
     MOIT.unittest(solver, config, [
+        # These are excluded because GLPK does not support quadratics.
         "solve_qp_edge_cases",
         "solve_qcp_edge_cases"
     ])
 
     MOIT.modificationtest(solver, config, [
+        # This is excluded because LQOI does not support setting the constraint
+        # function.
         "solve_func_scalaraffine_lessthan"
     ])
 end
 
 @testset "Linear tests" begin
-    linconfig_nocertificate = MOIT.TestConfig()
     solver = GLPK.Optimizer()
-    MOIT.contlineartest(solver, linconfig_nocertificate, [
+    MOIT.contlineartest(solver, MOIT.TestConfig(), [
         # GLPK returns InfeasibleOrUnbounded
         "linear8a",
-        # Need to query an interval
-        "linear10",
         # Requires infeasiblity certificate for variable bounds
         "linear12"
     ])
-    MOIT.linear10test(solver, MOIT.TestConfig(query=false))
 end
 
 @testset "Linear Conic tests" begin
-    linconfig_nocertificate = MOIT.TestConfig(infeas_certificates=false)
-    solver = GLPK.Optimizer()
-    MOIT.lintest(solver, linconfig_nocertificate)
+    MOIT.lintest(GLPK.Optimizer(), MOIT.TestConfig(infeas_certificates=false))
 end
 
 @testset "Integer Linear tests" begin
-    intconfig = MOIT.TestConfig()
-    solver_mip = GLPK.Optimizer()
-    MOIT.intlineartest(solver_mip, intconfig, ["int2","int1"])
+    MOIT.intlineartest(GLPK.Optimizer(), MOIT.TestConfig(), [
+        # int2 is excluded because SOS constraints are not supported.
+        "int2"
+    ])
 end
 
 @testset "ModelLike tests" begin
@@ -63,7 +61,14 @@ end
         MOIT.canaddconstrainttest(solver, Float64, Complex{Float64})
     end
     @testset "copytest" begin
-        solver2 = GLPK.Optimizer()
-        MOIT.copytest(solver,solver2)
+        MOIT.copytest(solver, GLPK.Optimizer())
     end
+end
+
+@testset "Parameter setting" begin
+    solver = GLPK.Optimizer(tm_lim=1, ord_alg=2, alien=3)
+    @test solver.simplex.tm_lim == 1
+    @test solver.intopt.tm_lim == 1
+    @test solver.interior.ord_alg == 2
+    @test solver.intopt.alien == 3
 end
