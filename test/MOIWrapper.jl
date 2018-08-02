@@ -57,9 +57,6 @@ end
     @testset "orderedindicestest" begin
         # MOIT.orderedindicestest(solver)
     end
-    @testset "canaddconstrainttest" begin
-        MOIT.canaddconstrainttest(solver, Float64, Complex{Float64})
-    end
     @testset "copytest" begin
         MOIT.copytest(solver, GLPK.Optimizer())
     end
