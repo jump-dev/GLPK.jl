@@ -1,6 +1,5 @@
 using LinQuadOptInterface
 
-import Compat.LinearAlgebra
 using Nullables
 
 const LQOI = LinQuadOptInterface
@@ -30,6 +29,14 @@ const SUPPORTED_CONSTRAINTS = [
     (LQOI.SinVar, MOI.Integer)
 ]
 
+"""
+    AbstractCallbackData
+
+An abstract type to prevent recursive type definition of Optimizer and
+CallbackData, each of which need the other type in a field.
+"""
+abstract type AbstractCallbackData end
+
 mutable struct Optimizer <: LQOI.LinQuadOptimizer
     LQOI.@LinQuadOptimizerBase
     presolve::Bool
@@ -39,6 +46,13 @@ mutable struct Optimizer <: LQOI.LinQuadOptimizer
     simplex::SimplexParam
     solver_status::Int32
     last_solved_by_mip::Bool
+    objective_constant_term::Float64
+    # See note associated with abstractcallbackdata. When using, make sure to
+    # add a type assertion, since this will always be the concrete type
+    # CallbackData.
+    callback_data::AbstractCallbackData
+    objective_bound::Float64
+    callback_function::Function
     # See https://github.com/JuliaOpt/GLPKMathProgInterface.jl/pull/15
     # for why this is necesary. GLPK interacts weirdly with binary variables and
     # bound modification. So lets set binary variables as "Integer" with [0,1]
@@ -46,7 +60,17 @@ mutable struct Optimizer <: LQOI.LinQuadOptimizer
     binaries::Vector{Int}
     Optimizer(::Nothing) = new()
 end
-function Optimizer(presolve=false, method=:Simplex; kwargs...)
+
+"""
+    CallbackData
+"""
+mutable struct CallbackData <: AbstractCallbackData
+    model::Optimizer
+    tree::Ptr{Cvoid}
+    CallbackData(model::Optimizer) = new(model, C_NULL)
+end
+
+function Optimizer(;presolve=false, method=:Simplex, kwargs...)
     optimizer = Optimizer(nothing)
     MOI.empty!(optimizer)
     optimizer.presolve = presolve
@@ -56,6 +80,12 @@ function Optimizer(presolve=false, method=:Simplex; kwargs...)
     optimizer.simplex  = GLPK.SimplexParam()
     solver_status = Int32(0)
     optimizer.last_solved_by_mip = false
+    optimizer.objective_constant_term = 0.0
+    optimizer.callback_data = CallbackData(optimizer)
+    optimizer.intopt.cb_func = cfunction(_internal_callback, Cvoid, (Ptr{Cvoid}, Ptr{Cvoid}))
+    optimizer.intopt.cb_info = pointer_from_objref(optimizer.callback_data)
+    optimizer.objective_bound = NaN
+    optimizer.callback_function = (cb_data::CallbackData) -> nothing
     optimizer.binaries = Int[]
     # Parameters
     if presolve
@@ -76,13 +106,40 @@ function Optimizer(presolve=false, method=:Simplex; kwargs...)
     return optimizer
 end
 
-# TODO(odow): implement these.
-# Before doing so, make sure you read: https://github.com/JuliaOpt/GLPKMathProgInterface.jl/pull/37
-# @mlubin and @ccoey observed some cases where mip_status == OPT and objval and
-# objbound didn't match. In that case, they return mip_obj_val, but objbound may
-# still be incorrect in cases where GLPK terminates early.
-MOI.canget(::Optimizer, ::MOI.ObjectiveBound) = false
-MOI.canget(::Optimizer, ::MOI.RelativeGap)    = false
+"""
+    _internal_callback(tree::Ptr{Cvoid}, info::Ptr{Cvoid})
+
+Dummy callback function for internal use only. Responsible for updating the
+objective bound.
+"""
+function _internal_callback(tree::Ptr{Cvoid}, info::Ptr{Cvoid})
+    callback_data = unsafe_pointer_to_objref(info)::CallbackData
+    model = callback_data.model
+    callback_data.tree = tree
+    node = GLPK.ios_best_node(tree)
+    if node != 0
+        model.objective_bound = GLPK.ios_node_bound(tree, node)
+    end
+    model.callback_function(callback_data)
+    return nothing
+end
+
+function LQOI.get_objective_bound(model::Optimizer)
+    if !model.last_solved_by_mip
+        return LQOI.get_objectivesense(model) == MOI.MinSense ? -Inf : Inf
+    end
+    constant = LQOI.get_constant_objective(model)
+    # @mlubin and @ccoey observed some cases where mip_status == OPT and objval
+    # and objbound didn't match. In that case, they return mip_obj_val, but
+    # objbound may still be incorrect in cases where GLPK terminates early.
+    if GLPK.mip_status(model.inner) == GLPK.OPT
+        return GLPK.mip_obj_val(model.inner) + constant
+    else
+        return model.objective_bound + constant
+    end
+end
+
+MOI.canget(::Optimizer, ::MOI.RelativeGap) = false
 
 # Only available from log, not programatically?
 MOI.canget(::Optimizer, ::MOI.SimplexIterations) = false
@@ -96,6 +153,12 @@ Set the field name `key` in a `param_store` type (that is one of `InteriorParam`
 `IntoptParam`, or `SimplexParam`) to `value`.
 """
 function set_parameter(param_store, key::Symbol, value)
+    if key in [:cb_func, :cb_info]
+        Compat.@warn("Ignored option: $(string(k)). Use the MOI attribute " *
+                     "`GLPK.CallbackFunction` instead.")
+        return true
+    end
+
     if key in fieldnames(typeof(param_store))
         field_type = typeof(getfield(param_store, key))
         setfield!(param_store, key, convert(field_type, value))
@@ -109,6 +172,11 @@ LQOI.LinearQuadraticModel(::Type{Optimizer}, env) = GLPK.Prob()
 
 LQOI.supported_objectives(model::Optimizer) = SUPPORTED_OBJECTIVES
 LQOI.supported_constraints(model::Optimizer) = SUPPORTED_CONSTRAINTS
+
+function LQOI.set_constant_objective!(model::Optimizer, value)
+    model.objective_constant_term = value
+end
+LQOI.get_constant_objective(model::Optimizer) = model.objective_constant_term
 
 """
     get_col_bound_type(lower::Float64, upper::Float64)
@@ -509,15 +577,18 @@ function LQOI.get_dual_status(model::Optimizer)
 end
 
 """
-    copy_function_result!(dest::Vector, foo, model)
+    copy_function_result!(dest::Vector, foo, model::GLPK.Prob)
 
 A helper function that loops through the indices in `dest` and stores the result
-of `foo(model.inner, i)` for the `i`th index.
+of `foo(model, i)` for the `i`th index.
 """
-function copy_function_result!(dest::Vector, foo, model)
+function copy_function_result!(dest::Vector, foo, model::GLPK.Prob)
     for i in eachindex(dest)
-        dest[i] = foo(model.inner, i)
+        dest[i] = foo(model, i)
     end
+end
+function copy_function_result!(dest::Vector, foo, model::Optimizer)
+    copy_function_result!(dest, foo, model.inner)
 end
 
 """
@@ -583,13 +654,14 @@ function LQOI.get_linear_dual_solution!(model::Optimizer, place)
 end
 
 function LQOI.get_objective_value(model::Optimizer)
+    constant = LQOI.get_constant_objective(model)
     if model.last_solved_by_mip
-        return GLPK.mip_obj_val(model.inner)
+        return GLPK.mip_obj_val(model.inner) + constant
     else
         if model.method == :Simplex || model.method == :Exact
-            return GLPK.get_obj_val(model.inner)
+            return GLPK.get_obj_val(model.inner) + constant
         elseif model.method == :InteriorPoint
-            return GLPK.ipt_obj_val(model.inner)
+            return GLPK.ipt_obj_val(model.inner) + constant
         end
         _throw_invalid_method(model)
     end
@@ -701,4 +773,52 @@ end
 
 function LQOI.get_unbounded_ray!(model::Optimizer, place)
     get_unbounded_ray(model, place)
+end
+
+# ==============================================================================
+#    Callbacks in GLPK
+# ==============================================================================
+"""
+    CallbackFunction
+
+The attribute to set the callback function in GLPK. The function takes a single
+argument of type `CallbackData`.
+"""
+struct CallbackFunction <: MOI.AbstractOptimizerAttribute end
+function MOI.set!(model::Optimizer, ::CallbackFunction, foo::Function)
+    model.callback_function = foo
+end
+
+"""
+    load_variable_primal!(cb_data::CallbackData)
+
+Load the variable primal solution in a callback.
+
+This can only be called in a callback from `GLPK.IROWGEN`. After it is called,
+you can access the `VariablePrimal` attribute as usual.
+"""
+function load_variable_primal!(cb_data::CallbackData)
+    model = cb_data.model
+    if GLPK.ios_reason(cb_data.tree) != GLPK.IROWGEN
+        error("load_variable_primal! can only be called when reason is GLPK.IROWGEN.")
+    end
+    subproblem = GLPK.ios_get_prob(cb_data.tree)
+    copy_function_result!(model.variable_primal_solution, GLPK.get_col_prim, subproblem)
+end
+
+"""
+    add_lazy_constraint!(cb_data::GLPK.CallbackData, func::LQOI.Linear, set::S) where S <: Union{LQOI.LE, LQOI.GE, LQOI.EQ}
+
+Add a lazy constraint to the model `cb_data.model`. This can only be called in a
+callback from `GLPK.IROWGEN`.
+"""
+function add_lazy_constraint!(cb_data::CallbackData, func::LQOI.Linear, set::S) where S <: Union{LQOI.LE, LQOI.GE, LQOI.EQ}
+    model = cb_data.model
+    add_row!(
+        GLPK.ios_get_prob(cb_data.tree),
+        [LQOI.getcol(model, term.variable_index) for term in func.terms],
+        [term.coefficient for term in func.terms],
+        LQOI.backend_type(model, set),
+        MOI.Utilities.getconstant(set)
+    )
 end

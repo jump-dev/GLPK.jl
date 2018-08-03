@@ -110,6 +110,6 @@ function get_unbounded_ray(model::Optimizer, ray::Vector{Float64})
         end
     end
     if xor(GLPK.get_obj_dir(model.inner) == GLPK.MAX, dual > 0)
-        LinearAlgebra.scale!(ray, -1.0)
+        ray *= -1
     end
 end
