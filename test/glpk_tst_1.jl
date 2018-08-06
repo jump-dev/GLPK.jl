@@ -99,21 +99,33 @@ function glpk_tst_1()
     # test rows properties
     @test GLPK.get_row_name(lp, 1) == "p"
     @test GLPK.get_row_type(lp, 1) == GLPK.UP
-    @test GLPK.get_row_lb(lp, 1) == -realmax(Float64)
+    if VERSION >= v"0.7-"
+        @test GLPK.get_row_lb(lp, 1) == -floatmax(Float64)
+    else
+        @test GLPK.get_row_lb(lp, 1) == -realmax(Float64)
+    end
     @test GLPK.get_row_ub(lp, 1) == 100.0
     @test GLPK.get_mat_row(lp, 1) == ([1,2,3], [1.0,1.0,1.0])
     @test GLPK.get_rii(lp, 1) == 1.0
 
     @test GLPK.get_row_name(lp, 2) == "q"
     @test GLPK.get_row_type(lp, 2) == GLPK.UP
-    @test GLPK.get_row_lb(lp, 2) == -realmax(Float64)
+    if VERSION >= v"0.7-"
+        @test GLPK.get_row_lb(lp, 2) == -floatmax(Float64)
+    else
+        @test GLPK.get_row_lb(lp, 2) == -realmax(Float64)
+    end
     @test GLPK.get_row_ub(lp, 2) == 600.0
     @test GLPK.get_mat_row(lp, 2) == ([1,2,3], [10.0,4.0,5.0])
     @test GLPK.get_rii(lp, 2) == 1.0
 
     @test GLPK.get_row_name(lp, 3) == "r"
     @test GLPK.get_row_type(lp, 3) == GLPK.UP
-    @test GLPK.get_row_lb(lp, 3) == -realmax(Float64)
+    if VERSION >= v"0.7-"
+        @test GLPK.get_row_lb(lp, 3) == -floatmax(Float64)
+    else
+        @test GLPK.get_row_lb(lp, 3) == -realmax(Float64)
+    end
     @test GLPK.get_row_ub(lp, 3) == 300.0
     @test GLPK.get_mat_row(lp, 3) == ([1,2,3], [2.0,2.0,6.0])
     @test GLPK.get_rii(lp, 3) == 1.0
@@ -122,19 +134,31 @@ function glpk_tst_1()
     @test GLPK.get_col_name(lp, 1) == "x1"
     @test GLPK.get_col_type(lp, 1) == GLPK.LO
     @test GLPK.get_col_lb(lp, 1) == 0.0
-    @test GLPK.get_col_ub(lp, 1) == realmax(Float64)
+    if VERSION >= v"0.7-"
+        @test GLPK.get_col_ub(lp, 1) == floatmax(Float64)
+    else
+        @test GLPK.get_col_ub(lp, 1) == realmax(Float64)
+    end
     @test GLPK.get_obj_coef(lp, 1) == 10.0
 
     @test GLPK.get_col_name(lp, 2) == "x2"
     @test GLPK.get_col_type(lp, 2) == GLPK.LO
     @test GLPK.get_col_lb(lp, 2) == 0.0
-    @test GLPK.get_col_ub(lp, 2) == realmax(Float64)
+    if VERSION >= v"0.7-"
+        @test GLPK.get_col_ub(lp, 2) == floatmax(Float64)
+    else
+        @test GLPK.get_col_ub(lp, 2) == realmax(Float64)
+    end
     @test GLPK.get_obj_coef(lp, 2) == 6.0
 
     @test GLPK.get_col_name(lp, 3) == "x3"
     @test GLPK.get_col_type(lp, 3) == GLPK.LO
     @test GLPK.get_col_lb(lp, 3) == 0.0
-    @test GLPK.get_col_ub(lp, 3) == realmax(Float64)
+    if VERSION >= v"0.7-"
+        @test GLPK.get_col_ub(lp, 3) == floatmax(Float64)
+    else
+        @test GLPK.get_col_ub(lp, 3) == realmax(Float64)
+    end
     @test GLPK.get_obj_coef(lp, 3) == 4.0
 
     # test index creation for retreiving row/column indices

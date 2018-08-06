@@ -1,7 +1,5 @@
 using LinQuadOptInterface
 
-using Nullables
-
 const LQOI = LinQuadOptInterface
 const MOI  = LQOI.MOI
 
@@ -70,6 +68,24 @@ mutable struct CallbackData <: AbstractCallbackData
     CallbackData(model::Optimizer) = new(model, C_NULL)
 end
 
+"""
+    __internal_callback__(tree::Ptr{Cvoid}, info::Ptr{Cvoid})
+
+Dummy callback function for internal use only. Responsible for updating the
+objective bound.
+"""
+function __internal_callback__(tree::Ptr{Cvoid}, info::Ptr{Cvoid})
+    callback_data = unsafe_pointer_to_objref(info)::CallbackData
+    model = callback_data.model
+    callback_data.tree = tree
+    node = GLPK.ios_best_node(tree)
+    if node != 0
+        model.objective_bound = GLPK.ios_node_bound(tree, node)
+    end
+    model.callback_function(callback_data)
+    return nothing
+end
+
 function Optimizer(;presolve=false, method=:Simplex, kwargs...)
     optimizer = Optimizer(nothing)
     MOI.empty!(optimizer)
@@ -82,7 +98,11 @@ function Optimizer(;presolve=false, method=:Simplex, kwargs...)
     optimizer.last_solved_by_mip = false
     optimizer.objective_constant_term = 0.0
     optimizer.callback_data = CallbackData(optimizer)
-    optimizer.intopt.cb_func = cfunction(_internal_callback, Cvoid, (Ptr{Cvoid}, Ptr{Cvoid}))
+    # if VERSION >= v"0.7-"
+        # optimizer.intopt.cb_func = @cfunction(__internal_callback__, Cvoid, Tuple{Ptr{Cvoid}, Ptr{Cvoid}})
+    # else
+        optimizer.intopt.cb_func = @cfunction(__internal_callback__, Cvoid, (Ptr{Cvoid}, Ptr{Cvoid}))
+    # end
     optimizer.intopt.cb_info = pointer_from_objref(optimizer.callback_data)
     optimizer.objective_bound = NaN
     optimizer.callback_function = (cb_data::CallbackData) -> nothing
@@ -104,24 +124,6 @@ function Optimizer(;presolve=false, method=:Simplex, kwargs...)
         end
     end
     return optimizer
-end
-
-"""
-    _internal_callback(tree::Ptr{Cvoid}, info::Ptr{Cvoid})
-
-Dummy callback function for internal use only. Responsible for updating the
-objective bound.
-"""
-function _internal_callback(tree::Ptr{Cvoid}, info::Ptr{Cvoid})
-    callback_data = unsafe_pointer_to_objref(info)::CallbackData
-    model = callback_data.model
-    callback_data.tree = tree
-    node = GLPK.ios_best_node(tree)
-    if node != 0
-        model.objective_bound = GLPK.ios_node_bound(tree, node)
-    end
-    model.callback_function(callback_data)
-    return nothing
 end
 
 function LQOI.get_objective_bound(model::Optimizer)
@@ -185,12 +187,13 @@ Return the GLPK type of the variable bound given a lower bound of `lower` and an
 upper bound of `upper`.
 """
 function get_col_bound_type(lower::Float64, upper::Float64)
+    GLPK_INFINITY = VERSION >= v"0.7-" ? floatmax(Float64) : realmax(Float64)
     if lower == upper
         return GLPK.FX
-    elseif lower <= -realmax(Float64)
-        return upper >= realmax(Float64) ? GLPK.FR : GLPK.UP
+    elseif lower <= -GLPK_INFINITY
+        return upper >= GLPK_INFINITY ? GLPK.FR : GLPK.UP
     else
-        return upper >= realmax(Float64) ? GLPK.LO : GLPK.DB
+        return upper >= GLPK_INFINITY ? GLPK.LO : GLPK.DB
     end
 end
 
@@ -816,7 +819,7 @@ function add_lazy_constraint!(cb_data::CallbackData, func::LQOI.Linear, set::S) 
     model = cb_data.model
     add_row!(
         GLPK.ios_get_prob(cb_data.tree),
-        [LQOI.getcol(model, term.variable_index) for term in func.terms],
+        [LQOI.get_column(model, term.variable_index) for term in func.terms],
         [term.coefficient for term in func.terms],
         LQOI.backend_type(model, set),
         MOI.Utilities.getconstant(set)
