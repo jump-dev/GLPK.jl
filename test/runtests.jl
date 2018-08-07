@@ -1,4 +1,4 @@
-using Compat.Test
+using GLPK, Compat.Test
 
 macro test_throws_02(args...)
     :(@test_throws($(esc(args[1])), $(esc(args[2]))))
@@ -18,5 +18,5 @@ end
 end
 
 @testset "MathOptInterface" begin
-    evalfile("MOIWrapper.jl")
+    include("MOIWrapper.jl")
 end
