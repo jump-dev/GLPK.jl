@@ -5,7 +5,7 @@ os:
 julia:
   - 0.6
   - 0.7
-  - nightly
+  # - nightly
 env:
   matrix:
     - CC="gcc"
