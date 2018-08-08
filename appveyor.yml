@@ -32,8 +32,8 @@ install:
 build_script:
   - echo "%JL_BUILD_SCRIPT%"
   - C:\julia\bin\julia -e "%JL_BUILD_SCRIPT%"
-  - more C:\projects\glpk-jl\deps\build.log
 
 test_script:
+  - C:\julia\bin\julia -e "using GLPK"
   - echo "%JL_TEST_SCRIPT%"
   - C:\julia\bin\julia -e "%JL_TEST_SCRIPT%"
