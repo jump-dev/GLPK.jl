@@ -34,9 +34,5 @@ build_script:
   - C:\julia\bin\julia -e "%JL_BUILD_SCRIPT%"
 
 test_script:
-  - C:\julia\bin\julia -e "using Pkg; Pkg.add(\"MathOptInterface\"); Pkg.add(\"LinQuadOptInterface\")"
-  - C:\julia\bin\julia -e "using MathOptInterface"
-  - C:\julia\bin\julia -e "using LinQuadOptInterface"
-  - C:\julia\bin\julia -e "using GLPK"
   - echo "%JL_TEST_SCRIPT%"
   - C:\julia\bin\julia -e "%JL_TEST_SCRIPT%"
