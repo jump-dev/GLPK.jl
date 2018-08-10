@@ -5,13 +5,10 @@ os:
 julia:
   - 0.6
   - 0.7
-  - 1.0
 env:
   matrix:
     - CC="gcc"
     - CC="clang"
-  allow_failures:
-    - julia: 1.0
 notifications:
   email: false
 sudo: false # use a docker worker

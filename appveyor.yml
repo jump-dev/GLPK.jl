@@ -2,7 +2,7 @@ environment:
   matrix:
   - julia_version: 0.6
   - julia_version: 0.7
-  - julia_version: 1.0
+  # - julia_version: 1.0
   # - julia_version: latest
 
 platform:
@@ -11,9 +11,9 @@ platform:
 
 ## uncomment the following lines to allow failures on nightly julia
 ## (tests will run but not make your overall status red)
-matrix:
-  allow_failures:
-  - julia_version: 1.0
+# matrix:
+  # allow_failures:
+  # - julia_version: 1.0
 
 branches:
   only:
@@ -35,8 +35,5 @@ build_script:
 
 test_script:
   - C:\julia\bin\julia -e "(VERSION >= v\"0.7-\" && using Pkg); Pkg.add(\"MathOptInterface\"); Pkg.add(\"LinQuadOptInterface\");"
-  - C:\julia\bin\julia -e "using MathOptInterface"
-  - C:\julia\bin\julia -e "using LinQuadOptInterface"
-  - C:\julia\bin\julia -e "using GLPK"
   - echo "%JL_TEST_SCRIPT%"
   - C:\julia\bin\julia -e "%JL_TEST_SCRIPT%"
