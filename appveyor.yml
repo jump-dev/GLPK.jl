@@ -34,6 +34,6 @@ build_script:
   - C:\julia\bin\julia -e "%JL_BUILD_SCRIPT%"
 
 test_script:
-  - C:\julia\bin\julia -e "using LinQuadOptInterface"
+  - C:\julia\bin\julia -e "VERSION >= v\"0.7-\" && (using Pkg; Pkg.add(\"LinQuadOptInterface\"); using LinQuadOptInterface)"
   - echo "%JL_TEST_SCRIPT%"
   - C:\julia\bin\julia -e "%JL_TEST_SCRIPT%"
