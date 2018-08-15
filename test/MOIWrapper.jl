@@ -1,8 +1,8 @@
-using MathOptInterface
+using LinQuadOptInterface
 
-const MOI  = MathOptInterface
-const MOIT = MathOptInterface.Test
-const MOIU = MathOptInterface.Utilities
+const MOI  = LinQuadOptInterface.MathOptInterface
+const MOIT = MOI.Test
+const MOIU = MOI.Utilities
 
 @testset "Unit Tests" begin
     config = MOIT.TestConfig()
