@@ -1,6 +1,5 @@
 julia 0.6
-BinDeps
-@osx Homebrew
+BinaryBuilder
 Compat 0.66
 LinQuadOptInterface 0.1 0.3
 Nullables
