@@ -5,10 +5,15 @@ os:
 julia:
   - 0.6
   - 0.7
+  - 1.0
+  - nightly
 env:
   matrix:
     - CC="gcc"
     - CC="clang"
+matrix:
+  allow_failures:
+    - julia: nightly
 notifications:
   email: false
 sudo: false # use a docker worker
@@ -21,10 +26,10 @@ git:
   depth: 99999999
 
 script:
-  - julia --check-bounds=yes -e 'Pkg.clone(pwd()); Pkg.build("GLPK"); Pkg.test("GLPK")'
+  - julia --check-bounds=yes -e 'if VERSION < v"0.7-"; Pkg.clone(pwd()); else; import Pkg; Pkg.add(Pkg.PackageSpec(path=pwd())); end; Pkg.build("GLPK"); Pkg.test("GLPK"; coverage=true)'
 
 after_success:
-  - julia --check-bounds=yes --inline=no -e 'cd(Pkg.dir("GLPK")); Pkg.add("Coverage"); using Coverage; Coveralls.submit(process_folder())'
+  - julia --check-bounds=yes --inline=no -e 'if VERSION >= v"0.7-"; import Pkg; end; Pkg.add("Coverage"); using Coverage; Coveralls.submit(process_folder())'
 branches:
   except:
     - release-0.1
