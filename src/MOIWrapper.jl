@@ -44,7 +44,6 @@ mutable struct Optimizer <: LQOI.LinQuadOptimizer
     simplex::SimplexParam
     solver_status::Int32
     last_solved_by_mip::Bool
-    objective_constant_term::Float64
     # See note associated with abstractcallbackdata. When using, make sure to
     # add a type assertion, since this will always be the concrete type
     # CallbackData.
@@ -96,7 +95,6 @@ function Optimizer(;presolve=false, method=:Simplex, kwargs...)
     optimizer.simplex  = GLPK.SimplexParam()
     solver_status = Int32(0)
     optimizer.last_solved_by_mip = false
-    optimizer.objective_constant_term = 0.0
     optimizer.callback_data = CallbackData(optimizer)
     # if VERSION >= v"0.7-"
         # optimizer.intopt.cb_func = @cfunction(__internal_callback__, Cvoid, Tuple{Ptr{Cvoid}, Ptr{Cvoid}})
@@ -176,9 +174,9 @@ LQOI.supported_objectives(model::Optimizer) = SUPPORTED_OBJECTIVES
 LQOI.supported_constraints(model::Optimizer) = SUPPORTED_CONSTRAINTS
 
 function LQOI.set_constant_objective!(model::Optimizer, value)
-    model.objective_constant_term = value
+    GLPK.set_obj_coef(model.inner, 0, value)
 end
-LQOI.get_constant_objective(model::Optimizer) = model.objective_constant_term
+LQOI.get_constant_objective(model::Optimizer) = GLPK.get_obj_coef(model.inner, 0)
 
 """
     get_col_bound_type(lower::Float64, upper::Float64)
@@ -657,14 +655,13 @@ function LQOI.get_linear_dual_solution!(model::Optimizer, place)
 end
 
 function LQOI.get_objective_value(model::Optimizer)
-    constant = LQOI.get_constant_objective(model)
     if model.last_solved_by_mip
-        return GLPK.mip_obj_val(model.inner) + constant
+        return GLPK.mip_obj_val(model.inner)
     else
         if model.method == :Simplex || model.method == :Exact
-            return GLPK.get_obj_val(model.inner) + constant
+            return GLPK.get_obj_val(model.inner)
         elseif model.method == :InteriorPoint
-            return GLPK.ipt_obj_val(model.inner) + constant
+            return GLPK.ipt_obj_val(model.inner)
         end
         _throw_invalid_method(model)
     end
