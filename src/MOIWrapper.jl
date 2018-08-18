@@ -300,11 +300,11 @@ function add_row!(problem::GLPK.Prob, columns::Vector{Int},
     if sense == Cchar('E')
         GLPK.set_row_bnds(problem, num_rows, GLPK.FX, rhs, rhs)
     elseif sense == Cchar('G')
-        GLPK.set_row_bnds(problem, num_rows, GLPK.LO, rhs, Inf)
+        GLPK.set_row_bnds(problem, num_rows, GLPK.LO, rhs, GLPK.DBL_MAX)
     elseif sense == Cchar('L')
-        GLPK.set_row_bnds(problem, num_rows, GLPK.UP, -Inf, rhs)
+        GLPK.set_row_bnds(problem, num_rows, GLPK.UP, -GLPK.DBL_MAX, rhs)
     elseif sense == Cchar('R')
-        GLPK.set_row_bnds(problem, num_rows, GLPK.DB, rhs, Inf)
+        GLPK.set_row_bnds(problem, num_rows, GLPK.DB, rhs, GLPK.DBL_MAX)
     else
         error("Invalid row sense: $(sense)")
     end
@@ -330,12 +330,12 @@ function LQOI.change_rhs_coefficient!(model::Optimizer, row::Int,
     current_upper = GLPK.get_row_ub(model.inner, row)
     if current_lower == current_upper
         GLPK.set_row_bnds(model.inner, row,  GLPK.FX, rhs, rhs)
-    elseif current_lower > -Inf && current_upper < Inf
+    elseif current_lower > -GLPK.DBL_MAX && current_upper < GLPK.DBL_MAX
         GLPK.set_row_bnds(model.inner, row,  GLPK.FX, rhs, rhs)
-    elseif current_lower > -Inf
-        GLPK.set_row_bnds(model.inner, row,  GLPK.LO, rhs, Inf)
-    elseif current_upper < Inf
-        GLPK.set_row_bnds(model.inner, row,  GLPK.UP, -Inf, rhs)
+    elseif current_lower > -GLPK.DBL_MAX
+        GLPK.set_row_bnds(model.inner, row,  GLPK.LO, rhs, GLPK.DBL_MAX)
+    elseif current_upper < GLPK.DBL_MAX
+        GLPK.set_row_bnds(model.inner, row,  GLPK.UP, -GLPK.DBL_MAX, rhs)
     else
         error("Cannot set right-hand side of a free constraint.")
     end
@@ -420,9 +420,9 @@ function change_row_sense!(model::Optimizer, row::Int, sense)
     if new_sense == GLPK.FX
         GLPK.set_row_bnds(model.inner, row, new_sense, right_hand_side, right_hand_side)
     elseif new_sense == GLPK.LO
-        GLPK.set_row_bnds(model.inner, row, new_sense, right_hand_side, Inf)
+        GLPK.set_row_bnds(model.inner, row, new_sense, right_hand_side, GLPK.DBL_MAX)
     elseif new_sense == GLPK.UP
-        GLPK.set_row_bnds(model.inner, row, new_sense, -Inf, right_hand_side)
+        GLPK.set_row_bnds(model.inner, row, new_sense, -GLPK.DBL_MAX, right_hand_side)
     end
 end
 
