@@ -6,13 +6,6 @@ julia:
   - 0.6
   - 0.7
   - 1.0
-  - nightly
-env:
-  - CC="gcc"
-  - CC="clang"
-matrix:
-  allow_failures:
-    - julia: nightly
 notifications:
   email: false
 addons:
