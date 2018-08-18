@@ -137,3 +137,22 @@ end
         @test !(GLPK.IHEUR in cb_calls)
     end
 end
+
+@testset "Constant objectives" begin
+    # Test that setting the objective constant actually propagates
+    # to the solver, rather than being cached in the LinQuadOptInterface
+    # layer.
+    model = GLPK.Optimizer()
+    MOI.set!(model, MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}(),
+        MOI.ScalarAffineFunction(MOI.ScalarAffineTerm{Float64}[], 1.5))
+    MOI.optimize!(model)
+    @test MOI.get(model, MOI.ObjectiveValue()) == 1.5
+    @test GLPK.get_obj_val(model.inner) == 1.5
+
+    MOI.set!(model, MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}(),
+        MOI.ScalarAffineFunction(MOI.ScalarAffineTerm{Float64}[], -2.0))
+    MOI.optimize!(model)
+    @test MOI.get(model, MOI.ObjectiveValue()) == -2.0
+    @test GLPK.get_obj_val(model.inner) == -2.0
+end
+
