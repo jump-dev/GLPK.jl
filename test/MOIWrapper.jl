@@ -156,3 +156,21 @@ end
     @test GLPK.get_obj_val(model.inner) == -2.0
 end
 
+@testset "Issue #70" begin
+    model = GLPK.Optimizer()
+    x = MOI.addvariable!(model)
+    f =  MOI.ScalarAffineFunction(MOI.ScalarAffineTerm.([1.0], [x]), 1.5)
+    s = MOI.LessThan(2.0)
+    c = MOI.addconstraint!(model, f, s)
+    row = model[c]
+    @test GLPK.get_row_type(model.inner, row) == GLPK.UP
+    @test GLPK.get_row_lb(model.inner, row) == -GLPK.DBL_MAX
+    @test GLPK.get_row_ub(model.inner, row) == 0.5
+    # Modify the constraint set and verify that the internal constraint
+    # has the correct bounds afterwards
+    MOI.set!(model, MOI.ConstraintSet(), c, MOI.LessThan(1.0))
+    @test GLPK.get_row_type(model.inner, row) == GLPK.UP
+    @test GLPK.get_row_lb(model.inner, row) == -GLPK.DBL_MAX
+    @test GLPK.get_row_ub(model.inner, row) == -0.5
+end
+
