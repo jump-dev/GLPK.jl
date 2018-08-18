@@ -11,5 +11,9 @@ notifications:
 addons:
   apt_packages:
   - libgmp-dev
+branches:
+  only:
+    - master
+    - /^release-.*$/
 after_success:
   - julia -e 'if VERSION >= v"0.7-"; import Pkg; end; Pkg.add("Coverage"); using Coverage; Coveralls.submit(process_folder()); Codecov.submit(process_folder())'
