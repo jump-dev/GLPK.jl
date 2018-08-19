@@ -297,6 +297,14 @@ function add_row!(problem::GLPK.Prob, columns::Vector{Int},
     GLPK.add_rows(problem, 1)
     num_rows = GLPK.get_num_rows(problem)
     GLPK.set_mat_row(problem, num_rows, columns, coefficients)
+    # According to http://most.ccib.rutgers.edu/glpk.pdf page 22,
+    # the `lb` argument is ignored for constraint types with no
+    # lower bound (GLPK.UP) and the `ub` argument is ignored for
+    # constraint types with no upper bound (GLPK.LO). We pass
+    # ±DBL_MAX for those unused bounds since (a) we have to pass
+    # something, and (b) it is consistent with the other usages of
+    # ±DBL_MAX to represent infinite bounds in the rest of the
+    # GLPK interface.
     if sense == Cchar('E')
         GLPK.set_row_bnds(problem, num_rows, GLPK.FX, rhs, rhs)
     elseif sense == Cchar('G')
@@ -328,6 +336,9 @@ function LQOI.change_rhs_coefficient!(model::Optimizer, row::Int,
                                       rhs::Real)
     current_lower = GLPK.get_row_lb(model.inner, row)
     current_upper = GLPK.get_row_ub(model.inner, row)
+    # `get_row_lb` and `get_row_ub` return ±DBL_MAX for rows with no
+    # lower or upper bound. See page 30 of the GLPK user manual
+    # http://most.ccib.rutgers.edu/glpk.pdf
     if current_lower == current_upper
         GLPK.set_row_bnds(model.inner, row,  GLPK.FX, rhs, rhs)
     elseif current_lower > -GLPK.DBL_MAX && current_upper < GLPK.DBL_MAX
@@ -417,6 +428,14 @@ function change_row_sense!(model::Optimizer, row::Int, sense)
     else
         right_hand_side = GLPK.get_row_ub(model.inner, row)
     end
+    # According to http://most.ccib.rutgers.edu/glpk.pdf page 22,
+    # the `lb` argument is ignored for constraint types with no
+    # lower bound (GLPK.UP) and the `ub` argument is ignored for
+    # constraint types with no upper bound (GLPK.LO). We pass
+    # ±DBL_MAX for those unused bounds since (a) we have to pass
+    # something, and (b) it is consistent with the other usages of
+    # ±DBL_MAX to represent infinite bounds in the rest of the
+    # GLPK interface.
     if new_sense == GLPK.FX
         GLPK.set_row_bnds(model.inner, row, new_sense, right_hand_side, right_hand_side)
     elseif new_sense == GLPK.LO
