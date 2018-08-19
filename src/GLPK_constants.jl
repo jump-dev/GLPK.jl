@@ -108,3 +108,6 @@ const UNBND = convert(Cint, 6)
 const UNDEF = convert(Cint, 1)
 const UP = convert(Cint, 3)
 const UP_BRNCH = convert(Cint, 2)
+# GLPK internally uses the constant DBL_MAX (≈ 1.7976931348623157e308)
+# instead of infinity to represent unbounded constraints.
+const DBL_MAX = prevfloat(Inf)
