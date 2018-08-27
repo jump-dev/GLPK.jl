@@ -1,3 +1,4 @@
+using Compat
 using BinDeps
 using Compat.Libdl
 
@@ -7,8 +8,8 @@ include("verreq.jl")
 
 glpkname = "glpk-$glpkdefver"
 glpkwinname = "glpk-$glpkwinver"
-glpkdllname = "glpk_$(replace(glpkdefver, ".", "_"))"
-glpkwindllname = "glpk_$(replace(glpkwinver, ".", "_"))"
+glpkdllname = "glpk_$(replace(glpkdefver, "." => "_"))"
+glpkwindllname = "glpk_$(replace(glpkwinver, "." => "_"))"
 
 function glpkvalidate(name, handle)
     ver_str = unsafe_string(ccall(Libdl.dlsym(handle, :glp_version), Ptr{UInt8}, ()))
@@ -38,7 +39,7 @@ provides(BuildProcess, Dict(
 
 
 # Homebrew (OS X section)
-if is_apple()
+if Compat.Sys.isapple()
     using Homebrew
     provides(Homebrew.HB, "staticfloat/juliadeps/glpk461", glpkdep, os = :Darwin)
 end

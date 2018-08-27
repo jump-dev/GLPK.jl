@@ -44,7 +44,6 @@ mutable struct Optimizer <: LQOI.LinQuadOptimizer
     simplex::SimplexParam
     solver_status::Int32
     last_solved_by_mip::Bool
-    objective_constant_term::Float64
     # See note associated with abstractcallbackdata. When using, make sure to
     # add a type assertion, since this will always be the concrete type
     # CallbackData.
@@ -96,7 +95,6 @@ function Optimizer(;presolve=false, method=:Simplex, kwargs...)
     optimizer.simplex  = GLPK.SimplexParam()
     solver_status = Int32(0)
     optimizer.last_solved_by_mip = false
-    optimizer.objective_constant_term = 0.0
     optimizer.callback_data = CallbackData(optimizer)
     # if VERSION >= v"0.7-"
         # optimizer.intopt.cb_func = @cfunction(__internal_callback__, Cvoid, Tuple{Ptr{Cvoid}, Ptr{Cvoid}})
@@ -176,9 +174,9 @@ LQOI.supported_objectives(model::Optimizer) = SUPPORTED_OBJECTIVES
 LQOI.supported_constraints(model::Optimizer) = SUPPORTED_CONSTRAINTS
 
 function LQOI.set_constant_objective!(model::Optimizer, value)
-    model.objective_constant_term = value
+    GLPK.set_obj_coef(model.inner, 0, value)
 end
-LQOI.get_constant_objective(model::Optimizer) = model.objective_constant_term
+LQOI.get_constant_objective(model::Optimizer) = GLPK.get_obj_coef(model.inner, 0)
 
 """
     get_col_bound_type(lower::Float64, upper::Float64)
@@ -299,14 +297,22 @@ function add_row!(problem::GLPK.Prob, columns::Vector{Int},
     GLPK.add_rows(problem, 1)
     num_rows = GLPK.get_num_rows(problem)
     GLPK.set_mat_row(problem, num_rows, columns, coefficients)
+    # According to http://most.ccib.rutgers.edu/glpk.pdf page 22,
+    # the `lb` argument is ignored for constraint types with no
+    # lower bound (GLPK.UP) and the `ub` argument is ignored for
+    # constraint types with no upper bound (GLPK.LO). We pass
+    # ±DBL_MAX for those unused bounds since (a) we have to pass
+    # something, and (b) it is consistent with the other usages of
+    # ±DBL_MAX to represent infinite bounds in the rest of the
+    # GLPK interface.
     if sense == Cchar('E')
         GLPK.set_row_bnds(problem, num_rows, GLPK.FX, rhs, rhs)
     elseif sense == Cchar('G')
-        GLPK.set_row_bnds(problem, num_rows, GLPK.LO, rhs, Inf)
+        GLPK.set_row_bnds(problem, num_rows, GLPK.LO, rhs, GLPK.DBL_MAX)
     elseif sense == Cchar('L')
-        GLPK.set_row_bnds(problem, num_rows, GLPK.UP, -Inf, rhs)
+        GLPK.set_row_bnds(problem, num_rows, GLPK.UP, -GLPK.DBL_MAX, rhs)
     elseif sense == Cchar('R')
-        GLPK.set_row_bnds(problem, num_rows, GLPK.DB, rhs, Inf)
+        GLPK.set_row_bnds(problem, num_rows, GLPK.DB, rhs, GLPK.DBL_MAX)
     else
         error("Invalid row sense: $(sense)")
     end
@@ -330,14 +336,17 @@ function LQOI.change_rhs_coefficient!(model::Optimizer, row::Int,
                                       rhs::Real)
     current_lower = GLPK.get_row_lb(model.inner, row)
     current_upper = GLPK.get_row_ub(model.inner, row)
+    # `get_row_lb` and `get_row_ub` return ±DBL_MAX for rows with no
+    # lower or upper bound. See page 30 of the GLPK user manual
+    # http://most.ccib.rutgers.edu/glpk.pdf
     if current_lower == current_upper
         GLPK.set_row_bnds(model.inner, row,  GLPK.FX, rhs, rhs)
-    elseif current_lower > -Inf && current_upper < Inf
+    elseif current_lower > -GLPK.DBL_MAX && current_upper < GLPK.DBL_MAX
         GLPK.set_row_bnds(model.inner, row,  GLPK.FX, rhs, rhs)
-    elseif current_lower > -Inf
-        GLPK.set_row_bnds(model.inner, row,  GLPK.LO, rhs, Inf)
-    elseif current_upper < Inf
-        GLPK.set_row_bnds(model.inner, row,  GLPK.UP, -Inf, rhs)
+    elseif current_lower > -GLPK.DBL_MAX
+        GLPK.set_row_bnds(model.inner, row,  GLPK.LO, rhs, GLPK.DBL_MAX)
+    elseif current_upper < GLPK.DBL_MAX
+        GLPK.set_row_bnds(model.inner, row,  GLPK.UP, -GLPK.DBL_MAX, rhs)
     else
         error("Cannot set right-hand side of a free constraint.")
     end
@@ -419,12 +428,20 @@ function change_row_sense!(model::Optimizer, row::Int, sense)
     else
         right_hand_side = GLPK.get_row_ub(model.inner, row)
     end
+    # According to http://most.ccib.rutgers.edu/glpk.pdf page 22,
+    # the `lb` argument is ignored for constraint types with no
+    # lower bound (GLPK.UP) and the `ub` argument is ignored for
+    # constraint types with no upper bound (GLPK.LO). We pass
+    # ±DBL_MAX for those unused bounds since (a) we have to pass
+    # something, and (b) it is consistent with the other usages of
+    # ±DBL_MAX to represent infinite bounds in the rest of the
+    # GLPK interface.
     if new_sense == GLPK.FX
         GLPK.set_row_bnds(model.inner, row, new_sense, right_hand_side, right_hand_side)
     elseif new_sense == GLPK.LO
-        GLPK.set_row_bnds(model.inner, row, new_sense, right_hand_side, Inf)
+        GLPK.set_row_bnds(model.inner, row, new_sense, right_hand_side, GLPK.DBL_MAX)
     elseif new_sense == GLPK.UP
-        GLPK.set_row_bnds(model.inner, row, new_sense, -Inf, right_hand_side)
+        GLPK.set_row_bnds(model.inner, row, new_sense, -GLPK.DBL_MAX, right_hand_side)
     end
 end
 
@@ -657,14 +674,13 @@ function LQOI.get_linear_dual_solution!(model::Optimizer, place)
 end
 
 function LQOI.get_objective_value(model::Optimizer)
-    constant = LQOI.get_constant_objective(model)
     if model.last_solved_by_mip
-        return GLPK.mip_obj_val(model.inner) + constant
+        return GLPK.mip_obj_val(model.inner)
     else
         if model.method == :Simplex || model.method == :Exact
-            return GLPK.get_obj_val(model.inner) + constant
+            return GLPK.get_obj_val(model.inner)
         elseif model.method == :InteriorPoint
-            return GLPK.ipt_obj_val(model.inner) + constant
+            return GLPK.ipt_obj_val(model.inner)
         end
         _throw_invalid_method(model)
     end

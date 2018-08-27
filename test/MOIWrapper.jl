@@ -137,3 +137,40 @@ end
         @test !(GLPK.IHEUR in cb_calls)
     end
 end
+
+@testset "Constant objectives" begin
+    # Test that setting the objective constant actually propagates
+    # to the solver, rather than being cached in the LinQuadOptInterface
+    # layer.
+    model = GLPK.Optimizer()
+    MOI.set!(model, MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}(),
+        MOI.ScalarAffineFunction(MOI.ScalarAffineTerm{Float64}[], 1.5))
+    MOI.optimize!(model)
+    @test MOI.get(model, MOI.ObjectiveValue()) == 1.5
+    @test GLPK.get_obj_val(model.inner) == 1.5
+
+    MOI.set!(model, MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}(),
+        MOI.ScalarAffineFunction(MOI.ScalarAffineTerm{Float64}[], -2.0))
+    MOI.optimize!(model)
+    @test MOI.get(model, MOI.ObjectiveValue()) == -2.0
+    @test GLPK.get_obj_val(model.inner) == -2.0
+end
+
+@testset "Issue #70" begin
+    model = GLPK.Optimizer()
+    x = MOI.addvariable!(model)
+    f =  MOI.ScalarAffineFunction(MOI.ScalarAffineTerm.([1.0], [x]), 0.0)
+    s = MOI.LessThan(2.0)
+    c = MOI.addconstraint!(model, f, s)
+    row = model[c]
+    @test GLPK.get_row_type(model.inner, row) == GLPK.UP
+    @test GLPK.get_row_lb(model.inner, row) == -GLPK.DBL_MAX
+    @test GLPK.get_row_ub(model.inner, row) == 2.0
+    # Modify the constraint set and verify that the internal constraint
+    # has the correct bounds afterwards
+    MOI.set!(model, MOI.ConstraintSet(), c, MOI.LessThan(1.0))
+    @test GLPK.get_row_type(model.inner, row) == GLPK.UP
+    @test GLPK.get_row_lb(model.inner, row) == -GLPK.DBL_MAX
+    @test GLPK.get_row_ub(model.inner, row) == 1.0
+end
+

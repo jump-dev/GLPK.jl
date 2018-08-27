@@ -5,26 +5,15 @@ os:
 julia:
   - 0.6
   - 0.7
-env:
-  matrix:
-    - CC="gcc"
-    - CC="clang"
+  - 1.0
 notifications:
   email: false
-sudo: false # use a docker worker
 addons:
   apt_packages:
   - libgmp-dev
-
-# This replaces the `git fetch --unshallow` in the default Julia Travis script
-git:
-  depth: 99999999
-
-script:
-  - julia --check-bounds=yes -e 'Pkg.clone(pwd()); Pkg.build("GLPK"); Pkg.test("GLPK")'
-
-after_success:
-  - julia --check-bounds=yes --inline=no -e 'cd(Pkg.dir("GLPK")); Pkg.add("Coverage"); using Coverage; Coveralls.submit(process_folder())'
 branches:
-  except:
-    - release-0.1
+  only:
+    - master
+    - /^release-.*$/
+after_success:
+  - julia -e 'if VERSION >= v"0.7-"; import Pkg; end; Pkg.add("Coverage"); using Coverage; Coveralls.submit(process_folder()); Codecov.submit(process_folder())'
