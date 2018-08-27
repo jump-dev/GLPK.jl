@@ -1,7 +1,2 @@
 usr
-builds
-downloads
-src
 deps.jl
-glpk*
-build.log
