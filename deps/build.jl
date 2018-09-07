@@ -1,7 +1,5 @@
 using BinaryProvider # requires BinaryProvider 0.3.0 or later
 
-evalfile("build_GMP.v6.1.2.jl")
-
 # Parse some basic command-line arguments
 const verbose = "--verbose" in ARGS
 const prefix = Prefix(get([a for a in ARGS if a != "--verbose"], 1, joinpath(@__DIR__, "usr")))
@@ -30,9 +28,10 @@ download_info = Dict(
 
 # Install unsatisfied or updated dependencies:
 unsatisfied = any(!satisfied(p; verbose=verbose) for p in products)
-if haskey(download_info, platform_key())
+if unsatisfied && haskey(download_info, platform_key())
+    evalfile("build_GMP.v6.1.2.jl")  # We do not check for already installed GMP libraries
     url, tarball_hash = download_info[platform_key()]
-    if unsatisfied || !isinstalled(url, tarball_hash; prefix=prefix)
+    if !isinstalled(url, tarball_hash; prefix=prefix) # This check may be redundant
         # Download and install binaries
         install(url, tarball_hash; prefix=prefix, force=true, verbose=verbose)
     end
