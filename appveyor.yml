@@ -3,15 +3,19 @@ environment:
   - julia_version: 0.6
   - julia_version: 0.7
   - julia_version: 1.0
-  - julia_version: nightly
 
 platform:
   - x86 # 32-bit
   - x64 # 64-bit
 
+# Precompilation of GLPK.jl crashes for an unknown reason on x86 on 0.7 and
+# 1.0. See https://github.com/JuliaLang/julia/issues/28736.
 matrix:
   allow_failures:
-  - julia_version: nightly
+  - julia_version: 0.7
+    platform: x86
+  - julia_version: 1.0
+    platform: x86
 
 branches:
   only:
