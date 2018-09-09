@@ -28,11 +28,13 @@ download_info = Dict(
 
 # Install unsatisfied or updated dependencies:
 unsatisfied = any(!satisfied(p; verbose=verbose) for p in products)
-if unsatisfied && haskey(download_info, platform_key())
-    evalfile("build_GMP.v6.1.2.jl")  # We do not check for already installed GMP libraries
+if haskey(download_info, platform_key())
     url, tarball_hash = download_info[platform_key()]
-    if !isinstalled(url, tarball_hash; prefix=prefix) # This check may be redundant
+    # Check if this build.jl is providing new versions of the binaries, and
+    # if so, ovewrite the current binaries even if they were installed by the user 
+    if unsatisfied || !isinstalled(url, tarball_hash; prefix=prefix) 
         # Download and install binaries
+        evalfile("build_GMP.v6.1.2.jl")  # We do not check for already installed GMP libraries
         install(url, tarball_hash; prefix=prefix, force=true, verbose=verbose)
     end
 elseif unsatisfied
