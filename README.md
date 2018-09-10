@@ -23,11 +23,11 @@ The package is registered in `METADATA.jl` and so can be installed with `Pkg.add
 julia> Pkg.add("GLPK")
 ```
 
-GLPK.jl will use [BinaryProvider.jl](https://github.com/JuliaPackaging/BinaryProvider.jl) to automatically install the GLPK binaries with [GMP](https://gmplib.org) support (GLPK.jl will install a compatible version of GMP in GLPK.jl's deps folder, so the GMP libraries do not need to be already present in the system).
+GLPK.jl will use [BinaryProvider.jl](https://github.com/JuliaPackaging/BinaryProvider.jl) to automatically install the GLPK binaries with [GMP](https://gmplib.org) support.
 
 ## Custom Installation
 
-After GLPK.jl is installed and built, you can replace the installed binary dependencies with custom builds by overwritting the binaries and libraries in GLPK.jl's `deps/usr` folder. For instance, Julia v0.6 this can be achieved by running
+After GLPK.jl is installed and built, you can replace the installed binary dependencies with custom builds by overwriting the binaries and libraries in GLPK.jl's `deps/usr` folder. For instance, Julia v0.6 this can be achieved by running
 ```bash
 ./configure --prefix=$HOME/.julia/v0.6/GLPK/deps/usr
 make
