@@ -16,11 +16,7 @@ const MOIU = MOI.Utilities
         "solve_qcp_edge_cases"
     ])
 
-    MOIT.modificationtest(solver, config, [
-        # This is excluded because LQOI does not support setting the constraint
-        # function.
-        "solve_func_scalaraffine_lessthan"
-    ])
+    MOIT.modificationtest(solver, config)
 end
 
 @testset "Linear tests" begin
