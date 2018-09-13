@@ -139,13 +139,6 @@ function LQOI.get_objective_bound(model::Optimizer)
     end
 end
 
-MOI.canget(::Optimizer, ::MOI.RelativeGap) = false
-
-# Only available from log, not programatically?
-MOI.canget(::Optimizer, ::MOI.SimplexIterations) = false
-MOI.canget(::Optimizer, ::MOI.BarrierIterations) = false
-MOI.canget(::Optimizer, ::MOI.NodeCount)         = false
-
 """
     set_parameter(param_store, key::Symbol, value)
 
@@ -513,6 +506,10 @@ function LQOI.delete_variables!(model::Optimizer, col, col2)
     GLPK.del_cols(model.inner, length(columns), columns)
 end
 
+function MOI.write_to_file(model::Optimizer, lp_file_name::String)
+    GLPK.write_lp(model.inner, lp_file_name)
+end    
+
 """
     _certificates_potentially_available(model::Optimizer)
 
@@ -804,7 +801,7 @@ The attribute to set the callback function in GLPK. The function takes a single
 argument of type `CallbackData`.
 """
 struct CallbackFunction <: MOI.AbstractOptimizerAttribute end
-function MOI.set!(model::Optimizer, ::CallbackFunction, foo::Function)
+function MOI.set(model::Optimizer, ::CallbackFunction, foo::Function)
     model.callback_function = foo
 end
 
