@@ -2,4 +2,4 @@ julia 0.6
 BinDeps
 @osx Homebrew
 Compat 0.66
-LinQuadOptInterface 0.3 0.4
+LinQuadOptInterface 0.4 0.5
