@@ -42,10 +42,6 @@ Note that the custom binaries will not be overwritten by subsequent builds of th
 - [**STABLE**][docs-stable-url] &mdash; **most recently tagged version of the documentation.**
 - [**LATEST**][docs-latest-url] &mdash; *in-development version of the documentation.*
 
-## Project Status
-
-The package is tested against Julia `0.6` and `0.7` on Linux, OS X, and Windows.
-
 [docs-latest-img]: https://img.shields.io/badge/docs-latest-blue.svg
 [docs-latest-url]: https://gplkjl.readthedocs.org/en/latest/glpk.html
 
