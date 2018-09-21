@@ -69,7 +69,6 @@ end
 
 @testset "Issue #79" begin
     @testset "An unbounded integer model" begin
-        solver = GLPK.Optimizer()
         model = GLPK.Optimizer()
         MOI.Utilities.loadfromstring!(model, """
             variables: x, y
@@ -82,7 +81,6 @@ end
     end
 
     @testset "An infeasible integer model" begin
-        solver = GLPK.Optimizer()
         model = GLPK.Optimizer()
         MOI.Utilities.loadfromstring!(model, """
             variables: x
