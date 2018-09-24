@@ -96,11 +96,7 @@ function Optimizer(;presolve=false, method=:Simplex, kwargs...)
     solver_status = Int32(0)
     optimizer.last_solved_by_mip = false
     optimizer.callback_data = CallbackData(optimizer)
-    # if VERSION >= v"0.7-"
-        # optimizer.intopt.cb_func = @cfunction(__internal_callback__, Cvoid, Tuple{Ptr{Cvoid}, Ptr{Cvoid}})
-    # else
-        optimizer.intopt.cb_func = @cfunction(__internal_callback__, Cvoid, (Ptr{Cvoid}, Ptr{Cvoid}))
-    # end
+    optimizer.intopt.cb_func = @cfunction(__internal_callback__, Cvoid, (Ptr{Cvoid}, Ptr{Cvoid}))
     optimizer.intopt.cb_info = pointer_from_objref(optimizer.callback_data)
     optimizer.objective_bound = NaN
     optimizer.callback_function = (cb_data::CallbackData) -> nothing
@@ -508,7 +504,7 @@ end
 
 function MOI.write_to_file(model::Optimizer, lp_file_name::String)
     GLPK.write_lp(model.inner, lp_file_name)
-end    
+end
 
 """
     _certificates_potentially_available(model::Optimizer)
@@ -523,8 +519,15 @@ end
 
 function LQOI.get_termination_status(model::Optimizer)
     if model.last_solved_by_mip
-        if model.solver_status in [GLPK.EMIPGAP, GLPK.ETMLIM, GLPK.ESTOP]
+        if model.solver_status in [GLPK.EMIPGAP,  # Relative mip tolerance
+                                   GLPK.ETMLIM,   # Time limit
+                                   GLPK.ESTOP,    # Callback?
+                                   GLPK.EFAIL]    # Solver fail
             return MOI.OtherLimit
+        elseif model.solver_status == GLPK.ENODFS  # No feasible dual
+            return MOI.InfeasibleOrUnbounded
+        elseif model.solver_status == GLPK.ENOPFS  # No feasible primal
+            return MOI.InfeasibleNoResult
         end
     end
     status = get_status(model)
@@ -731,13 +734,21 @@ end
 
 function LQOI.solve_mip_problem!(model::Optimizer)
     bounds_modified, lower_bounds, upper_bounds = round_bounds_to_integer(model)
+    # Because we're muddling with the presolve in this function, cache the
+    # original setting so that it can be reset.
+    presolve_cache = model.intopt.presolve
     try
+        # GLPK.intopt requires a starting basis for the LP relaxation. There are
+        # two ways to get this. If presolve=GLPK.ON, then the presolve will find
+        # a basis. If presolve=GLPK.OFF, then we should solve the problem via
+        # GLPK.simplex first.
         if model.intopt.presolve == GLPK.OFF
-            status = GLPK.simplex(model.inner, model.simplex)
-            if status != 0
-                model.last_solved_by_mip = false
-                model.solver_status = status
-                return
+            GLPK.simplex(model.inner, model.simplex)
+            if GLPK.get_status(model.inner) != GLPK.OPT
+                # We didn't find an optimal solution to the LP relaxation, so
+                # let's turn presolve on and let intopt figure out what the
+                # problem is.
+                model.intopt.presolve = GLPK.ON
             end
         end
         model.solver_status = GLPK.intopt(model.inner, model.intopt)
@@ -748,6 +759,8 @@ function LQOI.solve_mip_problem!(model::Optimizer)
                 set_variable_bound(model, col, lower, upper)
             end
         end
+        # Restore the original presolve setting.
+        model.intopt.presolve = presolve_cache
     end
 end
 

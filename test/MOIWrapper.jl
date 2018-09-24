@@ -8,7 +8,7 @@ const MOIU = MOI.Utilities
     config = MOIT.TestConfig()
     solver = GLPK.Optimizer()
 
-    # MOIT.basic_constraint_tests(solver, config)
+    MOIT.basic_constraint_tests(solver, config)
 
     MOIT.unittest(solver, config, [
         # These are excluded because GLPK does not support quadratics.
@@ -52,7 +52,7 @@ end
         MOIT.emptytest(solver)
     end
     @testset "orderedindicestest" begin
-        # MOIT.orderedindicestest(solver)
+        MOIT.orderedindicestest(solver)
     end
     @testset "copytest" begin
         MOIT.copytest(solver, GLPK.Optimizer())
@@ -65,6 +65,33 @@ end
     @test solver.intopt.tm_lim == 1
     @test solver.interior.ord_alg == 2
     @test solver.intopt.alien == 3
+end
+
+@testset "Issue #79" begin
+    @testset "An unbounded integer model" begin
+        model = GLPK.Optimizer()
+        MOI.Utilities.loadfromstring!(model, """
+            variables: x, y
+            minobjective: -5.0x + y
+            c1: x in Integer()
+            c2: x in LessThan(1.0)
+        """)
+        MOI.optimize!(model)
+        @test MOI.get(model, MOI.TerminationStatus()) == MOI.InfeasibleOrUnbounded
+    end
+
+    @testset "An infeasible integer model" begin
+        model = GLPK.Optimizer()
+        MOI.Utilities.loadfromstring!(model, """
+            variables: x
+            minobjective: -5.0x
+            c1: x in Integer()
+            c2: x in LessThan(1.0)
+            c3: 1.0x in GreaterThan(2.0)
+        """)
+        MOI.optimize!(model)
+        @test MOI.get(model, MOI.TerminationStatus()) == MOI.InfeasibleNoResult
+    end
 end
 
 @testset "Callbacks" begin
@@ -169,4 +196,3 @@ end
     @test GLPK.get_row_lb(model.inner, row) == -GLPK.DBL_MAX
     @test GLPK.get_row_ub(model.inner, row) == 1.0
 end
-
