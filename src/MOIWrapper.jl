@@ -198,16 +198,29 @@ end
 function LQOI.change_variable_bounds!(model::Optimizer,
           columns::Vector{Int}, new_bounds::Vector{Float64},
           senses::Vector{Cchar})
+    bounds = Dict{Int, Tuple{Float64, Float64}}()
     for (column, bound, sense) in zip(columns, new_bounds, senses)
         if sense == Cchar('L')
             lower_bound = bound
             upper_bound = GLPK.get_col_ub(model.inner, column)
+            if haskey(bounds, column)
+                bounds[column] = (lower_bound, bounds[column][2])
+            else
+                bounds[column] = (lower_bound, upper_bound)
+            end
         elseif sense == Cchar('U')
             lower_bound = GLPK.get_col_lb(model.inner, column)
             upper_bound = bound
+            if haskey(bounds, column)
+                bounds[column] = (bounds[column][1], upper_bound)
+            else
+                bounds[column] = (lower_bound, upper_bound)
+            end
         else
             error("Invalid variable bound sense: $(sense)")
         end
+    end
+    for (column, (lower_bound, upper_bound)) in bounds
         set_variable_bound(model, column, lower_bound, upper_bound)
     end
 end
