@@ -55,6 +55,13 @@ mutable struct Optimizer <: LQOI.LinQuadOptimizer
     # bound modification. So lets set binary variables as "Integer" with [0,1]
     # bounds that we enforce just before solve.
     binaries::Vector{Int}
+    # Add a check prior to solve to see if there are infeasible column or row
+    # bounds. We perform this check manually because otherwise GLPK will fail
+    # with TerminationStatus OtherError due to invalid bounds. For reference see
+    # https://github.com/JuliaOpt/GLPKMathProgInterface.jl/pull/34
+    # https://github.com/JuliaOpt/GLPK.jl/pull/81
+    # https://github.com/JuliaOpt/MathOptInterface.jl/issues/532
+    has_infeasible_bounds::Bool
     Optimizer(::Nothing) = new()
 end
 
@@ -101,6 +108,7 @@ function Optimizer(;presolve=false, method=:Simplex, kwargs...)
     optimizer.objective_bound = NaN
     optimizer.callback_function = (cb_data::CallbackData) -> nothing
     optimizer.binaries = Int[]
+    optimizer.has_infeasible_bounds = false
     # Parameters
     if presolve
         optimizer.simplex.presolve = GLPK.ON
@@ -192,7 +200,13 @@ Set the bounds of the variable in column `column` to `[lower, upper]`.
 function set_variable_bound(model::Optimizer, column::Int, lower::Float64,
                             upper::Float64)
     bound_type = get_col_bound_type(lower, upper)
+    # Disable preemptive checking of variable bounds for the case when lower >
+    # upper. We catch this later and return primal infeasibility.
+    prev_preemptive_check = GLPK.jl_get_preemptive_check()
+    GLPK.jl_set_preemptive_check(false)
     GLPK.set_col_bnds(model.inner, column, bound_type, lower, upper)
+    # Reset the preemptive check.
+    GLPK.jl_set_preemptive_check(prev_preemptive_check)
 end
 
 function LQOI.change_variable_bounds!(model::Optimizer,
@@ -264,7 +278,13 @@ function LQOI.add_ranged_constraints!(model::Optimizer,
                                  lowerbound)
     row2 = GLPK.get_num_rows(model.inner)
     for (row, lower, upper) in zip(row1+1:row2, lowerbound, upperbound)
+        # Disable preemptive checking of variable bounds for the case when lower
+        # > upper. We catch this later and return primal infeasibility.
+        prev_preemptive_check = GLPK.jl_get_preemptive_check()
+        GLPK.jl_set_preemptive_check(false)
         GLPK.set_row_bnds(model.inner, row, GLPK.DB, lower, upper)
+        # Reset the preemptive check.
+        GLPK.jl_set_preemptive_check(prev_preemptive_check)
     end
 end
 
@@ -273,12 +293,18 @@ function LQOI.modify_ranged_constraints!(model::Optimizer,
         upperbounds::Vector{Float64})
     for (row, lower, upper) in zip(rows, lowerbounds, upperbounds)
         LQOI.change_rhs_coefficient!(model, row, lower)
+        # Disable preemptive checking of variable bounds for the case when lower
+        # > upper. We catch this later and return primal infeasibility.
+        prev_preemptive_check = GLPK.jl_get_preemptive_check()
+        GLPK.jl_set_preemptive_check(false)
         GLPK.set_row_bnds(model.inner, row, GLPK.DB, lower, upper)
+        # Reset the preemptive check.
+        GLPK.jl_set_preemptive_check(prev_preemptive_check)
     end
 end
 
 function LQOI.get_range(model::Optimizer, row::Int)
-    GLPK.get_row_lb(model.inner, row), GLPK.get_row_ub(model.inner, row)
+    return GLPK.get_row_lb(model.inner, row), GLPK.get_row_ub(model.inner, row)
 end
 
 """
@@ -531,6 +557,10 @@ function _certificates_potentially_available(model::Optimizer)
 end
 
 function LQOI.get_termination_status(model::Optimizer)
+    # See the note on infeasible bounds in the Optimizer definition.
+    if model.has_infeasible_bounds
+        return MOI.InfeasibleNoResult
+    end
     if model.last_solved_by_mip
         if model.solver_status in [GLPK.EMIPGAP,  # Relative mip tolerance
                                    GLPK.ETMLIM,   # Time limit
@@ -588,6 +618,10 @@ function get_status(model::Optimizer)
 end
 
 function LQOI.get_primal_status(model::Optimizer)
+    # See the note on infeasible bounds in the Optimizer definition.
+    if model.has_infeasible_bounds
+        return MOI.UnknownResultStatus
+    end
     status = get_status(model)
     if status == GLPK.OPT
         return MOI.FeasiblePoint
@@ -598,6 +632,10 @@ function LQOI.get_primal_status(model::Optimizer)
 end
 
 function LQOI.get_dual_status(model::Optimizer)
+    # See the note on infeasible bounds in the Optimizer definition.
+    if model.has_infeasible_bounds
+        return MOI.UnknownResultStatus
+    end
     if !model.last_solved_by_mip
         status = get_status(model.inner)
         if status == GLPK.OPT
@@ -699,7 +737,35 @@ function LQOI.get_objective_value(model::Optimizer)
     end
 end
 
+# Check if there are any infeasible variable bounds, or rows in the constraint
+# matrix with infeasible bounds.
+# TODO(odow): instead of this O(n + m) operation, we could cache the bounds when
+# they are created to avoid this check prior to optimize!.
+function has_infeasible_bounds(model::Optimizer)
+    for column in 1:GLPK.get_num_cols(model.inner)
+        lower_bound = GLPK.get_col_lb(model.inner, column)
+        upper_bound = GLPK.get_col_ub(model.inner, column)
+        if lower_bound > upper_bound
+            return true
+        end
+    end
+    for row in 1:GLPK.get_num_rows(model.inner)
+        lower_bound = GLPK.get_row_lb(model.inner, row)
+        upper_bound = GLPK.get_row_ub(model.inner, row)
+        if lower_bound > upper_bound
+            return true
+        end
+    end
+    return false
+end
+
 function LQOI.solve_linear_problem!(model::Optimizer)
+    # Check if the model has infeasible bounds. If it does, don't try to solve
+    # because GLPK will fall over. See the note on infeasible bounds in the
+    # Optimizer definition.
+    model.has_infeasible_bounds = has_infeasible_bounds(model)
+    model.has_infeasible_bounds && return
+    # If we reach here, we have feasible bounds.
     model.last_solved_by_mip = false
     if model.method == :Simplex
         model.solver_status = GLPK.simplex(model.inner, model.simplex)
@@ -710,6 +776,7 @@ function LQOI.solve_linear_problem!(model::Optimizer)
     else
         _throw_invalid_method(model)
     end
+    return
 end
 
 """
@@ -746,6 +813,12 @@ function round_bounds_to_integer(model::Optimizer)
 end
 
 function LQOI.solve_mip_problem!(model::Optimizer)
+    # Check if the model has infeasible bounds. If it does, don't try to solve
+    # because GLPK will fall over. See the note on infeasible bounds in the
+    # Optimizer definition.
+    model.has_infeasible_bounds = has_infeasible_bounds(model)
+    model.has_infeasible_bounds && return
+    # If we reach here, we have feasible bounds.
     bounds_modified, lower_bounds, upper_bounds = round_bounds_to_integer(model)
     # Because we're muddling with the presolve in this function, cache the
     # original setting so that it can be reset.
