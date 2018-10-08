@@ -192,8 +192,9 @@ Set the bounds of the variable in column `column` to `[lower, upper]`.
 function set_variable_bound(model::Optimizer, column::Int, lower::Float64,
                             upper::Float64)
     bound_type = get_col_bound_type(lower, upper)
-    # Disable preemptive checking of variable bounds for the case when lower >
-    # upper. We catch this later and return primal infeasibility.
+    # Disable preemptive checking of variable bounds for the case when lower
+    # > upper. If you solve a model with lower > upper, the
+    # TerminationStatus will be InvalidModel.
     prev_preemptive_check = GLPK.jl_get_preemptive_check()
     GLPK.jl_set_preemptive_check(false)
     GLPK.set_col_bnds(model.inner, column, bound_type, lower, upper)
@@ -201,46 +202,32 @@ function set_variable_bound(model::Optimizer, column::Int, lower::Float64,
     GLPK.jl_set_preemptive_check(prev_preemptive_check)
 end
 
-function LQOI.change_variable_bounds!(model::Optimizer,
-          columns::Vector{Int}, new_bounds::Vector{Float64},
-          senses::Vector{Cchar})
-    bounds = Dict{Int, Tuple{Float64, Float64}}()
+function LQOI.change_variable_bounds!(model::Optimizer, columns::Vector{Int},
+        new_bounds::Vector{Float64}, senses::Vector{Cchar})
     for (column, bound, sense) in zip(columns, new_bounds, senses)
         if sense == Cchar('L')
             lower_bound = bound
             upper_bound = GLPK.get_col_ub(model.inner, column)
-            if haskey(bounds, column)
-                bounds[column] = (lower_bound, bounds[column][2])
-            else
-                bounds[column] = (lower_bound, upper_bound)
-            end
         elseif sense == Cchar('U')
             lower_bound = GLPK.get_col_lb(model.inner, column)
             upper_bound = bound
-            if haskey(bounds, column)
-                bounds[column] = (bounds[column][1], upper_bound)
-            else
-                bounds[column] = (lower_bound, upper_bound)
-            end
         else
             error("Invalid variable bound sense: $(sense)")
         end
-    end
-    for (column, (lower_bound, upper_bound)) in bounds
         set_variable_bound(model, column, lower_bound, upper_bound)
     end
 end
 
 function LQOI.get_variable_lowerbound(model::Optimizer, col)
-    GLPK.get_col_lb(model.inner, col)
+    return GLPK.get_col_lb(model.inner, col)
 end
 
 function LQOI.get_variable_upperbound(model::Optimizer, col)
-    GLPK.get_col_ub(model.inner, col)
+    return GLPK.get_col_ub(model.inner, col)
 end
 
 function LQOI.get_number_linear_constraints(model::Optimizer)
-    GLPK.get_num_rows(model.inner)
+    return GLPK.get_num_rows(model.inner)
 end
 
 function LQOI.add_linear_constraints!(model::Optimizer,
@@ -271,7 +258,8 @@ function LQOI.add_ranged_constraints!(model::Optimizer,
     row2 = GLPK.get_num_rows(model.inner)
     for (row, lower, upper) in zip(row1+1:row2, lowerbound, upperbound)
         # Disable preemptive checking of variable bounds for the case when lower
-        # > upper. We catch this later and return primal infeasibility.
+        # > upper. If you solve a model with lower > upper, the
+        # TerminationStatus will be InvalidModel.
         prev_preemptive_check = GLPK.jl_get_preemptive_check()
         GLPK.jl_set_preemptive_check(false)
         GLPK.set_row_bnds(model.inner, row, GLPK.DB, lower, upper)
@@ -286,7 +274,8 @@ function LQOI.modify_ranged_constraints!(model::Optimizer,
     for (row, lower, upper) in zip(rows, lowerbounds, upperbounds)
         LQOI.change_rhs_coefficient!(model, row, lower)
         # Disable preemptive checking of variable bounds for the case when lower
-        # > upper. We catch this later and return primal infeasibility.
+        # > upper. If you solve a model with lower > upper, the
+        # TerminationStatus will be InvalidModel.
         prev_preemptive_check = GLPK.jl_get_preemptive_check()
         GLPK.jl_set_preemptive_check(false)
         GLPK.set_row_bnds(model.inner, row, GLPK.DB, lower, upper)
