@@ -203,7 +203,7 @@ end
         x = MOI.add_variable(model)
         MOI.add_constraint(model, MOI.SingleVariable(x), MOI.Interval(1.0, -1.0))
         MOI.optimize!(model)
-        @test MOI.get(model, MOI.TerminationStatus()) == MOI.InfeasibleNoResult
+        @test MOI.get(model, MOI.TerminationStatus()) == MOI.InvalidModel
     end
     @testset "ScalarAffine" begin
         model = GLPK.Optimizer()
@@ -212,6 +212,6 @@ end
             MOI.ScalarAffineFunction(MOI.ScalarAffineTerm.([1.0], [x]), 0.0),
             MOI.Interval(1.0, -1.0))
         MOI.optimize!(model)
-        @test MOI.get(model, MOI.TerminationStatus()) == MOI.InfeasibleNoResult
+        @test MOI.get(model, MOI.TerminationStatus()) == MOI.InvalidModel
     end
 end
