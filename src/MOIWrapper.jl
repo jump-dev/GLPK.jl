@@ -192,12 +192,18 @@ Set the bounds of the variable in column `column` to `[lower, upper]`.
 function set_variable_bound(model::Optimizer, column::Int, lower::Float64,
                             upper::Float64)
     bound_type = get_col_bound_type(lower, upper)
+    # Disable preemptive checking of variable bounds for the case when lower
+    # > upper. If you solve a model with lower > upper, the
+    # TerminationStatus will be InvalidModel.
+    prev_preemptive_check = GLPK.jl_get_preemptive_check()
+    GLPK.jl_set_preemptive_check(false)
     GLPK.set_col_bnds(model.inner, column, bound_type, lower, upper)
+    # Reset the preemptive check.
+    GLPK.jl_set_preemptive_check(prev_preemptive_check)
 end
 
-function LQOI.change_variable_bounds!(model::Optimizer,
-          columns::Vector{Int}, new_bounds::Vector{Float64},
-          senses::Vector{Cchar})
+function LQOI.change_variable_bounds!(model::Optimizer, columns::Vector{Int},
+        new_bounds::Vector{Float64}, senses::Vector{Cchar})
     for (column, bound, sense) in zip(columns, new_bounds, senses)
         if sense == Cchar('L')
             lower_bound = bound
@@ -213,15 +219,15 @@ function LQOI.change_variable_bounds!(model::Optimizer,
 end
 
 function LQOI.get_variable_lowerbound(model::Optimizer, col)
-    GLPK.get_col_lb(model.inner, col)
+    return GLPK.get_col_lb(model.inner, col)
 end
 
 function LQOI.get_variable_upperbound(model::Optimizer, col)
-    GLPK.get_col_ub(model.inner, col)
+    return GLPK.get_col_ub(model.inner, col)
 end
 
 function LQOI.get_number_linear_constraints(model::Optimizer)
-    GLPK.get_num_rows(model.inner)
+    return GLPK.get_num_rows(model.inner)
 end
 
 function LQOI.add_linear_constraints!(model::Optimizer,
@@ -251,7 +257,14 @@ function LQOI.add_ranged_constraints!(model::Optimizer,
                                  lowerbound)
     row2 = GLPK.get_num_rows(model.inner)
     for (row, lower, upper) in zip(row1+1:row2, lowerbound, upperbound)
+        # Disable preemptive checking of variable bounds for the case when lower
+        # > upper. If you solve a model with lower > upper, the
+        # TerminationStatus will be InvalidModel.
+        prev_preemptive_check = GLPK.jl_get_preemptive_check()
+        GLPK.jl_set_preemptive_check(false)
         GLPK.set_row_bnds(model.inner, row, GLPK.DB, lower, upper)
+        # Reset the preemptive check.
+        GLPK.jl_set_preemptive_check(prev_preemptive_check)
     end
 end
 
@@ -260,12 +273,19 @@ function LQOI.modify_ranged_constraints!(model::Optimizer,
         upperbounds::Vector{Float64})
     for (row, lower, upper) in zip(rows, lowerbounds, upperbounds)
         LQOI.change_rhs_coefficient!(model, row, lower)
+        # Disable preemptive checking of variable bounds for the case when lower
+        # > upper. If you solve a model with lower > upper, the
+        # TerminationStatus will be InvalidModel.
+        prev_preemptive_check = GLPK.jl_get_preemptive_check()
+        GLPK.jl_set_preemptive_check(false)
         GLPK.set_row_bnds(model.inner, row, GLPK.DB, lower, upper)
+        # Reset the preemptive check.
+        GLPK.jl_set_preemptive_check(prev_preemptive_check)
     end
 end
 
 function LQOI.get_range(model::Optimizer, row::Int)
-    GLPK.get_row_lb(model.inner, row), GLPK.get_row_ub(model.inner, row)
+    return GLPK.get_row_lb(model.inner, row), GLPK.get_row_ub(model.inner, row)
 end
 
 """
@@ -518,17 +538,20 @@ function _certificates_potentially_available(model::Optimizer)
 end
 
 function LQOI.get_termination_status(model::Optimizer)
-    if model.last_solved_by_mip
-        if model.solver_status in [GLPK.EMIPGAP,  # Relative mip tolerance
-                                   GLPK.ETMLIM,   # Time limit
-                                   GLPK.ESTOP,    # Callback?
-                                   GLPK.EFAIL]    # Solver fail
-            return MOI.OtherLimit
-        elseif model.solver_status == GLPK.ENODFS  # No feasible dual
-            return MOI.InfeasibleOrUnbounded
-        elseif model.solver_status == GLPK.ENOPFS  # No feasible primal
-            return MOI.InfeasibleNoResult
-        end
+    if model.solver_status == GLPK.EMIPGAP
+        return MOI.Success
+    elseif model.solver_status == GLPK.EBOUND  # Invalid bounds
+        return MOI.InvalidModel
+    elseif model.solver_status == GLPK.ETMLIM
+        return MOI.TimeLimit
+    elseif model.solver_status == GLPK.ENODFS  # No feasible dual
+        return MOI.InfeasibleOrUnbounded
+    elseif model.solver_status == GLPK.ENOPFS  # No feasible primal
+        return MOI.InfeasibleNoResult
+    elseif model.solver_status == GLPK.EFAIL  # Solver fail
+        return MOI.NumericalError
+    elseif model.solver_status == GLPK.ESTOP  # Callback
+        return MOI.Interrupted
     end
     status = get_status(model)
     if status == GLPK.OPT
@@ -697,6 +720,7 @@ function LQOI.solve_linear_problem!(model::Optimizer)
     else
         _throw_invalid_method(model)
     end
+    return
 end
 
 """

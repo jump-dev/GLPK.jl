@@ -196,3 +196,22 @@ end
     @test GLPK.get_row_lb(model.inner, row) == -GLPK.DBL_MAX
     @test GLPK.get_row_ub(model.inner, row) == 1.0
 end
+
+@testset "Infeasible bounds" begin
+    @testset "SingleVariable" begin
+        model = GLPK.Optimizer()
+        x = MOI.add_variable(model)
+        MOI.add_constraint(model, MOI.SingleVariable(x), MOI.Interval(1.0, -1.0))
+        MOI.optimize!(model)
+        @test MOI.get(model, MOI.TerminationStatus()) == MOI.InvalidModel
+    end
+    @testset "ScalarAffine" begin
+        model = GLPK.Optimizer()
+        x = MOI.add_variable(model)
+        MOI.add_constraint(model,
+            MOI.ScalarAffineFunction(MOI.ScalarAffineTerm.([1.0], [x]), 0.0),
+            MOI.Interval(1.0, -1.0))
+        MOI.optimize!(model)
+        @test MOI.get(model, MOI.TerminationStatus()) == MOI.InvalidModel
+    end
+end
