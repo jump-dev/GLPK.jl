@@ -538,16 +538,16 @@ function _certificates_potentially_available(model::Optimizer)
 end
 
 function LQOI.get_termination_status(model::Optimizer)
-    if model.solver_status == GLPK.EMIPGAP
-        return MOI.Success
+    if model.solver_status == GLPK.EMIPGAP  # MIP Gap
+        return MOI.Optimal
     elseif model.solver_status == GLPK.EBOUND  # Invalid bounds
         return MOI.InvalidModel
-    elseif model.solver_status == GLPK.ETMLIM
+    elseif model.solver_status == GLPK.ETMLIM  # Time limit
         return MOI.TimeLimit
     elseif model.solver_status == GLPK.ENODFS  # No feasible dual
         return MOI.InfeasibleOrUnbounded
     elseif model.solver_status == GLPK.ENOPFS  # No feasible primal
-        return MOI.InfeasibleNoResult
+        return MOI.Infeasible
     elseif model.solver_status == GLPK.EFAIL  # Solver fail
         return MOI.NumericalError
     elseif model.solver_status == GLPK.ESTOP  # Callback
@@ -555,19 +555,11 @@ function LQOI.get_termination_status(model::Optimizer)
     end
     status = get_status(model)
     if status == GLPK.OPT
-        return MOI.Success
+        return MOI.Optimal
     elseif status == GLPK.INFEAS
-        if _certificates_potentially_available(model)
-            return MOI.Success
-        else
-            return MOI.InfeasibleNoResult
-        end
+        return MOI.Infeasible
     elseif status == GLPK.UNBND
-        if _certificates_potentially_available(model)
-            return MOI.Success
-        else
-            return MOI.UnboundedNoResult
-        end
+        return MOI.DualInfeasible
     elseif status == GLPK.FEAS
         return MOI.SlowProgress
     elseif status == GLPK.NOFEAS
@@ -604,7 +596,7 @@ function LQOI.get_primal_status(model::Optimizer)
     elseif status == GLPK.UNBND && _certificates_potentially_available(model)
         return MOI.InfeasibilityCertificate
     end
-    return MOI.UnknownResultStatus
+    return MOI.NoSolution
 end
 
 function LQOI.get_dual_status(model::Optimizer)
@@ -616,7 +608,7 @@ function LQOI.get_dual_status(model::Optimizer)
             return MOI.InfeasibilityCertificate
         end
     end
-    return MOI.UnknownResultStatus
+    return MOI.NoSolution
 end
 
 """
