@@ -120,6 +120,8 @@ function Optimizer(;presolve=false, method=:Simplex, kwargs...)
     return optimizer
 end
 
+MOI.get(::Optimizer, ::MOI.SolverName) = "GLPK"
+
 function LQOI.get_objective_bound(model::Optimizer)
     if !model.last_solved_by_mip
         return LQOI.get_objectivesense(model) == MOI.MinSense ? -Inf : Inf

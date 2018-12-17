@@ -42,6 +42,9 @@ end
 
 @testset "ModelLike tests" begin
     solver = GLPK.Optimizer()
+
+    @test MOI.get(solver, MOI.SolverName()) == "GLPK"
+
     @testset "nametest" begin
         MOIT.nametest(solver)
     end
