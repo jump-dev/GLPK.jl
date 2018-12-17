@@ -42,9 +42,13 @@ end
 
 @testset "ModelLike tests" begin
     solver = GLPK.Optimizer()
-
     @test MOI.get(solver, MOI.SolverName()) == "GLPK"
-
+    @testset "default_objective_test" begin
+         MOIT.default_objective_test(solver)
+     end
+     @testset "default_status_test" begin
+         MOIT.default_status_test(solver)
+     end
     @testset "nametest" begin
         MOIT.nametest(solver)
     end
@@ -93,7 +97,7 @@ end
             c3: 1.0x in GreaterThan(2.0)
         """)
         MOI.optimize!(model)
-        @test MOI.get(model, MOI.TerminationStatus()) == MOI.InfeasibleNoResult
+        @test MOI.get(model, MOI.TerminationStatus()) == MOI.Infeasible
     end
 end
 
