@@ -124,7 +124,7 @@ MOI.get(::Optimizer, ::MOI.SolverName) = "GLPK"
 
 function LQOI.get_objective_bound(model::Optimizer)
     if !model.last_solved_by_mip
-        return LQOI.get_objectivesense(model) == MOI.MinSense ? -Inf : Inf
+        return LQOI.get_objectivesense(model) == MOI.MIN_SENSE ? -Inf : Inf
     end
     constant = LQOI.get_constant_objective(model)
     # @mlubin and @ccoey observed some cases where mip_status == OPT and objval
@@ -498,9 +498,9 @@ end
 function LQOI.get_objectivesense(model::Optimizer)
     sense = GLPK.get_obj_dir(model.inner)
     if sense == GLPK.MIN
-        return MOI.MinSense
+        return MOI.MIN_SENSE
     elseif sense == GLPK.MAX
-        return MOI.MaxSense
+        return MOI.MAX_SENSE
     else
         error("Invalid objective sense: $(sense)")
     end
@@ -541,33 +541,33 @@ end
 
 function LQOI.get_termination_status(model::Optimizer)
     if model.solver_status == GLPK.EMIPGAP  # MIP Gap
-        return MOI.Optimal
+        return MOI.OPTIMAL
     elseif model.solver_status == GLPK.EBOUND  # Invalid bounds
-        return MOI.InvalidModel
+        return MOI.INVALID_MODEL
     elseif model.solver_status == GLPK.ETMLIM  # Time limit
-        return MOI.TimeLimit
+        return MOI.TIME_LIMIT
     elseif model.solver_status == GLPK.ENODFS  # No feasible dual
-        return MOI.InfeasibleOrUnbounded
+        return MOI.INFEASIBLE_OR_UNBOUNDED
     elseif model.solver_status == GLPK.ENOPFS  # No feasible primal
-        return MOI.Infeasible
+        return MOI.INFEASIBLE
     elseif model.solver_status == GLPK.EFAIL  # Solver fail
-        return MOI.NumericalError
+        return MOI.NUMERICAL_ERROR
     elseif model.solver_status == GLPK.ESTOP  # Callback
-        return MOI.Interrupted
+        return MOI.INTERRUPTED
     end
     status = get_status(model)
     if status == GLPK.OPT
-        return MOI.Optimal
+        return MOI.OPTIMAL
     elseif status == GLPK.INFEAS
-        return MOI.Infeasible
+        return MOI.INFEASIBLE
     elseif status == GLPK.UNBND
-        return MOI.DualInfeasible
+        return MOI.DUAL_INFEASIBLE
     elseif status == GLPK.FEAS
-        return MOI.SlowProgress
+        return MOI.SLOW_PROGRESS
     elseif status == GLPK.NOFEAS
-        return MOI.InfeasibleOrUnbounded
+        return MOI.INFEASIBLE_OR_UNBOUNDED
     elseif status == GLPK.UNDEF
-        return MOI.OtherError
+        return MOI.OTHER_ERROR
     else
         error("Invalid termination status: $(status)")
     end
@@ -594,23 +594,23 @@ end
 function LQOI.get_primal_status(model::Optimizer)
     status = get_status(model)
     if status == GLPK.OPT
-        return MOI.FeasiblePoint
+        return MOI.FEASIBLE_POINT
     elseif status == GLPK.UNBND && _certificates_potentially_available(model)
-        return MOI.InfeasibilityCertificate
+        return MOI.INFEASIBILITY_CERTIFICATE
     end
-    return MOI.NoSolution
+    return MOI.NO_SOLUTION
 end
 
 function LQOI.get_dual_status(model::Optimizer)
     if !model.last_solved_by_mip
         status = get_status(model.inner)
         if status == GLPK.OPT
-            return MOI.FeasiblePoint
+            return MOI.FEASIBLE_POINT
         elseif status == GLPK.INFEAS && _certificates_potentially_available(model)
-            return MOI.InfeasibilityCertificate
+            return MOI.INFEASIBILITY_CERTIFICATE
         end
     end
-    return MOI.NoSolution
+    return MOI.NO_SOLUTION
 end
 
 """
