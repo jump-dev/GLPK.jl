@@ -84,7 +84,7 @@ end
             c2: x in LessThan(1.0)
         """)
         MOI.optimize!(model)
-        @test MOI.get(model, MOI.TerminationStatus()) == MOI.InfeasibleOrUnbounded
+        @test MOI.get(model, MOI.TerminationStatus()) == MOI.INFEASIBLE_OR_UNBOUNDED
     end
 
     @testset "An infeasible integer model" begin
@@ -97,7 +97,7 @@ end
             c3: 1.0x in GreaterThan(2.0)
         """)
         MOI.optimize!(model)
-        @test MOI.get(model, MOI.TerminationStatus()) == MOI.Infeasible
+        @test MOI.get(model, MOI.TerminationStatus()) == MOI.INFEASIBLE
     end
 end
 
@@ -210,7 +210,7 @@ end
         x = MOI.add_variable(model)
         MOI.add_constraint(model, MOI.SingleVariable(x), MOI.Interval(1.0, -1.0))
         MOI.optimize!(model)
-        @test MOI.get(model, MOI.TerminationStatus()) == MOI.InvalidModel
+        @test MOI.get(model, MOI.TerminationStatus()) == MOI.INVALID_MODEL
     end
     @testset "ScalarAffine" begin
         model = GLPK.Optimizer()
@@ -219,6 +219,6 @@ end
             MOI.ScalarAffineFunction(MOI.ScalarAffineTerm.([1.0], [x]), 0.0),
             MOI.Interval(1.0, -1.0))
         MOI.optimize!(model)
-        @test MOI.get(model, MOI.TerminationStatus()) == MOI.InvalidModel
+        @test MOI.get(model, MOI.TerminationStatus()) == MOI.INVALID_MODEL
     end
 end
