@@ -114,7 +114,7 @@ function Optimizer(;presolve=false, method=:Simplex, kwargs...)
         set_intopt   = set_parameter(optimizer.intopt, key, value)
         set_simplex  = set_parameter(optimizer.simplex, key, value)
         if !set_interior && !set_intopt && !set_simplex
-            warn("Ignoring option: $(key) => $(value)")
+            Compat.@warn("Ignoring option: $(key) => $(value)")
         end
     end
     return optimizer
