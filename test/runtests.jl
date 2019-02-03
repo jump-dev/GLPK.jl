@@ -18,5 +18,5 @@ end
 end
 
 @testset "MathOptInterface" begin
-    include("MOIWrapper.jl")
+    include("MOI_wrapper.jl")
 end
