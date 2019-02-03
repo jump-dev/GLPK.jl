@@ -2234,6 +2234,6 @@ end
 
 #}}}
 
-include("MOIWrapper.jl")
+include("MOI_wrapper.jl")
 
 end # module
