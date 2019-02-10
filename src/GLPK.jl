@@ -2236,4 +2236,21 @@ end
 
 include("MOI_wrapper.jl")
 
+function load_extensions(my_module::Module)
+    Base.include(my_module, joinpath(@__DIR__, "GLPKExtensions.jl"))
+end
+
+"""
+    GLPK.@load_extensions
+
+Loads a module `GLPKExtensions` into the current workspace that contains
+JuMP-related callback functionality.
+"""
+macro load_extensions()
+    quote
+        load_extensions(@__MODULE__)
+        using .GLPKExtensions
+    end
+end
+
 end # module

@@ -825,41 +825,48 @@ end
 # ==============================================================================
 #    Callbacks in GLPK
 # ==============================================================================
+
 """
     CallbackFunction
 
 The attribute to set the callback function in GLPK. The function takes a single
 argument of type `CallbackData`.
 """
-struct CallbackFunction <: MOI.AbstractOptimizerAttribute end
+struct CallbackFunction <: MOI.AbstractModelAttribute end
+
 function MOI.set(model::Optimizer, ::CallbackFunction, foo::Function)
     model.callback_function = foo
+    return
 end
 
 """
-    load_variable_primal!(cb_data::CallbackData)
+    get_col_prim(cb_data::CallbackData)
 
 Load the variable primal solution in a callback.
 
 This can only be called in a callback from `GLPK.IROWGEN`. After it is called,
 you can access the `VariablePrimal` attribute as usual.
 """
-function load_variable_primal!(cb_data::CallbackData)
+function GLPK.get_col_prim(cb_data::CallbackData)
     model = cb_data.model
-    if GLPK.ios_reason(cb_data.tree) != GLPK.IROWGEN
-        error("load_variable_primal! can only be called when reason is GLPK.IROWGEN.")
+    if GLPK.ios_reason(cb_data.tree) != GLPK.IROWGEN && GLPK.ios_reason(cb_data.tree) != GLPK.IHEUR
+        error("get_col_prim can only be called when reason is IROWGEN or IHEUR.")
     end
     subproblem = GLPK.ios_get_prob(cb_data.tree)
     copy_function_result!(model.variable_primal_solution, GLPK.get_col_prim, subproblem)
+    model.termination_status = MOI.SOLUTION_LIMIT
+    model.primal_status = MOI.FEASIBLE_POINT
+    return
 end
 
 """
-    add_lazy_constraint!(cb_data::GLPK.CallbackData, func::LQOI.Linear, set::S) where S <: Union{LQOI.LE, LQOI.GE, LQOI.EQ}
+    addrow!(cb_data::GLPK.CallbackData, func::LQOI.Linear, set::S) where S <: Union{LQOI.LE, LQOI.GE, LQOI.EQ}
 
-Add a lazy constraint to the model `cb_data.model`. This can only be called in a
-callback from `GLPK.IROWGEN`.
+Add a lazy constraint to the model `cb_data.model`.
+
+This can only be called in a callback from `GLPK.IROWGEN`.
 """
-function add_lazy_constraint!(cb_data::CallbackData, func::LQOI.Linear, set::S) where S <: Union{LQOI.LE, LQOI.GE, LQOI.EQ}
+function addrow!(cb_data::CallbackData, func::LQOI.Linear, set::S) where S <: Union{LQOI.LE, LQOI.GE, LQOI.EQ}
     model = cb_data.model
     add_row!(
         GLPK.ios_get_prob(cb_data.tree),
@@ -868,4 +875,16 @@ function add_lazy_constraint!(cb_data::CallbackData, func::LQOI.Linear, set::S) 
         LQOI.backend_type(model, set),
         MOI.Utilities.getconstant(set)
     )
+    return
+end
+
+function ios_heur_sol(cb_data::CallbackData, sol::Dict{MOI.VariableIndex, Float64})
+    model = cb_data.model
+    sol_vector = fill(NaN, MOI.get(model, MOI.NumberOfVariables()))
+    for (variable, value) in sol
+        column = LQOI.get_column(model, variable)
+        sol_vector[column] = value
+    end
+    ios_heur_sol(cb_data.tree, sol_vector)
+    return
 end
