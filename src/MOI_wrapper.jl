@@ -889,19 +889,27 @@ function ios_heur_sol(cb_data::CallbackData, sol::Dict{MOI.VariableIndex, Float6
     return
 end
 
-function load_extensions(my_module::Module)
-    Base.include(my_module, joinpath(@__DIR__, "GLPKExtensions.jl"))
+function MOI.set(optimizer::GLPK.Optimizer, callbacks::MOI.Callbacks)
+    MOI.set(optimizer, GLPK.CallbackFunction(), (cb_data) -> begin
+        reason = GLPK.ios_reason(cb_data.tree)
+        if callbacks.lazy_callback !== nothing && reason == GLPK.IROWGEN
+            GLPK.get_col_prim(cb_data)
+            callbacks.lazy_callback(cb_data)
+        elseif callbacks.heuristic_callback !== nothing && reason == GLPK.IHEUR
+            GLPK.get_col_prim(cb_data)
+            callbacks.heuristic_callback(cb_data)
+        end
+        return
+    end)
 end
 
-"""
-    GLPK.@load_extensions
+function MOI.add_lazy_constraint(
+        ::GLPK.Optimizer, cb_data::GLPK.CallbackData, func, set)
+    GLPK.addrow!(cb_data, func, set)
+end
 
-Loads a module `GLPKExtensions` into the current workspace that contains
-JuMP-related callback functionality.
-"""
-macro load_extensions()
-    quote
-        load_extensions(@__MODULE__)
-        using .GLPKJuMPExtensions
-    end
+function MOI.add_heuristic_solution(
+        ::GLPK.Optimizer, cb_data::GLPK.CallbackData,
+        sol::Dict{MOI.VariableIndex, Float64})
+    GLPK.ios_heur_sol(cb_data, sol)
 end

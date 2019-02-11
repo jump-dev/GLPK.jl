@@ -1,9 +1,5 @@
 using JuMP, GLPK, Test
 
-# This special macro loads a module called GLPKExtensions, which exports the
-# `@lazy_constraint` macro.
-GLPK.@load_extensions
-
 model = JuMP.direct_model(GLPK.Optimizer())
 
 # Create the basic model. It is set up in such a way that the root relaxation
@@ -14,8 +10,8 @@ model = JuMP.direct_model(GLPK.Optimizer())
 @constraint(model, y <= 4.1 - 0.2x)
 @objective(model, Max, y)
 
-# This vector is going to cache the value of `cb_where` everytime our callback
-# gets called.
+# This vector is going to cache a descriptive symbol everytime our callback gets
+# called.
 cb_calls = Symbol[]
 
 function my_lazy_callback(cb_data)
