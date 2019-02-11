@@ -49,8 +49,7 @@ MOI.set(model, GLPK.CallbackFunction(), (cb_data) -> begin
         @assert JuMP.primal_status(model) == MOI.FEASIBLE_POINT
         # Get the values of x and y.
         x_val, y_val = JuMP.value(x), JuMP.value(y)
-        # Provide a heuristic solution. We don't need to provide a value for all
-        # variables.
+        # Provide a heuristic solution.
         GLPK.ios_heur_sol(cb_data, Dict(x => 1.0, y => 2.0))
     end
     return

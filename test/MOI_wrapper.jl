@@ -25,7 +25,9 @@ end
         # GLPK returns InfeasibleOrUnbounded
         "linear8a",
         # Requires infeasiblity certificate for variable bounds
-        "linear12"
+        "linear12",
+        # VariablePrimalStart not supported
+        "partial_start"
     ])
 end
 
@@ -110,7 +112,9 @@ end
             c1: x in Integer()
             c2: y in Integer()
             c3: x in Interval(0.0, 2.0)
-            c4: y in Interval(0.0, 2.0)
+            c4: y in Interval(0.0, 4.0)
+            c5: -1.0 * x + y <= 3.5
+            c6: 0.2 * x + y <= 4.1
         """)
         x = MOI.get(model, MOI.VariableIndex, "x")
         y = MOI.get(model, MOI.VariableIndex, "y")
@@ -123,7 +127,7 @@ end
             reason = GLPK.ios_reason(cb_data.tree)
             push!(cb_calls, reason)
             if reason == GLPK.IROWGEN
-                GLPK.load_variable_primal!(cb_data)
+                GLPK.get_col_prim(cb_data)
                 x_val = MOI.get(model, MOI.VariablePrimal(), x)
                 y_val = MOI.get(model, MOI.VariablePrimal(), y)
                 # We have two constraints, one cutting off the top
@@ -136,16 +140,16 @@ end
                 #       |       |
                 # (0,0) +---+---+ (2,0)
                 TOL = 1e-6  # Allow for some impreciseness in the solution
-                if y_val - x_val > 1 + TOL
-                    GLPK.add_lazy_constraint!(cb_data,
+                if y_val - x_val > 1.1 + TOL
+                    GLPK.addrow!(cb_data,
                         MOI.ScalarAffineFunction{Float64}(
                             MOI.ScalarAffineTerm.([-1.0, 1.0], [x, y]),
                             0.0
                         ),
-                        MOI.LessThan{Float64}(1.0)
+                        MOI.LessThan{Float64}(1.1)
                     )
                 elseif y_val + x_val > 3 + TOL
-                    GLPK.add_lazy_constraint!(cb_data,
+                    GLPK.addrow!(cb_data,
                         MOI.ScalarAffineFunction{Float64}(
                             MOI.ScalarAffineTerm.([1.0, 1.0], [x, y]),
                             0.0
@@ -153,6 +157,11 @@ end
                         MOI.LessThan{Float64}(3.0)
                     )
                 end
+            elseif reason == GLPK.IHEUR
+                GLPK.get_col_prim(cb_data)
+                x_val = MOI.get(model, MOI.VariablePrimal(), x)
+                y_val = MOI.get(model, MOI.VariablePrimal(), y)
+                GLPK.ios_heur_sol(cb_data, Dict(x => 1.0, y => 2.0))
             end
         end
         MOI.set(model, GLPK.CallbackFunction(), callback_function)
@@ -163,8 +172,7 @@ end
         @test GLPK.ISELECT in cb_calls
         @test GLPK.IPREPRO in cb_calls
         @test GLPK.IROWGEN in cb_calls
-        @test GLPK.IBINGO in cb_calls
-        @test !(GLPK.IHEUR in cb_calls)
+        @test GLPK.IHEUR in cb_calls
     end
 end
 
