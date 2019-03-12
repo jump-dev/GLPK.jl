@@ -238,15 +238,16 @@ function LQOI.add_linear_constraints!(model::Optimizer,
     if nrows <= 0
         error("Number of rows must be more than zero.")
     elseif nrows == 1
-        add_row!(model.inner, A.columns, A.coefficients, senses[1], rhs[1])
+        add_row!(model.inner, LQOI.colvals(A), LQOI.row_nonzeros(A), senses[1], rhs[1])
     else
-        push!(A.row_pointers, length(A.columns)+1)
+        row_pointers=LQOI.row_pointers(A)
+        coefficients=LQOI.row_nonzeros(A)
+        colvals=LQOI.colvals(A)
         for i in 1:nrows
-            indices = A.row_pointers[i]:A.row_pointers[i+1]-1
-            add_row!(model.inner, A.columns[indices], A.coefficients[indices],
+            indices = row_pointers[i]:row_pointers[i+1]-1
+            add_row!(model.inner, colvals[indices], coefficients[indices],
                     senses[i], rhs[i])
         end
-        pop!(A.row_pointers)
     end
 end
 
