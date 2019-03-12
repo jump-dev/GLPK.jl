@@ -240,9 +240,9 @@ function LQOI.add_linear_constraints!(model::Optimizer,
     elseif nrows == 1
         add_row!(model.inner, LQOI.colvals(A), LQOI.row_nonzeros(A), senses[1], rhs[1])
     else
-        row_pointers=LQOI.row_pointers(A)
-        coefficients=LQOI.row_nonzeros(A)
-        colvals=LQOI.colvals(A)
+        row_pointers = LQOI.row_pointers(A)
+        coefficients = LQOI.row_nonzeros(A)
+        colvals = LQOI.colvals(A)
         for i in 1:nrows
             indices = row_pointers[i]:row_pointers[i+1]-1
             add_row!(model.inner, colvals[indices], coefficients[indices],
