@@ -5,6 +5,7 @@ version = "0.9.1"
 
 [deps]
 BinaryProvider = "b99e7846-7c00-51b0-8f62-c81ae34c0232"
+Libdl = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
 LinQuadOptInterface = "f8899e07-120b-5979-ab1d-7b97bb9e1a48"
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 
