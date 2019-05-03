@@ -2,12 +2,9 @@
 ### GLPK API Wrapper
 ###
 
-__precompile__()
-
 module GLPK
 
-using Compat
-using Compat.SparseArrays
+using SparseArrays
 
 ## Exports
 #{{{
@@ -818,7 +815,7 @@ function load_matrix(prob::Prob, ia::VecOrNothing, ja::VecOrNothing, ar::VecOrNo
     load_matrix(prob, l, ia, ja, ar)
 end
 
-function load_matrix(prob::Prob, a::Compat.SparseArrays.AbstractSparseMatrix)
+function load_matrix(prob::Prob, a::SparseArrays.AbstractSparseMatrix)
     (ia, ja, ar) = findnz(a)
     load_matrix(prob, ia, ja, ar)
 end

@@ -1,4 +1,4 @@
-using Compat.Test
+using Test
 import GLPK
 
 # Testing reading and writing problem files

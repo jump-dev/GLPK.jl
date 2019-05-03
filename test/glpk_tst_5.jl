@@ -1,4 +1,4 @@
-using Compat.Test
+using Test
 import GLPK
 
 function glpk_tst_5()
