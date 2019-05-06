@@ -1,4 +1,4 @@
-using GLPK, Compat.Test
+using GLPK, Test
 
 macro test_throws_02(args...)
     :(@test_throws($(esc(args[1])), $(esc(args[2]))))

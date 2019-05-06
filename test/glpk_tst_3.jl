@@ -1,4 +1,4 @@
-using Compat.Test
+using Test
 import GLPK
 
 # Test reading and writing MathProg files

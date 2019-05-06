@@ -25,7 +25,9 @@ end
         # GLPK returns InfeasibleOrUnbounded
         "linear8a",
         # Requires infeasiblity certificate for variable bounds
-        "linear12"
+        "linear12",
+        # FIXME
+        "partial_start"
     ])
 end
 

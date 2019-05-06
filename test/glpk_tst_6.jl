@@ -1,6 +1,5 @@
-using Compat.Test
+using Test
 import GLPK
-using Compat
 
 function cb_callback(tree::Ptr{Cvoid}, info::Ptr{Cvoid})
     reason = GLPK.ios_reason(tree)

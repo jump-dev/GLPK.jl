@@ -1,8 +1,7 @@
 environment:
   matrix:
-  - julia_version: 0.6
-  - julia_version: 0.7
   - julia_version: 1.0
+  - julia_version: 1.1
 
 platform:
   - x86 # 32-bit
@@ -12,9 +11,9 @@ platform:
 # 1.0. See https://github.com/JuliaLang/julia/issues/28736.
 matrix:
   allow_failures:
-  - julia_version: 0.7
-    platform: x86
   - julia_version: 1.0
+    platform: x86
+  - julia_version: 1.1
     platform: x86
 
 branches:
