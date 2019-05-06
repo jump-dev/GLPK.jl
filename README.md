@@ -31,7 +31,7 @@ GLPK.jl will use [BinaryProvider.jl](https://github.com/JuliaPackaging/BinaryPro
 
 After GLPK.jl is installed and built, you can replace the installed binary dependencies with custom builds by overwriting the binaries and libraries in GLPK.jl's `deps/usr` folder. For instance, Julia v1.0 and GLPK v0.9.1 this can be achieved by running
 ```bash
-./configure --prefix=$HOME/.julia/packages/GLPK/rw631/deps/usr
+./configure --prefix=$(julia -e 'import GLPK; println(dirname(dirname(pathof(GLPK))))')/deps/usr
 make
 make install
 ```
