@@ -36,6 +36,13 @@ if dl_info === nothing && unsatisfied
     # build from source or something even more ambitious here.
     error("Your platform (\"$(Sys.MACHINE)\", parsed as \"$(triplet(platform_key_abi()))\") is not supported by this package!")
 end
+   
+# If we have a download, and we are unsatisfied (or the version we're
+# trying to install is not itself installed) then load it up!
+if unsatisfied || !isinstalled(dl_info...; prefix=prefix)
+    # Download and install binaries
+    install(dl_info...; prefix=prefix, force=true, verbose=verbose)
+end
                     
 # Write out a deps.jl file that will contain mappings for our products
 write_deps_file(joinpath(@__DIR__, "deps.jl"), products)
