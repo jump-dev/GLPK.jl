@@ -113,6 +113,11 @@ mutable struct Optimizer <: MOI.ModelLike
     See the GLPK pdf documentation for a full list of parameters.
     """
     function Optimizer(; presolve = false, method = SIMPLEX, kwargs...)
+        # GLPK.jl has a lot of pre-emptive checks to catch cases where the C API
+        # might throw an uninformative error. However, in benchmarks, this takes
+        # a non-negligible amount of time (e.g. 20% in add_constraints). Until
+        # someone complains otherwise, we're going to disable these checks
+        GLPK.jl_set_preemptive_check(false)
         model = new()
         model.presolve = presolve
         model.method = method
@@ -711,13 +716,7 @@ function _set_variable_bound(
     else
         upper >= GLPK.DBL_MAX ? GLPK.LO : GLPK.DB
     end
-    # Disable preemptive checking of variable bounds for the case when lower
-    # > upper. If you solve a model with lower > upper, the
-    # TerminationStatus will be InvalidModel.
-    prev_preemptive_check = GLPK.jl_get_preemptive_check()
-    GLPK.jl_set_preemptive_check(false)
     GLPK.set_col_bnds(model.inner, column, bound_type, lower, upper)
-    GLPK.jl_set_preemptive_check(prev_preemptive_check)
     return
 end
 
