@@ -104,7 +104,13 @@ mutable struct Optimizer <: MOI.ModelLike
     """
         Optimizer(;kwargs...)
 
-    Create a new Optimizer object.
+    Create a new Optimizer object. Common keywords include
+
+     - `method::MethodEnum = SIMPLEX` Use the simplex method. Other options are `EXACT` and `INTERIOR`.
+     - `tm_lim::Float64`              Set a time limit
+     - `msg_lev::Int`                 Control the log level
+
+    See the GLPK pdf documentation for a full list of parameters.
     """
     function Optimizer(; presolve = false, method = SIMPLEX, kwargs...)
         model = new()
