@@ -49,6 +49,7 @@ function __internal_callback__(tree::Ptr{Cvoid}, info::Ptr{Cvoid})
     node = GLPK.ios_best_node(tree)
     if node != 0
         model.objective_bound = GLPK.ios_node_bound(tree, node)
+        model.relative_gap = GLPK.ios_mip_gap(tree)
     end
     model.callback_function(callback_data)
     return nothing
@@ -71,6 +72,7 @@ mutable struct Optimizer <: MOI.ModelLike
 
     callback_data
     objective_bound::Float64
+    relative_gap::Float64
     solve_time::Float64
     callback_function::Function
 
@@ -200,6 +202,7 @@ function MOI.empty!(model::Optimizer)
     model.num_binaries = 0
     model.num_integers = 0
     model.objective_bound = NaN
+    model.relative_gap = NaN
     model.solve_time = NaN
     if model.silent
         # Set the parameter on the internal model, but don't modify the entry in
@@ -1567,6 +1570,9 @@ function MOI.get(model::Optimizer, attr::MOI.DualObjectiveValue)
     return MOI.Utilities.get_fallback(model, attr, Float64)
 end
 
+MOI.supports(model::Optimizer, ::MOI.RelativeGap) = model.last_solved_by_mip
+MOI.get(model::Optimizer, ::MOI.RelativeGap) = model.relative_gap
+MOI.supports(::Optimizer, ::MOI.SolveTime) = true
 MOI.get(model::Optimizer, ::MOI.SolveTime) = model.solve_time
 
 function MOI.get(model::Optimizer, ::MOI.ResultCount)

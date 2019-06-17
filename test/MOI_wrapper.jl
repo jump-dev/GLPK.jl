@@ -267,3 +267,26 @@ end
     MOI.set(model, MOI.RawParameter(:mip_gap), 0.001)
     @test MOI.get(model, MOI.RawParameter(:mip_gap)) == 0.001
 end
+
+@testset "RelativeGap" begin
+    model = GLPK.Optimizer()
+    MOI.Utilities.loadfromstring!(model, """
+        variables: x
+        minobjective: 1.0x
+        c1: x in Integer()
+        c2: x in GreaterThan(1.5)
+    """)
+    MOI.optimize!(model)
+    @test MOI.supports(model, MOI.RelativeGap())
+    @test MOI.get(model, MOI.RelativeGap()) == 0.0
+
+    model = GLPK.Optimizer()
+    MOI.Utilities.loadfromstring!(model, """
+        variables: x
+        minobjective: 1.0x
+        c1: x in GreaterThan(1.5)
+    """)
+    MOI.optimize!(model)
+    @test !MOI.supports(model, MOI.RelativeGap())
+    @test isnan(MOI.get(model, MOI.RelativeGap()))
+end
