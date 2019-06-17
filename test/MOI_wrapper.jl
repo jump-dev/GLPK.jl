@@ -20,9 +20,6 @@ end
 @testset "Linear tests" begin
 @testset "Default Solver"  begin
         MOIT.contlineartest(OPTIMIZER, MOIT.TestConfig(basis = true), [
-            # GLPK returns InfeasibleOrUnbounded
-            # TODO(odow): investigate why.
-            "linear8a",
             # This requires an infeasiblity certificate for a variable bound.
             "linear12",
             # VariablePrimalStart not supported.
@@ -35,8 +32,7 @@ end
 end
 
 @testset "Linear Conic tests" begin
-    # TODO(odow): check why no certificates are returned.
-    MOIT.lintest(OPTIMIZER, MOIT.TestConfig(infeas_certificates=false))
+    MOIT.lintest(OPTIMIZER, CONFIG)
 end
 
 @testset "Integer Linear tests" begin
@@ -133,7 +129,7 @@ end
             c2: x in LessThan(1.0)
         """)
         MOI.optimize!(model)
-        @test MOI.get(model, MOI.TerminationStatus()) == MOI.INFEASIBLE_OR_UNBOUNDED
+        @test MOI.get(model, MOI.TerminationStatus()) == MOI.DUAL_INFEASIBLE
     end
 
     @testset "An infeasible integer model" begin
@@ -240,4 +236,34 @@ end
     MOI.add_constraint(model, MOI.SingleVariable(x), MOI.Interval(1.0, -1.0))
     MOI.optimize!(model)
     @test MOI.get(model, MOI.TerminationStatus()) == MOI.INVALID_MODEL
+end
+
+@testset "RawParameter" begin
+    model = GLPK.Optimizer(method = GLPK.SIMPLEX)
+    exception = ErrorException("Invalid option: cb_func. Use the MOI attribute `GLPK.CallbackFunction` instead.")
+    @test_throws exception MOI.set(model, MOI.RawParameter(:cb_func), (cb) -> nothing)
+    MOI.set(model, MOI.RawParameter(:tm_lim), 100)
+    @test MOI.get(model, MOI.RawParameter(:tm_lim)) == 100
+    @test_throws ErrorException MOI.set(model, MOI.RawParameter(:bad), 1)
+    @test_throws ErrorException MOI.get(model, MOI.RawParameter(:bad))
+
+    model = GLPK.Optimizer(method = GLPK.INTERIOR)
+    exception = ErrorException("Invalid option: cb_func. Use the MOI attribute `GLPK.CallbackFunction` instead.")
+    @test_throws exception MOI.set(model, MOI.RawParameter(:cb_func), (cb) -> nothing)
+    MOI.set(model, MOI.RawParameter(:tm_lim), 100)
+    @test MOI.get(model, MOI.RawParameter(:tm_lim)) == 100
+    @test_throws ErrorException MOI.set(model, MOI.RawParameter(:bad), 1)
+    @test_throws ErrorException MOI.get(model, MOI.RawParameter(:bad))
+
+    model = GLPK.Optimizer(method = GLPK.EXACT)
+    exception = ErrorException("Invalid option: cb_func. Use the MOI attribute `GLPK.CallbackFunction` instead.")
+    @test_throws exception MOI.set(model, MOI.RawParameter(:cb_func), (cb) -> nothing)
+    MOI.set(model, MOI.RawParameter(:tm_lim), 100)
+    @test MOI.get(model, MOI.RawParameter(:tm_lim)) == 100
+    @test_throws ErrorException MOI.set(model, MOI.RawParameter(:bad), 1)
+    @test_throws ErrorException MOI.get(model, MOI.RawParameter(:bad))
+
+    model = GLPK.Optimizer()
+    MOI.set(model, MOI.RawParameter(:mip_gap), 0.001)
+    @test MOI.get(model, MOI.RawParameter(:mip_gap)) == 0.001
 end

@@ -151,8 +151,10 @@ Returns a `Bool` indicating if the parameter was set.
 """
 function set_parameter(param_store, key::Symbol, value)
     if key == :cb_func || key == :cb_info
-        @warn("Ignored option: $(string(key)). Use the MOI attribute " *
-              "`GLPK.CallbackFunction` instead.")
+        error(
+            "Invalid option: $(string(key)). Use the MOI attribute " *
+            "`GLPK.CallbackFunction` instead."
+        )
     elseif key in fieldnames(typeof(param_store))
         field_type = typeof(getfield(param_store, key))
         setfield!(param_store, key, convert(field_type, value))
@@ -171,7 +173,7 @@ function set_parameter(model::Optimizer, key::Symbol, value)
     return
 end
 
-Base.show(io::IO, model::Optimizer) = show(io, model.inner)
+Base.show(io::IO, model::Optimizer) = print(io, "A GLPK model")
 
 function MOI.empty!(model::Optimizer)
     model.inner = GLPK.Prob()
@@ -276,7 +278,15 @@ function MOI.set(model::Optimizer, param::MOI.RawParameter, value)
 end
 
 function MOI.get(model::Optimizer, param::MOI.RawParameter)
-    error("TODO")
+    if (model.method == SIMPLEX || model.method == EXACT) && param.name in fieldnames(GLPK.SimplexParam)
+        return getfield(model.simplex_param, param.name)
+    elseif model.method == INTERIOR && param.name in fieldnames(GLPK.InteriorParam)
+        return getfield(model.interior_param, param.name)
+    end
+    if param.name in fieldnames(GLPK.IntoptParam)
+        return getfield(model.intopt_param, param.name)
+    end
+    error("Unable to get RawParameter. Invalid name: $(param.name)")
 end
 
 MOI.Utilities.supports_default_copy_to(::Optimizer, ::Bool) = true
@@ -451,11 +461,10 @@ function MOI.set(
     elseif sense == MOI.MAX_SENSE
         GLPK.set_obj_dir(model.inner, GLPK.MAX)
         model.is_feasibility = false
-    elseif sense == MOI.FEASIBILITY_SENSE
+    else
+        @assert sense == MOI.FEASIBILITY_SENSE
         GLPK.set_obj_dir(model.inner, GLPK.MIN)
         model.is_feasibility = true
-    else
-        error("Invalid objective sense: $(sense)")
     end
     return
 end
@@ -466,10 +475,10 @@ function MOI.get(model::Optimizer, ::MOI.ObjectiveSense)
         return MOI.FEASIBILITY_SENSE
     elseif sense == GLPK.MAX
         return MOI.MAX_SENSE
-    elseif sense == GLPK.MIN
+    else
+        @assert sense == GLPK.MIN
         return MOI.MIN_SENSE
     end
-    error("Invalid objective sense: $(sense)")
 end
 
 function MOI.set(
@@ -965,11 +974,11 @@ function _add_affine_constraint(
         GLPK.set_row_bnds(problem, num_rows, GLPK.FX, rhs, rhs)
     elseif sense == Cchar('G')
         GLPK.set_row_bnds(problem, num_rows, GLPK.LO, rhs, GLPK.DBL_MAX)
-    elseif sense == Cchar('L')
-        GLPK.set_row_bnds(problem, num_rows, GLPK.UP, -GLPK.DBL_MAX, rhs)
     else
-        error("Invalid row sense: $(sense)")
+        @assert sense == Cchar('L')
+        GLPK.set_row_bnds(problem, num_rows, GLPK.UP, -GLPK.DBL_MAX, rhs)
     end
+    return
 end
 
 function MOI.add_constraint(
@@ -1268,72 +1277,89 @@ function MOI.optimize!(model::Optimizer)
     return
 end
 
-const RAW_SIMPLEX_STRINGS = Dict(
-    Int32(0) => "The LP problem instance has been successfully solved. (This code does not necessarily mean that the solver has found optimal solution. It only means that the solution process was successful.)",
-    GLPK.EBADB => "Unable to start the search, because the initial basis specified in the problem object is invalid—the number of basic (auxiliary and structural) variables is not the same as the number of rows in the problem object.",
-    GLPK.ESING => "Unable to start the search, because the basis matrix corresponding to the initial basis is singular within the working precision.",
-    GLPK.ECOND => "Unable to start the search, because the basis matrix corresponding to the initial basis is ill-conditioned, i.e. its condition number is too large.",
-    GLPK.EBOUND => "Unable to start the search, because some double-bounded (auxiliary or structural) variables have incorrect bounds.",
-    GLPK.EFAIL => "The search was prematurely terminated due to the solver failure.",
-    GLPK.EOBJLL => "The search was prematurely terminated, because the objective function being maximized has reached its lower limit and continues decreasing (the dual simplex only).",
-    GLPK.EOBJUL => "The search was prematurely terminated, because the objective function being minimized has reached its upper limit and continues increasing (the dual simplex only).",
-    GLPK.EITLIM => "The search was prematurely terminated, because the simplex iteration limit has been exceeded.",
-    GLPK.ETMLIM => "The search was prematurely terminated, because the time limit has been exceeded.",
-    GLPK.ENOPFS => "The LP problem instance has no primal feasible solution (only if the LP presolver is used).",
-    GLPK.ENODFS => "The LP problem instance has no dual feasible solution (only if the LP presolver is used)."
+# GLPK has a complicated status reporting system because it can be solved via
+# multiple different solution algorithms. Regardless of the algorithm, the
+# return value is stored in `model.solver_status`.
+#
+# Note that the first status (`Int32(0)`) should map to a `SUCCESS` status,
+# because it doesn't imply anything about the solution. If `solver_status` is
+# `Int32(0)`, then a solution-specific status can be queried with `_get_status`.
+
+const RAW_SIMPLEX_STRINGS = Dict{Int32, Tuple{MOI.TerminationStatusCode, String}}(
+    GLPK.EBADB  => (MOI.INVALID_MODEL,   "Unable to start the search, because the initial basis specified in the problem object is invalid—the number of basic (auxiliary and structural) variables is not the same as the number of rows in the problem object."),
+    GLPK.ESING  => (MOI.NUMERICAL_ERROR, "Unable to start the search, because the basis matrix corresponding to the initial basis is singular within the working precision."),
+    GLPK.ECOND  => (MOI.NUMERICAL_ERROR, "Unable to start the search, because the basis matrix corresponding to the initial basis is ill-conditioned, i.e. its condition number is too large."),
+    GLPK.EBOUND => (MOI.INVALID_MODEL,   "Unable to start the search, because some double-bounded (auxiliary or structural) variables have incorrect bounds."),
+    GLPK.EFAIL  => (MOI.NUMERICAL_ERROR, "The search was prematurely terminated due to the solver failure."),
+    GLPK.EOBJLL => (MOI.OBJECTIVE_LIMIT, "The search was prematurely terminated, because the objective function being maximized has reached its lower limit and continues decreasing (the dual simplex only)."),
+    GLPK.EOBJUL => (MOI.OBJECTIVE_LIMIT, "The search was prematurely terminated, because the objective function being minimized has reached its upper limit and continues increasing (the dual simplex only)."),
+    GLPK.EITLIM => (MOI.ITERATION_LIMIT, "The search was prematurely terminated, because the simplex iteration limit has been exceeded."),
+    GLPK.ETMLIM => (MOI.TIME_LIMIT,      "The search was prematurely terminated, because the time limit has been exceeded."),
+    GLPK.ENOPFS => (MOI.INFEASIBLE,      "The LP problem instance has no primal feasible solution (only if the LP presolver is used)."),
+    GLPK.ENODFS => (MOI.DUAL_INFEASIBLE, "The LP problem instance has no dual feasible solution (only if the LP presolver is used).")
 )
 
-const RAW_EXACT_STRINGS = Dict(
-    Int32(0) => "The LP problem instance has been successfully solved. (This code does not necessarily mean that the solver has found optimal solution. It only means that the solution process was successful.)",
-    GLPK.EBADB => "Unable to start the search, because the initial basis specified in the problem object is invalid—the number of basic (auxiliary and structural) variables is not the same as the number of rows in the problem object.",
-    GLPK.ESING => "Unable to start the search, because the basis matrix corresponding to the initial basis is exactly singular.",
-    GLPK.EBOUND => "Unable to start the search, because some double-bounded (auxiliary or structural) variables have incorrect bounds.",
-    GLPK.EFAIL => "The problem instance has no rows/columns.",
-    GLPK.EITLIM => "The search was prematurely terminated, because the simplex iteration limit has been exceeded.",
-    GLPK.ETMLIM => "The search was prematurely terminated, because the time limit has been exceeded."
+const RAW_EXACT_STRINGS = Dict{Int32, Tuple{MOI.TerminationStatusCode, String}}(
+    GLPK.EBADB  => (MOI.INVALID_MODEL,   "Unable to start the search, because the initial basis specified in the problem object is invalid—the number of basic (auxiliary and structural) variables is not the same as the number of rows in the problem object."),
+    GLPK.ESING  => (MOI.NUMERICAL_ERROR, "Unable to start the search, because the basis matrix corresponding to the initial basis is exactly singular."),
+    GLPK.EBOUND => (MOI.INVALID_MODEL,   "Unable to start the search, because some double-bounded (auxiliary or structural) variables have incorrect bounds."),
+    GLPK.EFAIL  => (MOI.INVALID_MODEL,   "The problem instance has no rows/columns."),
+    GLPK.EITLIM => (MOI.ITERATION_LIMIT, "The search was prematurely terminated, because the simplex iteration limit has been exceeded."),
+    GLPK.ETMLIM => (MOI.TIME_LIMIT,      "The search was prematurely terminated, because the time limit has been exceeded.")
 )
 
-const RAW_INTERIOR_STRINGS = Dict(
-    Int32(0) => "The LP problem instance has been successfully solved. (This code does not necessarily mean that the solver has found optimal solution. It only means that the solution process was successful.)",
-    GLPK.EFAIL => "The problem instance has no rows/columns.",
-    GLPK.ENOCVG => "Very slow convergence or divergence.",
-    GLPK.EITLIM => "Iteration limit exceeded.",
-    GLPK.EINSTAB => "Numerical instability on solving Newtonian system."
+const RAW_INTERIOR_STRINGS = Dict{Int32, Tuple{MOI.TerminationStatusCode, String}}(
+    GLPK.EFAIL   => (MOI.INVALID_MODEL,   "The problem instance has no rows/columns."),
+    GLPK.ENOCVG  => (MOI.SLOW_PROGRESS,   "Very slow convergence or divergence."),
+    GLPK.EITLIM  => (MOI.ITERATION_LIMIT, "Iteration limit exceeded."),
+    GLPK.EINSTAB => (MOI.NUMERICAL_ERROR, "Numerical instability on solving Newtonian system.")
 )
 
-const RAW_INTOPT_STRINGS = Dict(
-    Int32(0) => "The MIP problem instance has been successfully solved. (This code does not necessarily mean that the solver has found optimal solution. It only means that the solution process was successful.)",
-    GLPK.EBOUND => "Unable to start the search, because some double-bounded (auxiliary or structural) variables have incorrect bounds.",
-    GLPK.ENOPFS => "Unable to start the search, because LP relaxation of the MIP problem instance has no primal feasible solution. (This code may appear only if the presolver is enabled.)",
-    GLPK.ENODFS => "Unable to start the search, because LP relaxation of the MIP problem instance has no dual feasible solution. In other word, this code means that if the LP relaxation has at least one primal feasible solution, its optimal solution is unbounded, so if the MIP problem has at least one integer feasible solution, its (integer) optimal solution is also unbounded. (This code may appear only if the presolver is enabled.)",
-    GLPK.EFAIL => "The search was prematurely terminated due to the solver failure.",
-    GLPK.EMIPGAP => "The search was prematurely terminated, because the relative mip gap tolerance has been reached.",
-    GLPK.ETMLIM => "The search was prematurely terminated, because the time limit has been exceeded.",
-    GLPK.ESTOP => "The search was prematurely terminated by application. (This code may appear only if the advanced solver interface is used.)"
+const RAW_INTOPT_STRINGS = Dict{Int32, Tuple{MOI.TerminationStatusCode, String}}(
+    GLPK.EBOUND  => (MOI.INVALID_MODEL,   "Unable to start the search, because some double-bounded (auxiliary or structural) variables have incorrect bounds."),
+    GLPK.ENOPFS  => (MOI.INFEASIBLE,      "Unable to start the search, because LP relaxation of the MIP problem instance has no primal feasible solution. (This code may appear only if the presolver is enabled.)"),
+    GLPK.ENODFS  => (MOI.DUAL_INFEASIBLE, "Unable to start the search, because LP relaxation of the MIP problem instance has no dual feasible solution. In other word, this code means that if the LP relaxation has at least one primal feasible solution, its optimal solution is unbounded, so if the MIP problem has at least one integer feasible solution, its (integer) optimal solution is also unbounded. (This code may appear only if the presolver is enabled.)"),
+    GLPK.EFAIL   => (MOI.INVALID_MODEL,   "The search was prematurely terminated due to the solver failure."),
+    GLPK.EMIPGAP => (MOI.OPTIMAL,         "The search was prematurely terminated, because the relative mip gap tolerance has been reached."),
+    GLPK.ETMLIM  => (MOI.TIME_LIMIT,      "The search was prematurely terminated, because the time limit has been exceeded."),
+    GLPK.ESTOP   => (MOI.INTERRUPTED,     "The search was prematurely terminated by application. (This code may appear only if the advanced solver interface is used.)")
+)
+
+const RAW_SOLUTION_STATUS = Dict{Int32, Tuple{MOI.TerminationStatusCode, String}}(
+    GLPK.OPT    => (MOI.OPTIMAL,            "Solution is optimal"),
+    GLPK.FEAS   => (MOI.LOCALLY_SOLVED,     "Solution is feasible"),
+    GLPK.INFEAS => (MOI.LOCALLY_INFEASIBLE, "Solution is infeasible"),
+    GLPK.NOFEAS => (MOI.INFEASIBLE,         "No feasible primal-dual solution exists."),
+    GLPK.UNBND  => (MOI.DUAL_INFEASIBLE,    "Problem has unbounded solution"),
+    GLPK.UNDEF  => (MOI.OTHER_ERROR,        "Solution is undefined")
 )
 
 function MOI.get(model::Optimizer, ::MOI.RawStatusString)
-    if model.last_solved_by_mip
-        return RAW_INTOPT_STRINGS[model.solver_status]
+    if model.solver_status == Int32(0)
+        (_, msg) = _get_status(model)
+        return msg
+    elseif model.last_solved_by_mip
+        return RAW_INTOPT_STRINGS[model.solver_status][2]
     elseif model.method == SIMPLEX
-        return RAW_SIMPLEX_STRINGS[model.solver_status]
+        return RAW_SIMPLEX_STRINGS[model.solver_status][2]
     elseif model.method == EXACT
-        return RAW_EXACT_STRINGS[model.solver_status]
+        return RAW_EXACT_STRINGS[model.solver_status][2]
     else
         @assert model.method == INTERIOR
-        return RAW_INTERIOR_STRINGS[model.solver_status]
+        return RAW_INTERIOR_STRINGS[model.solver_status][2]
     end
 end
 
 function _get_status(model::Optimizer)
-    if model.last_solved_by_mip
-        return GLPK.mip_status(model.inner)
+    status_code = if model.last_solved_by_mip
+        GLPK.mip_status(model.inner)
     elseif model.method == SIMPLEX || model.method == EXACT
-        return GLPK.get_status(model.inner)
+        GLPK.get_status(model.inner)
     else
         @assert model.method == INTERIOR
-        return GLPK.ipt_status(model.inner)
+        GLPK.ipt_status(model.inner)
     end
+    return RAW_SOLUTION_STATUS[status_code]
 end
 
 """
@@ -1350,55 +1376,49 @@ end
 function MOI.get(model::Optimizer, ::MOI.TerminationStatus)
     if model.optimize_not_called
         return MOI.OPTIMIZE_NOT_CALLED
-    elseif model.solver_status == GLPK.EMIPGAP  # MIP Gap
-        return MOI.OPTIMAL
-    elseif model.solver_status == GLPK.EBOUND  # Invalid bounds
-        return MOI.INVALID_MODEL
-    elseif model.solver_status == GLPK.ETMLIM  # Time limit
-        return MOI.TIME_LIMIT
-    elseif model.solver_status == GLPK.ENODFS  # No feasible dual
-        return MOI.INFEASIBLE_OR_UNBOUNDED
-    elseif model.solver_status == GLPK.ENOPFS  # No feasible primal
-        return MOI.INFEASIBLE
-    elseif model.solver_status == GLPK.EFAIL  # Solver fail
-        return MOI.NUMERICAL_ERROR
-    elseif model.solver_status == GLPK.ESTOP  # Callback
-        return MOI.INTERRUPTED
-    end
-    status = _get_status(model)
-    if status == GLPK.OPT
-        return MOI.OPTIMAL
-    elseif status == GLPK.INFEAS
-        return MOI.INFEASIBLE
-    elseif status == GLPK.UNBND
-        return MOI.DUAL_INFEASIBLE
-    elseif status == GLPK.FEAS
-        return MOI.SLOW_PROGRESS
-    elseif status == GLPK.NOFEAS
-        return MOI.INFEASIBLE_OR_UNBOUNDED
-    elseif status == GLPK.UNDEF
-        return MOI.OTHER_ERROR
+    elseif model.solver_status != Int32(0)
+        # The solver did not exit successfully for some reason.
+        if model.last_solved_by_mip
+            return RAW_INTOPT_STRINGS[model.solver_status][1]
+        elseif model.method == SIMPLEX
+            return RAW_SIMPLEX_STRINGS[model.solver_status][1]
+        elseif model.method == INTERIOR
+            return RAW_INTERIOR_STRINGS[model.solver_status][1]
+        else
+            @assert model.method == EXACT
+            return RAW_EXACT_STRINGS[model.solver_status][1]
+        end
     else
-        error("Invalid termination status: $(status)")
+        (status, _) = _get_status(model)
+        return status
     end
 end
 
 function MOI.get(model::Optimizer, ::MOI.PrimalStatus)
-    status = _get_status(model)
-    if status == GLPK.OPT
+    (status, _) = _get_status(model)
+    if status == MOI.OPTIMAL || status == MOI.LOCALLY_SOLVED
         return MOI.FEASIBLE_POINT
-    elseif status == GLPK.UNBND && _certificates_potentially_available(model)
-        return MOI.INFEASIBILITY_CERTIFICATE
+    elseif status == MOI.LOCALLY_INFEASIBLE
+        return MOI.INFEASIBLE_POINT
+    elseif status == MOI.DUAL_INFEASIBLE
+        if _certificates_potentially_available(model)
+            return MOI.INFEASIBILITY_CERTIFICATE
+        end
+    else
+        @assert status == MOI.INFEASIBLE || status == MOI.OTHER_ERROR
     end
     return MOI.NO_SOLUTION
 end
 
 function MOI.get(model::Optimizer, ::MOI.DualStatus)
-    if !model.last_solved_by_mip
-        status = _get_status(model)
-        if status == GLPK.OPT
-            return MOI.FEASIBLE_POINT
-        elseif status == GLPK.INFEAS && _certificates_potentially_available(model)
+    if model.last_solved_by_mip
+        return MOI.NO_SOLUTION
+    end
+    (status, _) = _get_status(model)
+    if status == MOI.OPTIMAL
+        return MOI.FEASIBLE_POINT
+    elseif status == MOI.INFEASIBLE || status == MOI.LOCALLY_INFEASIBLE
+        if _certificates_potentially_available(model)
             return MOI.INFEASIBILITY_CERTIFICATE
         end
     end
