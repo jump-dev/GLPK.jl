@@ -25,24 +25,40 @@ download_info = Dict(
     Linux(:x86_64, :musl) => ("$bin_prefix/GLPKBuilder.v4.64.0.x86_64-linux-musl.tar.gz", "c0aa4263ff46d3b2c402566d7caf1651501ab568f32e19479b2c9409a560eb48"),
     Windows(:x86_64) => ("$bin_prefix/GLPKBuilder.v4.64.0.x86_64-w64-mingw32.tar.gz", "e3e36b766a115e111c819f6da5a6c42ab0634fda788613555e4562c2f932fbc0"),
 )
+                    
+this_platform = platform_key_abi()
+                  
+custom_library = false
+if haskey(ENV,"JULIA_GLPK_LIBRARY_PATH")
+    custom_products = [LibraryProduct(ENV["JULIA_GLPK_LIBRARY_PATH"],product.libnames,product.variable_name) for product in products]
+    if all(satisfied(p; verbose=verbose) for p in custom_products)
+        products = custom_products
+        custom_library = true
+    else
+        error("Could not install custom libraries from $(ENV["JULIA_GLPK_LIBRARY_PATH"]).\nTo fall back to BinaryProvider call delete!(ENV,\"JULIA_GLPK_LIBRARY_PATH\") and run build again.")
+    end
+end
+                    
+if !custom_library
+    # Install unsatisfied or updated dependencies:
+    unsatisfied = any(!satisfied(p; verbose=verbose) for p in products)
 
-# Install unsatisfied or updated dependencies:
-unsatisfied = any(!satisfied(p; verbose=verbose) for p in products)
-if haskey(download_info, platform_key())
-    url, tarball_hash = download_info[platform_key()]
-    # Check if this build.jl is providing new versions of the binaries, and
-    # if so, ovewrite the current binaries even if they were installed by the user 
-    if unsatisfied || !isinstalled(url, tarball_hash; prefix=prefix) 
+    dl_info = choose_download(download_info, this_platform)
+    if dl_info === nothing && unsatisfied
+        # If we don't have a compatible .tar.gz to download, complain.
+        # Alternatively, you could attempt to install from a separate provider,
+        # build from source or something even more ambitious here.
+        error("Your platform (\"$(Sys.MACHINE)\", parsed as \"$(triplet(platform_key_abi()))\") is not supported by this package!")
+    end
+
+    # If we have a download, and we are unsatisfied (or the version we're
+    # trying to install is not itself installed) then load it up!
+    if unsatisfied || !isinstalled(dl_info...; prefix=prefix)
         # Download and install binaries
         evalfile("build_GMP.v6.1.2.jl")  # We do not check for already installed GMP libraries
-        install(url, tarball_hash; prefix=prefix, force=true, verbose=verbose)
+        install(dl_info...; prefix=prefix, force=true, verbose=verbose)
     end
-elseif unsatisfied
-    # If we don't have a BinaryProvider-compatible .tar.gz to download, complain.
-    # Alternatively, you could attempt to install from a separate provider,
-    # build from source or something even more ambitious here.
-    error("Your platform $(triplet(platform_key())) is not supported by this package!")
-end
+end                   
 
 # Write out a deps.jl file that will contain mappings for our products
 write_deps_file(joinpath(@__DIR__, "deps.jl"), products, verbose=verbose)
