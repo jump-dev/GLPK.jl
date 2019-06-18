@@ -49,8 +49,8 @@ uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
 
 [[MathOptInterface]]
 deps = ["BenchmarkTools", "LinearAlgebra", "OrderedCollections", "SparseArrays", "Test", "Unicode"]
-git-tree-sha1 = "bb9af760fef8eb5d0dea3823b055037cda1c8cc5"
-repo-rev = "od/cleverdict"
+git-tree-sha1 = "04a670c6706e1bb2dbb9f8832c2b39072de672b4"
+repo-rev = "master"
 repo-url = "https://github.com/JuliaOpt/MathOptInterface.jl.git"
 uuid = "b8f27783-ece8-5eb3-8dc8-9495eed66fee"
 version = "0.9.0"

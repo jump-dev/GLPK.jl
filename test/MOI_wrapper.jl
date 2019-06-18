@@ -12,8 +12,23 @@ const CONFIG = MOIT.TestConfig()
     MOIT.basic_constraint_tests(OPTIMIZER, CONFIG)
     MOIT.unittest(OPTIMIZER, CONFIG, [
         # These are excluded because GLPK does not support quadratics.
-        "solve_qp_edge_cases", "solve_qcp_edge_cases"
+        "solve_qp_edge_cases", "solve_qcp_edge_cases",
+        "solve_zero_one_with_bounds_3"
     ])
+    @testset "solve_zero_one_with_bounds_3" begin
+        MOI.empty!(OPTIMIZER)
+        MOI.Utilities.loadfromstring!(OPTIMIZER,"""
+            variables: x
+            maxobjective: 2.0x
+            c1: x in ZeroOne()
+            c2: x >= 0.2
+            c3: x <= 0.5
+        """)
+        MOI.optimize!(OPTIMIZER)
+        # We test this here because the TerminationStatus is INVALID_MODEL not
+        # INFEASIBLE.
+        @test MOI.get(OPTIMIZER, MOI.TerminationStatus()) == MOI.INVALID_MODEL
+    end
     MOIT.modificationtest(OPTIMIZER, CONFIG)
 end
 
