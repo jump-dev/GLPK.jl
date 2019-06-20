@@ -118,17 +118,23 @@ mutable struct Optimizer <: MOI.ModelLike
         model = new()
         model.presolve = presolve
         model.method = method
-        model.params = Dict{Symbol, Any}()
-        for (key, val) in kwargs
-            model.params[key] = val
-        end
-        model.silent = false
-        model.variable_info = CleverDicts.CleverDict{MOI.VariableIndex, VariableInfo}()
-        model.affine_constraint_info = CleverDicts.CleverDict{ConstraintKey, ConstraintInfo}()
 
         model.interior_param = GLPK.InteriorParam()
         model.intopt_param = GLPK.IntoptParam()
         model.simplex_param = GLPK.SimplexParam()
+
+        model.params = Dict{Symbol, Any}()
+        for (key, val) in kwargs
+            model.params[key] = val
+            set_parameter(model, key, val)
+        end
+        set_parameter(model, :msg_lev, GLPK.MSG_ERR)
+        if model.presolve
+            set_parameter(model, :presolve, GLPK.ON)
+        end
+        model.silent = false
+        model.variable_info = CleverDicts.CleverDict{MOI.VariableIndex, VariableInfo}()
+        model.affine_constraint_info = CleverDicts.CleverDict{ConstraintKey, ConstraintInfo}()
 
         # We initialize a default callback (_internal_callback) to manage the
         # user's callback, and to update the objective bound and MIP gap.
@@ -185,13 +191,6 @@ Base.show(io::IO, model::Optimizer) = print(io, "A GLPK model")
 
 function MOI.empty!(model::Optimizer)
     model.inner = GLPK.Prob()
-    set_parameter(model, :msg_lev, GLPK.MSG_ERR)
-    for (key, value) in model.params
-        set_parameter(model, key, value)
-    end
-    if model.presolve
-        set_parameter(model, :presolve, GLPK.ON)
-    end
     model.solver_status = GLPK.UNDEF
     model.last_solved_by_mip = false
     model.num_binaries = 0
@@ -199,12 +198,6 @@ function MOI.empty!(model::Optimizer)
     model.objective_bound = NaN
     model.relative_gap = NaN
     model.solve_time = NaN
-    if model.silent
-        # Set the parameter on the internal model, but don't modify the entry in
-        # model.params so that if Silent() is set to `true`, the user-provided
-        # value will be restored.
-        set_parameter(model, :msg_lev, GLPK.OFF)
-    end
     model.objective_type = SCALAR_AFFINE
     model.is_feasibility = true
     model.optimize_not_called = true

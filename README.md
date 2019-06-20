@@ -57,7 +57,7 @@ model = Model(
 throw an uninformative error. However, in benchmarks, this takes a
 non-negligible amount of time (e.g. 20% in add_constraints). At the risk of
 possibly running into an uninformative error, you can run the following after
-importing GLPK:
+importing GLPK to disable these checks:
 ```julia
 using GLPK
 GLPK.jl_set_preemptive_check(false)
