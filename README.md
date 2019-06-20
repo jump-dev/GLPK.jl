@@ -51,6 +51,18 @@ model = Model(
 
 **Note: previous versions of `GLPK.jl` required you to choose either `GLPKSolverLP` or `GLPKSolverMIP`. This is no longer needed; just use `GLPK.Optimizer`.**
 
+## Pre-emptive checks
+
+`GLPK.jl` has a lot of pre-emptive checks to catch cases where the C API might
+throw an uninformative error. However, in benchmarks, this takes a
+non-negligible amount of time (e.g. 20% in add_constraints). At the risk of
+possibly running into an uninformative error, you can run the following after
+importing GLPK:
+```julia
+using GLPK
+GLPK.jl_set_preemptive_check(false)
+```
+
 [travis-img]: https://api.travis-ci.org/JuliaOpt/GLPK.jl.svg?branch=master
 [travis-url]: https://travis-ci.org/JuliaOpt/GLPK.jl
 

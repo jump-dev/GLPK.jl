@@ -256,31 +256,33 @@ end
 @testset "RawParameter" begin
     model = GLPK.Optimizer(method = GLPK.SIMPLEX)
     exception = ErrorException("Invalid option: cb_func. Use the MOI attribute `GLPK.CallbackFunction` instead.")
-    @test_throws exception MOI.set(model, MOI.RawParameter(:cb_func), (cb) -> nothing)
-    MOI.set(model, MOI.RawParameter(:tm_lim), 100)
-    @test MOI.get(model, MOI.RawParameter(:tm_lim)) == 100
-    @test_throws ErrorException MOI.set(model, MOI.RawParameter(:bad), 1)
-    @test_throws ErrorException MOI.get(model, MOI.RawParameter(:bad))
+    @test_throws exception MOI.set(model, MOI.RawParameter("cb_func"), (cb) -> nothing)
+    MOI.set(model, MOI.RawParameter("tm_lim"), 100)
+    @test MOI.get(model, MOI.RawParameter("tm_lim")) == 100
+    @test_throws ErrorException MOI.get(model, MOI.RawParameter(:tm_lim))
+    @test_throws ErrorException MOI.set(model, MOI.RawParameter(:tm_lim), 120)
+    @test_throws ErrorException MOI.set(model, MOI.RawParameter("bad"), 1)
+    @test_throws ErrorException MOI.get(model, MOI.RawParameter("bad"))
 
     model = GLPK.Optimizer(method = GLPK.INTERIOR)
     exception = ErrorException("Invalid option: cb_func. Use the MOI attribute `GLPK.CallbackFunction` instead.")
-    @test_throws exception MOI.set(model, MOI.RawParameter(:cb_func), (cb) -> nothing)
-    MOI.set(model, MOI.RawParameter(:tm_lim), 100)
-    @test MOI.get(model, MOI.RawParameter(:tm_lim)) == 100
-    @test_throws ErrorException MOI.set(model, MOI.RawParameter(:bad), 1)
-    @test_throws ErrorException MOI.get(model, MOI.RawParameter(:bad))
+    @test_throws exception MOI.set(model, MOI.RawParameter("cb_func"), (cb) -> nothing)
+    MOI.set(model, MOI.RawParameter("tm_lim"), 100)
+    @test MOI.get(model, MOI.RawParameter("tm_lim")) == 100
+    @test_throws ErrorException MOI.set(model, MOI.RawParameter("bad"), 1)
+    @test_throws ErrorException MOI.get(model, MOI.RawParameter("bad"))
 
     model = GLPK.Optimizer(method = GLPK.EXACT)
     exception = ErrorException("Invalid option: cb_func. Use the MOI attribute `GLPK.CallbackFunction` instead.")
-    @test_throws exception MOI.set(model, MOI.RawParameter(:cb_func), (cb) -> nothing)
-    MOI.set(model, MOI.RawParameter(:tm_lim), 100)
-    @test MOI.get(model, MOI.RawParameter(:tm_lim)) == 100
-    @test_throws ErrorException MOI.set(model, MOI.RawParameter(:bad), 1)
-    @test_throws ErrorException MOI.get(model, MOI.RawParameter(:bad))
+    @test_throws exception MOI.set(model, MOI.RawParameter("cb_func"), (cb) -> nothing)
+    MOI.set(model, MOI.RawParameter("tm_lim"), 100)
+    @test MOI.get(model, MOI.RawParameter("tm_lim")) == 100
+    @test_throws ErrorException MOI.set(model, MOI.RawParameter("bad"), 1)
+    @test_throws ErrorException MOI.get(model, MOI.RawParameter("bad"))
 
     model = GLPK.Optimizer()
-    MOI.set(model, MOI.RawParameter(:mip_gap), 0.001)
-    @test MOI.get(model, MOI.RawParameter(:mip_gap)) == 0.001
+    MOI.set(model, MOI.RawParameter("mip_gap"), 0.001)
+    @test MOI.get(model, MOI.RawParameter("mip_gap")) == 0.001
 end
 
 @testset "RelativeGap" begin

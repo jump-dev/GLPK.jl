@@ -41,8 +41,8 @@ mutable struct ConstraintInfo
 end
 
 # Dummy callback function for internal use only. Responsible for updating the
-# objective bound and saving the mip gap.
-function __internal_callback__(tree::Ptr{Cvoid}, info::Ptr{Cvoid})
+# objective bound, saving the mip gap, and calling the user's callback.
+function _internal_callback(tree::Ptr{Cvoid}, info::Ptr{Cvoid})
     callback_data = unsafe_pointer_to_objref(info)::CallbackData
     model = callback_data.model
     callback_data.tree = tree
@@ -115,11 +115,6 @@ mutable struct Optimizer <: MOI.ModelLike
     See the GLPK pdf documentation for a full list of parameters.
     """
     function Optimizer(; presolve = false, method = SIMPLEX, kwargs...)
-        # GLPK.jl has a lot of pre-emptive checks to catch cases where the C API
-        # might throw an uninformative error. However, in benchmarks, this takes
-        # a non-negligible amount of time (e.g. 20% in add_constraints). Until
-        # someone complains otherwise, we're going to disable these checks
-        GLPK.jl_set_preemptive_check(false)
         model = new()
         model.presolve = presolve
         model.method = method
@@ -135,10 +130,10 @@ mutable struct Optimizer <: MOI.ModelLike
         model.intopt_param = GLPK.IntoptParam()
         model.simplex_param = GLPK.SimplexParam()
 
-        # We initialize a default callback (__internal_callback__) to manage the
-        # user's callback, and to update the objective bound.
+        # We initialize a default callback (_internal_callback) to manage the
+        # user's callback, and to update the objective bound and MIP gap.
         model.callback_data = CallbackData(model)
-        model.intopt_param.cb_func = @cfunction(__internal_callback__, Cvoid, (Ptr{Cvoid}, Ptr{Cvoid}))
+        model.intopt_param.cb_func = @cfunction(_internal_callback, Cvoid, (Ptr{Cvoid}, Ptr{Cvoid}))
         model.intopt_param.cb_info = pointer_from_objref(model.callback_data)
         model.callback_function = (cb_data) -> nothing
 
@@ -286,21 +281,28 @@ MOI.supports(::Optimizer, ::MOI.RawStatusString) = true
 MOI.supports(::Optimizer, ::MOI.RawParameter) = true
 
 function MOI.set(model::Optimizer, param::MOI.RawParameter, value)
-    model.params[param.name] = value
-    set_parameter(model, param.name, value)
+    if typeof(param.name) != String
+        error("GLPK.jl requires strings as arguments to `RawParameter`.")
+    end
+    model.params[Symbol(param.name)] = value
+    set_parameter(model, Symbol(param.name), value)
     return
 end
 
 function MOI.get(model::Optimizer, param::MOI.RawParameter)
-    if (model.method == SIMPLEX || model.method == EXACT) && param.name in fieldnames(GLPK.SimplexParam)
-        return getfield(model.simplex_param, param.name)
-    elseif model.method == INTERIOR && param.name in fieldnames(GLPK.InteriorParam)
-        return getfield(model.interior_param, param.name)
+    if typeof(param.name) != String
+        error("GLPK.jl requires strings as arguments to `RawParameter`.")
     end
-    if param.name in fieldnames(GLPK.IntoptParam)
-        return getfield(model.intopt_param, param.name)
+    name = Symbol(param.name)
+    if (model.method == SIMPLEX || model.method == EXACT) && name in fieldnames(GLPK.SimplexParam)
+        return getfield(model.simplex_param, name)
+    elseif model.method == INTERIOR && name in fieldnames(GLPK.InteriorParam)
+        return getfield(model.interior_param, name)
     end
-    error("Unable to get RawParameter. Invalid name: $(param.name)")
+    if name in fieldnames(GLPK.IntoptParam)
+        return getfield(model.intopt_param, name)
+    end
+    error("Unable to get RawParameter. Invalid name: $(name)")
 end
 
 MOI.Utilities.supports_default_copy_to(::Optimizer, ::Bool) = true
@@ -432,7 +434,7 @@ end
 function _rebuild_name_to_variable(model::Optimizer)
     model.name_to_variable = Dict{String, MOI.VariableIndex}()
     for (index, info) in model.variable_info
-        if info.name == ""
+        if isempty(info.name)
             continue
         end
         if haskey(model.name_to_variable, info.name)
@@ -719,7 +721,17 @@ function _set_variable_bound(
     else
         upper >= GLPK.DBL_MAX ? GLPK.LO : GLPK.DB
     end
-    GLPK.set_col_bnds(model.inner, column, bound_type, lower, upper)
+    if upper < lower
+        # Here, we disable GLPK's pre-emptive checks, because otherwise GLPK
+        # will through an error complaining about invalid bounds when `upper <
+        # lower`. This let's us throw `INFEASIBLE` instead of erroring.
+        prev_preemptive = GLPK.jl_get_preemptive_check()
+        GLPK.jl_set_preemptive_check(false)
+        GLPK.set_col_bnds(model.inner, column, bound_type, lower, upper)
+        GLPK.jl_set_preemptive_check(prev_preemptive)
+    else
+        GLPK.set_col_bnds(model.inner, column, bound_type, lower, upper)
+    end
     return
 end
 
@@ -834,7 +846,7 @@ function MOI.add_constraint(
     info = _info(model, f.variable)
     # See https://github.com/JuliaOpt/GLPKMathProgInterface.jl/pull/15
     # for why this is necesary. GLPK interacts weirdly with binary variables and
-    # bound modification. So lets set binary variables as "Integer" with [0,1]
+    # bound modification. So let's set binary variables as "Integer" with [0,1]
     # bounds that we enforce just before solve.
     GLPK.set_col_kind(model.inner, info.column, GLPK.IV)
     info.type = BINARY
@@ -1137,7 +1149,7 @@ function MOI.get(
         elseif info.type in _type_enums(S)
             constraint_name = info.type_constraint_name
         end
-        if constraint_name == ""
+        if isempty(constraint_name)
             continue
         elseif constraint_name == name
             if index === nothing
@@ -1173,7 +1185,7 @@ end
 
 function _rebuild_name_to_constraint_index_util(model::Optimizer, dict, F)
     for (index, info) in dict
-        info.name == "" && continue
+        isempty(info.name) && continue
         if haskey(model.name_to_constraint_index, info.name)
             model.name_to_constraint_index = nothing
             error("Duplicate variable name detected: $(info.name)")
