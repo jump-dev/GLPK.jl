@@ -358,7 +358,7 @@ end
     end
 end
 
-@test "Issue #102" begin
+@testset "Issue #102" begin
     model = GLPK.Optimizer()
     x = MOI.add_variable(model)
     MOI.add_constraint(model, MOI.SingleVariable(x), MOI.GreaterThan(0.0))
