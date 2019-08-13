@@ -262,6 +262,7 @@ MOI.supports(::Optimizer, ::MOI.ObjectiveFunctionType) = true
 
 MOI.supports(::Optimizer, ::MOI.Name) = true
 MOI.supports(::Optimizer, ::MOI.Silent) = true
+MOI.supports(::Optimizer, ::MOI.TimeLimitSec) = true
 MOI.supports(::Optimizer, ::MOI.ConstraintSet, c) = true
 MOI.supports(::Optimizer, ::MOI.ConstraintFunction, c) = true
 MOI.supports(::Optimizer, ::MOI.ConstraintPrimal, c) = true
@@ -296,6 +297,15 @@ function MOI.get(model::Optimizer, param::MOI.RawParameter)
         return getfield(model.intopt_param, name)
     end
     error("Unable to get RawParameter. Invalid name: $(name)")
+end
+
+function MOI.set(model::Optimizer, ::MOI.TimeLimitSec, limit::Real)
+    MOI.set(model, MOI.RawParameter("tm_lim"), limit)
+    return
+end
+
+function MOI.get(model::Optimizer, ::MOI.TimeLimitSec)
+    return MOI.get(model, MOI.RawParameter("tm_lim"))
 end
 
 MOI.Utilities.supports_default_copy_to(::Optimizer, ::Bool) = true
@@ -449,18 +459,19 @@ function MOI.get(model::Optimizer, ::MOI.VariableName, v::MOI.VariableIndex)
     return _info(model, v).name
 end
 
-function _update_name_to_index(dict::Nothing, ::String, ::String, ::MOI.Index) end
-function _update_name_to_index(dict::Dict, old_name::String, new_name::String,
-                               index::MOI.Index)
+_update_name_to_index(dict::Nothing, ::String, ::String, ::MOI.Index) = nothing
+
+function _update_name_to_index(
+    dict::Dict, old_name::String, new_name::String, index::MOI.Index
+)
     delete!(dict, old_name)
     if !isempty(new_name)
         if haskey(dict, new_name)
             # It will throw an error in `MOI.get` except if the index with `name`
             # is deleted or renamed before `MOI.get` is called.
             return nothing
-        else
-            dict[new_name] = index
         end
+        dict[new_name] = index
     end
     return dict
 end
@@ -475,7 +486,8 @@ function MOI.set(
         GLPK.set_col_name(model.inner, info.column, name)
     end
     model.name_to_variable = _update_name_to_index(
-        model.name_to_variable, old_name, name, v)
+        model.name_to_variable, old_name, name, v
+    )
     return
 end
 
@@ -762,8 +774,9 @@ function MOI.delete(
     else
         info.bound = NONE
     end
-    _update_name_to_index(model.name_to_constraint_index,
-                          info.lessthan_name, "", c)
+    _update_name_to_index(
+        model.name_to_constraint_index, info.lessthan_name, "", c
+    )
     info.lessthan_name = ""
     return
 end
@@ -775,13 +788,11 @@ function MOI.delete(
     MOI.throw_if_not_valid(model, c)
     info = _info(model, c)
     _set_variable_bound(model, info.column, -Inf, nothing)
-    if info.bound == LESS_AND_GREATER_THAN
-        info.bound = LESS_THAN
-    else
-        info.bound = NONE
-    end
-    _update_name_to_index(model.name_to_constraint_index,
-                          info.greaterthan_interval_or_equalto_name, "", c)
+    info.bound = info.bound == LESS_AND_GREATER_THAN ? LESS_THAN : NONE
+    _update_name_to_index(
+        model.name_to_constraint_index,
+        info.greaterthan_interval_or_equalto_name, "", c
+    )
     info.greaterthan_interval_or_equalto_name = ""
     return
 end
@@ -794,8 +805,10 @@ function MOI.delete(
     info = _info(model, c)
     _set_variable_bound(model, info.column, -Inf, Inf)
     info.bound = NONE
-    _update_name_to_index(model.name_to_constraint_index,
-                          info.greaterthan_interval_or_equalto_name, "", c)
+    _update_name_to_index(
+        model.name_to_constraint_index,
+        info.greaterthan_interval_or_equalto_name, "", c
+    )
     info.greaterthan_interval_or_equalto_name = ""
     return
 end
@@ -808,8 +821,10 @@ function MOI.delete(
     info = _info(model, c)
     _set_variable_bound(model, info.column, -Inf, Inf)
     info.bound = NONE
-    _update_name_to_index(model.name_to_constraint_index,
-                          info.greaterthan_interval_or_equalto_name, "", c)
+    _update_name_to_index(
+        model.name_to_constraint_index,
+        info.greaterthan_interval_or_equalto_name, "", c
+    )
     info.greaterthan_interval_or_equalto_name = ""
     return
 end
@@ -885,8 +900,9 @@ function MOI.delete(
     GLPK.set_col_kind(model.inner, info.column, GLPK.CV)
     info.type = CONTINUOUS
     model.num_binaries -= 1
-    _update_name_to_index(model.name_to_constraint_index,
-                          info.type_constraint_name, "", c)
+    _update_name_to_index(
+        model.name_to_constraint_index, info.type_constraint_name, "", c
+    )
     info.type_constraint_name = ""
     return
 end
@@ -917,8 +933,9 @@ function MOI.delete(
     GLPK.set_col_kind(model.inner, info.column, GLPK.CV)
     info.type = CONTINUOUS
     model.num_integers -= 1
-    _update_name_to_index(model.name_to_constraint_index,
-                          info.type_constraint_name, "", c)
+    _update_name_to_index(
+        model.name_to_constraint_index, info.type_constraint_name, "", c
+    )
     info.type_constraint_name = ""
     return
 end
@@ -965,7 +982,8 @@ function MOI.set(
         info.type_constraint_name = name
     end
     model.name_to_constraint_index = _update_name_to_index(
-        model.name_to_constraint_index, old_name, name, c)
+        model.name_to_constraint_index, old_name, name, c
+    )
     return
 end
 
@@ -1064,8 +1082,7 @@ function MOI.delete(
     key = ConstraintKey(c.value)
     if model.name_to_constraint_index !== nothing
         info = model.affine_constraint_info[key]
-        _update_name_to_index(model.name_to_constraint_index,
-                              info.name, "", c)
+        _update_name_to_index(model.name_to_constraint_index, info.name, "", c)
     end
     delete!(model.affine_constraint_info, key)
     return
@@ -1138,7 +1155,8 @@ function MOI.set(
         GLPK.set_row_name(model.inner, info.row, name)
     end
     model.name_to_constraint_index = _update_name_to_index(
-        model.name_to_constraint_index, old_name, name, c)
+        model.name_to_constraint_index, old_name, name, c
+    )
     return
 end
 
@@ -1168,7 +1186,9 @@ function _rebuild_name_to_constraint_index(model::Optimizer)
         if !isempty(info.lessthan_name)
             S = MOI.LessThan{Float64}
             index = MOI.ConstraintIndex{MOI.SingleVariable, S}(index.value)
-            _throw_or_set_name_to_constraint_index(model, info.lessthan_name, index)
+            _throw_or_set_name_to_constraint_index(
+                model, info.lessthan_name, index
+            )
         end
         if !isempty(info.greaterthan_interval_or_equalto_name)
             if info.bound == GREATER_THAN || info.bound == LESS_AND_GREATER_THAN
@@ -1180,7 +1200,9 @@ function _rebuild_name_to_constraint_index(model::Optimizer)
                 S = MOI.Interval{Float64}
             end
             index = MOI.ConstraintIndex{MOI.SingleVariable, S}(index.value)
-            _throw_or_set_name_to_constraint_index(model, info.greaterthan_interval_or_equalto_name, index)
+            _throw_or_set_name_to_constraint_index(
+                model, info.greaterthan_interval_or_equalto_name, index
+            )
         end
         if !isempty(info.type_constraint_name)
             if info.type == BINARY
@@ -1190,7 +1212,9 @@ function _rebuild_name_to_constraint_index(model::Optimizer)
                 S = MOI.Integer
             end
             index = MOI.ConstraintIndex{MOI.SingleVariable, S}(index.value)
-            _throw_or_set_name_to_constraint_index(model, info.type_constraint_name, index)
+            _throw_or_set_name_to_constraint_index(
+                model, info.type_constraint_name, index
+            )
         end
     end
     return
@@ -1209,9 +1233,10 @@ end
 function _throw_or_set_name_to_constraint_index(model::Optimizer, name, index)
     if haskey(model.name_to_constraint_index, name)
         model.name_to_constraint_index = nothing
-        error("Duplicate variable name detected: $name")
+        error("Duplicate constraint name detected: ", name)
     end
     model.name_to_constraint_index[name] = index
+    return
 end
 
 ###
