@@ -1,1 +1,3 @@
 Manifest.toml
+*.json
+perf/Project.toml

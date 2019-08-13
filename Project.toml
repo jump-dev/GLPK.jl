@@ -1,17 +1,17 @@
 name = "GLPK"
 uuid = "60bf3e95-4087-53dc-ae20-288a0d20c6a6"
 repo = "https://github.com/JuliaOpt/GLPK.jl.git"
-version = "0.10.0"
+version = "0.11.0"
 
 [deps]
 BinaryProvider = "b99e7846-7c00-51b0-8f62-c81ae34c0232"
 Libdl = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
-LinQuadOptInterface = "f8899e07-120b-5979-ab1d-7b97bb9e1a48"
+MathOptInterface = "b8f27783-ece8-5eb3-8dc8-9495eed66fee"
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 
 [compat]
 BinaryProvider = "≥ 0.3.0"
-LinQuadOptInterface = "0.6"
+MathOptInterface = "0.9"
 julia = "1"
 
 [extras]

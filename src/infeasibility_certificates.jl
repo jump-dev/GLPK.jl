@@ -59,11 +59,11 @@ function get_infeasibility_ray(model::Optimizer, ray::Vector{Float64})
                 lower_bound = GLPK.get_col_lb(model.inner, k)
             end
             if primal > upper_bound + eps
-                ray[i] = -1
+                ray[row] = -1
             elseif primal < lower_bound - eps
-                ray[i] = 1
+                ray[row] = 1
             else
-                continue # ray[i] == 0
+                continue # ray[row] == 0
             end
             if idx <= num_rows
                 ray[row] *= GLPK.get_rii(model.inner, k)
