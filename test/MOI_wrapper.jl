@@ -357,3 +357,19 @@ end
         @test_throws ErrorException MOI.get(model, MOI.ConstraintIndex, "c1")
     end
 end
+
+@test "Issue #102" begin
+    model = GLPK.Optimizer()
+    x = MOI.add_variable(model)
+    MOI.add_constraint(model, MOI.SingleVariable(x), MOI.GreaterThan(0.0))
+    MOI.add_constraint(model, MOI.SingleVariable(x), MOI.Integer())
+    MOI.set(model, MOI.ObjectiveSense(), MOI.MIN_SENSE)
+    MOI.set(
+        model,
+        MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}(),
+        MOI.ScalarAffineFunction([MOI.ScalarAffineTerm(1.0, x)], 3.0)
+    )
+    MOI.optimize!(model)
+    @test MOI.get(model, MOI.ObjectiveValue()) == 3.0
+    @test MOI.get(model, MOI.ObjectiveBound()) == 3.0
+end

@@ -1610,15 +1610,13 @@ function MOI.get(model::Optimizer, ::MOI.ObjectiveBound)
     if !model.last_solved_by_mip
         return MOI.get(model, MOI.ObjectiveSense()) == MOI.MIN_SENSE ? -Inf : Inf
     end
-    constant = GLPK.get_obj_coef(model.inner, 0)
     # @mlubin and @ccoey observed some cases where mip_status == OPT and objval
     # and objbound didn't match. In that case, they return mip_obj_val, but
     # objbound may still be incorrect in cases where GLPK terminates early.
     if GLPK.mip_status(model.inner) == GLPK.OPT
-        return GLPK.mip_obj_val(model.inner) + constant
-    else
-        return model.objective_bound + constant
+        return GLPK.mip_obj_val(model.inner)
     end
+    return model.objective_bound
 end
 
 function MOI.get(model::Optimizer, attr::MOI.DualObjectiveValue)
