@@ -294,7 +294,6 @@ end
         c2: x in GreaterThan(1.5)
     """)
     MOI.optimize!(model)
-    @test MOI.supports(model, MOI.RelativeGap())
     @test MOI.get(model, MOI.RelativeGap()) == 0.0
 
     model = GLPK.Optimizer()
@@ -304,8 +303,7 @@ end
         c1: x in GreaterThan(1.5)
     """)
     MOI.optimize!(model)
-    @test !MOI.supports(model, MOI.RelativeGap())
-    @test isnan(MOI.get(model, MOI.RelativeGap()))
+    @test_throws ErrorException MOI.get(model, MOI.RelativeGap())
 end
 
 @testset "Extra name tests" begin

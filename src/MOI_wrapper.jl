@@ -258,20 +258,11 @@ const SCALAR_SETS = Union{
 
 MOI.supports(::Optimizer, ::MOI.VariableName, ::Type{MOI.VariableIndex}) = true
 MOI.supports(::Optimizer, ::MOI.ConstraintName, ::Type{<:MOI.ConstraintIndex}) = true
-MOI.supports(::Optimizer, ::MOI.ObjectiveFunctionType) = true
 
 MOI.supports(::Optimizer, ::MOI.Name) = true
 MOI.supports(::Optimizer, ::MOI.Silent) = true
 MOI.supports(::Optimizer, ::MOI.TimeLimitSec) = true
-MOI.supports(::Optimizer, ::MOI.ConstraintSet, c) = true
-MOI.supports(::Optimizer, ::MOI.ConstraintFunction, c) = true
-MOI.supports(::Optimizer, ::MOI.ConstraintPrimal, c) = true
-MOI.supports(::Optimizer, ::MOI.ConstraintDual, c) = true
-MOI.supports(::Optimizer, ::MOI.ConstraintPrimalStart) = false
-MOI.supports(::Optimizer, ::MOI.ConstraintDualStart) = false
 MOI.supports(::Optimizer, ::MOI.ObjectiveSense) = true
-MOI.supports(::Optimizer, ::MOI.ListOfConstraintIndices) = true
-MOI.supports(::Optimizer, ::MOI.RawStatusString) = true
 MOI.supports(::Optimizer, ::MOI.RawParameter) = true
 
 function MOI.set(model::Optimizer, param::MOI.RawParameter, value)
@@ -1623,9 +1614,12 @@ function MOI.get(model::Optimizer, attr::MOI.DualObjectiveValue)
     return MOI.Utilities.get_fallback(model, attr, Float64)
 end
 
-MOI.supports(model::Optimizer, ::MOI.RelativeGap) = model.last_solved_by_mip
-MOI.get(model::Optimizer, ::MOI.RelativeGap) = model.relative_gap
-MOI.supports(::Optimizer, ::MOI.SolveTime) = true
+function MOI.get(model::Optimizer, ::MOI.RelativeGap)
+    if !model.last_solved_by_mip
+        error("RelativeGap is only available for models with integer variables.")
+    end
+    return model.relative_gap
+end
 MOI.get(model::Optimizer, ::MOI.SolveTime) = model.solve_time
 
 function MOI.get(model::Optimizer, ::MOI.ResultCount)
