@@ -55,7 +55,7 @@ function _internal_callback(tree::Ptr{Cvoid}, info::Ptr{Cvoid})
     return nothing
 end
 
-mutable struct Optimizer <: MOI.ModelLike
+mutable struct Optimizer <: MOI.AbstractOptimizer
     # The low-level GLPK problem.
     inner::GLPK.Prob
     presolve::Bool
