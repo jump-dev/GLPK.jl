@@ -290,13 +290,19 @@ function MOI.get(model::Optimizer, param::MOI.RawParameter)
     error("Unable to get RawParameter. Invalid name: $(name)")
 end
 
-function MOI.set(model::Optimizer, ::MOI.TimeLimitSec, limit::Real)
-    MOI.set(model, MOI.RawParameter("tm_lim"), limit)
+function MOI.set(model::Optimizer, ::MOI.TimeLimitSec, limit::Union{Nothing,Real})
+    if limit === nothing
+        MOI.set(model, MOI.RawParameter("tm_lim"), typemax(Int32))
+    else
+        limit_ms = ceil(Int32, limit * 1000)
+        MOI.set(model, MOI.RawParameter("tm_lim"), limit_ms) 
+    end
     return
 end
 
 function MOI.get(model::Optimizer, ::MOI.TimeLimitSec)
-    return MOI.get(model, MOI.RawParameter("tm_lim"))
+    # convert internal ms to sec
+    return MOI.get(model, MOI.RawParameter("tm_lim")) / 1000 
 end
 
 MOI.Utilities.supports_default_copy_to(::Optimizer, ::Bool) = true
