@@ -287,6 +287,8 @@ end
 
 @testset "TimeLimitSec issue #110" begin
     model = GLPK.Optimizer(method = GLPK.SIMPLEX)
+    MOI.set(model, MOI.TimeLimitSec(), nothing)
+    @test MOI.get(model, MOI.RawParameter("tm_lim")) == typemax(Int32)
     MOI.set(model, MOI.TimeLimitSec(), 100)
     @test MOI.get(model, MOI.RawParameter("tm_lim")) == 100000
     @test MOI.get(model, MOI.TimeLimitSec()) == 100
