@@ -37,6 +37,8 @@ To switch back to the default binaries clear `JULIA_GLPK_LIBRARY_PATH` and call 
 ## `GLPK.Optimizer`
 
 Use `GLPK.Optimizer` to create a new optimizer object:
+
+In the following examples the time limit is set to one minute and logging is turned off.
 ```julia
 using GLPK
 model = GLPK.Optimizer(tm_lim = 60000, msg_lev = GLPK.OFF)
