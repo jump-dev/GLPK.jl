@@ -294,7 +294,7 @@ function MOI.set(model::Optimizer, ::MOI.TimeLimitSec, limit::Union{Nothing,Real
     if limit === nothing
         MOI.set(model, MOI.RawParameter("tm_lim"), typemax(Int32))
     else
-        limit_ms = floor(limit*1000)
+        limit_ms = ceil(Int32, limit * 1000)
         MOI.set(model, MOI.RawParameter("tm_lim"), limit_ms) 
     end
     return
@@ -302,7 +302,7 @@ end
 
 function MOI.get(model::Optimizer, ::MOI.TimeLimitSec)
     # convert internal ms to sec
-    return MOI.get(model, MOI.RawParameter("tm_lim"))/1000 
+    return MOI.get(model, MOI.RawParameter("tm_lim")) / 1000 
 end
 
 MOI.Utilities.supports_default_copy_to(::Optimizer, ::Bool) = true
