@@ -60,7 +60,6 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
     inner::GLPK.Prob
     presolve::Bool
     method::MethodEnum
-    params::Dict{Symbol, Any}
 
     interior_param::GLPK.InteriorParam
     intopt_param::GLPK.IntoptParam
@@ -123,14 +122,12 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
         model.intopt_param = GLPK.IntoptParam()
         model.simplex_param = GLPK.SimplexParam()
 
-        model.params = Dict{Symbol, Any}()
-        for (key, val) in kwargs
-            model.params[key] = val
-            set_parameter(model, key, val)
-        end
-        set_parameter(model, :msg_lev, GLPK.MSG_ERR)
+        MOI.set(model, MOI.RawParameter("msg_lev"), GLPK.MSG_ERR)
         if model.presolve
-            set_parameter(model, :presolve, GLPK.ON)
+            MOI.set(model, MOI.RawParameter("presolve"), GLPK.ON)
+        end
+        for (key, val) in kwargs
+            MOI.set(model, MOI.RawParameter(String(key)), val)
         end
         model.silent = false
         model.variable_info = CleverDicts.CleverDict{MOI.VariableIndex, VariableInfo}()
@@ -153,38 +150,6 @@ mutable struct CallbackData
     model::Optimizer
     tree::Ptr{Cvoid}
     CallbackData(model::Optimizer) = new(model, C_NULL)
-end
-
-"""
-    set_parameter(param_store, key::Symbol, value)::Bool
-
-Set the field name `key` in a `param_store` type (that is one of `InteriorParam`,
-`IntoptParam`, or `SimplexParam`) to `value`.
-
-Returns a `Bool` indicating if the parameter was set.
-"""
-function set_parameter(param_store, key::Symbol, value)
-    if key == :cb_func || key == :cb_info
-        error(
-            "Invalid option: $(string(key)). Use the MOI attribute " *
-            "`GLPK.CallbackFunction` instead."
-        )
-    elseif key in fieldnames(typeof(param_store))
-        field_type = typeof(getfield(param_store, key))
-        setfield!(param_store, key, convert(field_type, value))
-        return true
-    end
-    return false
-end
-
-function set_parameter(model::Optimizer, key::Symbol, value)
-    set_interior = set_parameter(model.interior_param, key, value)
-    set_intopt = set_parameter(model.intopt_param, key, value)
-    set_simplex = set_parameter(model.simplex_param, key, value)
-    if !set_interior && !set_intopt && !set_simplex
-        error("Invalid option: $(key) => $(value)")
-    end
-    return
 end
 
 Base.show(io::IO, model::Optimizer) = print(io, "A GLPK model")
@@ -265,12 +230,37 @@ MOI.supports(::Optimizer, ::MOI.TimeLimitSec) = true
 MOI.supports(::Optimizer, ::MOI.ObjectiveSense) = true
 MOI.supports(::Optimizer, ::MOI.RawParameter) = true
 
+"""
+    set_parameter(param_store, key::Symbol, value)::Bool
+
+Set the field name `key` in a `param_store` type (that is one of `InteriorParam`,
+`IntoptParam`, or `SimplexParam`) to `value`.
+
+Returns a `Bool` indicating if the parameter was set.
+"""
+function set_parameter(param_store, key::Symbol, value)
+    if key == :cb_func || key == :cb_info
+        error("Invalid option: $(string(key)). Use the MOI attribute " *
+              "`GLPK.CallbackFunction` instead.")
+    elseif key in fieldnames(typeof(param_store))
+        field_type = typeof(getfield(param_store, key))
+        setfield!(param_store, key, convert(field_type, value))
+        return true
+    end
+    return false
+end
+
 function MOI.set(model::Optimizer, param::MOI.RawParameter, value)
     if typeof(param.name) != String
         error("GLPK.jl requires strings as arguments to `RawParameter`.")
     end
-    model.params[Symbol(param.name)] = value
-    set_parameter(model, Symbol(param.name), value)
+    key = Symbol(param.name)
+    set_interior = set_parameter(model.interior_param, key, value)
+    set_intopt = set_parameter(model.intopt_param, key, value)
+    set_simplex = set_parameter(model.simplex_param, key, value)
+    if !set_interior && !set_intopt && !set_simplex
+        error("Invalid parameter: $(key) => $(value)")
+    end
     return
 end
 
@@ -283,8 +273,7 @@ function MOI.get(model::Optimizer, param::MOI.RawParameter)
         return getfield(model.simplex_param, name)
     elseif model.method == INTERIOR && name in fieldnames(GLPK.InteriorParam)
         return getfield(model.interior_param, name)
-    end
-    if name in fieldnames(GLPK.IntoptParam)
+    elseif name in fieldnames(GLPK.IntoptParam)
         return getfield(model.intopt_param, name)
     end
     error("Unable to get RawParameter. Invalid name: $(name)")
@@ -295,14 +284,14 @@ function MOI.set(model::Optimizer, ::MOI.TimeLimitSec, limit::Union{Nothing,Real
         MOI.set(model, MOI.RawParameter("tm_lim"), typemax(Int32))
     else
         limit_ms = ceil(Int32, limit * 1000)
-        MOI.set(model, MOI.RawParameter("tm_lim"), limit_ms) 
+        MOI.set(model, MOI.RawParameter("tm_lim"), limit_ms)
     end
     return
 end
 
 function MOI.get(model::Optimizer, ::MOI.TimeLimitSec)
     # convert internal ms to sec
-    return MOI.get(model, MOI.RawParameter("tm_lim")) / 1000 
+    return MOI.get(model, MOI.RawParameter("tm_lim")) / 1000
 end
 
 MOI.Utilities.supports_default_copy_to(::Optimizer, ::Bool) = true
@@ -1646,8 +1635,8 @@ end
 
 function MOI.set(model::Optimizer, ::MOI.Silent, flag::Bool)
     model.silent = flag
-    output_flag = flag ? GLPK.OFF : get(model.params, :msg_lev, GLPK.MSG_ERR)
-    set_parameter(model, :msg_lev, output_flag)
+    output_flag = flag ? GLPK.OFF : MOI.get(model, MOI.RawParameter("msg_lev"))
+    MOI.set(model, MOI.RawParameter("msg_lev"), output_flag)
     return
 end
 

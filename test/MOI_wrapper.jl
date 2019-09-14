@@ -383,3 +383,12 @@ end
     @test MOI.get(model, MOI.ObjectiveValue()) == 3.0
     @test MOI.get(model, MOI.ObjectiveBound()) == 3.0
 end
+
+@testset "Default parameters" begin
+    model = GLPK.Optimizer()
+    @test MOI.get(model, MOI.RawParameter("msg_lev")) == GLPK.MSG_ERR
+    @test MOI.get(model, MOI.RawParameter("presolve")) == GLPK.OFF
+    model = GLPK.Optimizer(msg_lev = GLPK.MSG_ALL, presolve = true)
+    @test MOI.get(model, MOI.RawParameter("msg_lev")) == GLPK.MSG_ALL
+    @test MOI.get(model, MOI.RawParameter("presolve")) == GLPK.ON
+end
