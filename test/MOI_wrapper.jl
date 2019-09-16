@@ -387,7 +387,6 @@ end
 @testset "Issue #116" begin
     model = GLPK.Optimizer(method = GLPK.EXACT)
     x = MOI.add_variables(model, 2)
-    f = MOI.SingleVariable.(x)
     c1 = MOI.add_constraint(
         model,
         MOI.ScalarAffineFunction(
