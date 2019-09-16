@@ -45,6 +45,9 @@ function get_infeasibility_ray(model::Optimizer, ray::Vector{Float64})
         GLPK.btran(model.inner, ray)
     else
         eps = 1e-7
+        # We need to factorize here because sometimes GLPK will prove
+        # infeasibility before it has a factorized basis in memory.
+        GLPK.factorize(model.inner)
         for row in 1:num_rows
             idx = GLPK.get_bhead(model.inner, row)
             if idx <= num_rows

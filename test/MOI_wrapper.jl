@@ -385,6 +385,25 @@ end
     @test MOI.get(model, MOI.ObjectiveBound()) == 3.0
 end
 
+@testset "Issue #116" begin
+    model = GLPK.Optimizer(method = GLPK.EXACT)
+    x = MOI.add_variables(model, 2)
+    c1 = MOI.add_constraint(
+        model,
+        MOI.ScalarAffineFunction(
+            [MOI.ScalarAffineTerm(1.0, x[1]), MOI.ScalarAffineTerm(1.0, x[2])],
+            0.0
+        ),
+        MOI.EqualTo(1.0)
+    )
+    MOI.add_constraint(model, MOI.SingleVariable(x[1]), MOI.EqualTo(1.0))
+    MOI.add_constraint(model, MOI.SingleVariable(x[2]), MOI.EqualTo(1.0))
+    MOI.optimize!(model)
+    @test MOI.get(model, MOI.TerminationStatus()) == MOI.INFEASIBLE
+    @test MOI.get(model, MOI.DualStatus()) == MOI.INFEASIBILITY_CERTIFICATE
+    @test MOI.get(model, MOI.ConstraintDual(), c1) == -1
+end
+
 @testset "Default parameters" begin
     model = GLPK.Optimizer()
     @test MOI.get(model, MOI.RawParameter("msg_lev")) == GLPK.MSG_ERR
