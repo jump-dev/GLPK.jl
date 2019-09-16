@@ -259,7 +259,7 @@ function MOI.set(model::Optimizer, param::MOI.RawParameter, value)
     set_intopt = set_parameter(model.intopt_param, key, value)
     set_simplex = set_parameter(model.simplex_param, key, value)
     if !set_interior && !set_intopt && !set_simplex
-        error("Invalid parameter: $(key) => $(value)")
+        throw(MOI.UnsupportedAttribute(param))
     end
     return
 end
@@ -276,7 +276,7 @@ function MOI.get(model::Optimizer, param::MOI.RawParameter)
     elseif name in fieldnames(GLPK.IntoptParam)
         return getfield(model.intopt_param, name)
     end
-    error("Unable to get RawParameter. Invalid name: $(name)")
+    throw(MOI.UnsupportedAttribute(param))
 end
 
 function MOI.set(model::Optimizer, ::MOI.TimeLimitSec, limit::Union{Nothing,Real})
