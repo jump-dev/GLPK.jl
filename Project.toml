@@ -1,7 +1,7 @@
 name = "GLPK"
 uuid = "60bf3e95-4087-53dc-ae20-288a0d20c6a6"
 repo = "https://github.com/JuliaOpt/GLPK.jl.git"
-version = "0.11.3"
+version = "0.11.4"
 
 [deps]
 BinaryProvider = "b99e7846-7c00-51b0-8f62-c81ae34c0232"
