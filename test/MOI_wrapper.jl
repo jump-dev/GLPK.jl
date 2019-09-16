@@ -261,24 +261,25 @@ end
     @test MOI.get(model, MOI.RawParameter("tm_lim")) == 100
     @test_throws ErrorException MOI.get(model, MOI.RawParameter(:tm_lim))
     @test_throws ErrorException MOI.set(model, MOI.RawParameter(:tm_lim), 120)
-    @test_throws ErrorException MOI.set(model, MOI.RawParameter("bad"), 1)
-    @test_throws ErrorException MOI.get(model, MOI.RawParameter("bad"))
+    param = MOI.RawParameter("bad")
+    @test_throws MOI.UnsupportedAttribute(param) MOI.set(model, param, 1)
+    @test_throws MOI.UnsupportedAttribute(param) MOI.get(model, param)
 
     model = GLPK.Optimizer(method = GLPK.INTERIOR)
     exception = ErrorException("Invalid option: cb_func. Use the MOI attribute `GLPK.CallbackFunction` instead.")
     @test_throws exception MOI.set(model, MOI.RawParameter("cb_func"), (cb) -> nothing)
     MOI.set(model, MOI.RawParameter("tm_lim"), 100)
     @test MOI.get(model, MOI.RawParameter("tm_lim")) == 100
-    @test_throws ErrorException MOI.set(model, MOI.RawParameter("bad"), 1)
-    @test_throws ErrorException MOI.get(model, MOI.RawParameter("bad"))
+    @test_throws MOI.UnsupportedAttribute(param) MOI.set(model, MOI.RawParameter("bad"), 1)
+    @test_throws MOI.UnsupportedAttribute(param) MOI.get(model, MOI.RawParameter("bad"))
 
     model = GLPK.Optimizer(method = GLPK.EXACT)
     exception = ErrorException("Invalid option: cb_func. Use the MOI attribute `GLPK.CallbackFunction` instead.")
     @test_throws exception MOI.set(model, MOI.RawParameter("cb_func"), (cb) -> nothing)
     MOI.set(model, MOI.RawParameter("tm_lim"), 100)
     @test MOI.get(model, MOI.RawParameter("tm_lim")) == 100
-    @test_throws ErrorException MOI.set(model, MOI.RawParameter("bad"), 1)
-    @test_throws ErrorException MOI.get(model, MOI.RawParameter("bad"))
+    @test_throws MOI.UnsupportedAttribute(param) MOI.set(model, MOI.RawParameter("bad"), 1)
+    @test_throws MOI.UnsupportedAttribute(param) MOI.get(model, MOI.RawParameter("bad"))
 
     model = GLPK.Optimizer()
     MOI.set(model, MOI.RawParameter("mip_gap"), 0.001)
@@ -382,4 +383,13 @@ end
     MOI.optimize!(model)
     @test MOI.get(model, MOI.ObjectiveValue()) == 3.0
     @test MOI.get(model, MOI.ObjectiveBound()) == 3.0
+end
+
+@testset "Default parameters" begin
+    model = GLPK.Optimizer()
+    @test MOI.get(model, MOI.RawParameter("msg_lev")) == GLPK.MSG_ERR
+    @test MOI.get(model, MOI.RawParameter("presolve")) == GLPK.OFF
+    model = GLPK.Optimizer(msg_lev = GLPK.MSG_ALL, presolve = true)
+    @test MOI.get(model, MOI.RawParameter("msg_lev")) == GLPK.MSG_ALL
+    @test MOI.get(model, MOI.RawParameter("presolve")) == GLPK.ON
 end
