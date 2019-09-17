@@ -1502,9 +1502,19 @@ function MOI.get(
     c::MOI.ConstraintIndex{MOI.SingleVariable, MOI.LessThan{Float64}}
 )
     column = _info(model, c).column
-    if _get_col_primal(model, column) ≈ GLPK.get_col_ub(model.inner, column)
-        return _get_col_dual(model, column)
+    reduced_cost = if model.method == SIMPLEX || model.method == EXACT
+        GLPK.get_col_dual(model.inner, column)
     else
+        @assert model.method == INTERIOR
+        GLPK.ipt_col_dual(model.inner, column)
+    end
+    sense = MOI.get(model, MOI.ObjectiveSense())
+    if sense == MOI.MIN_SENSE && reduced_cost < 0
+        return reduced_cost
+    elseif sense == MOI.MAX_SENSE && reduced_cost > 0
+        return -reduced_cost
+    else
+        # There is probably a `x >= l` constraint with a non-zero reduced cost.
         return 0.0
     end
 end
@@ -1514,9 +1524,19 @@ function MOI.get(
     c::MOI.ConstraintIndex{MOI.SingleVariable, MOI.GreaterThan{Float64}}
 )
     column = _info(model, c).column
-    if _get_col_primal(model, column) ≈ GLPK.get_col_lb(model.inner, column)
-        return _get_col_dual(model, column)
+    reduced_cost = if model.method == SIMPLEX || model.method == EXACT
+        GLPK.get_col_dual(model.inner, column)
     else
+        @assert model.method == INTERIOR
+        GLPK.ipt_col_dual(model.inner, column)
+    end
+    sense = MOI.get(model, MOI.ObjectiveSense())
+    if sense == MOI.MIN_SENSE && reduced_cost > 0
+        return reduced_cost
+    elseif sense == MOI.MAX_SENSE && reduced_cost < 0
+        return -reduced_cost
+    else
+        # There is probably a `x >= l` constraint with a non-zero reduced cost.
         return 0.0
     end
 end

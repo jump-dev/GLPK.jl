@@ -473,3 +473,15 @@ end
         @test MOI.get(model, MOI.ConstraintIndex, "x") == c[3]
     end
 end
+
+@testset "Duals with equal bounds" begin
+    model = GLPK.Optimizer()
+    x = MOI.add_variable(model)
+    xl = MOI.add_constraint(model, MOI.SingleVariable(x), MOI.GreaterThan(1.0))
+    xu = MOI.add_constraint(model, MOI.SingleVariable(x), MOI.LessThan(1.0))
+    MOI.set(model, MOI.ObjectiveSense(), MOI.MIN_SENSE)
+    MOI.set(model, MOI.ObjectiveFunction{MOI.SingleVariable}(), MOI.SingleVariable(x))
+    MOI.optimize!(model)
+    @test MOI.get(model, MOI.ConstraintDual(), xl) == 1.0
+    @test MOI.get(model, MOI.ConstraintDual(), xu) == 0.0
+end
