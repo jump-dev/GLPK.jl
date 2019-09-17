@@ -1509,11 +1509,20 @@ function MOI.get(
         GLPK.ipt_col_dual(model.inner, column)
     end
     sense = MOI.get(model, MOI.ObjectiveSense())
+    # The following is a heuristic for determining whether the reduced cost
+    # (i.e., the column dual) applies to the lower or upper bound. It can be
+    # wrong by at most `tol_dj`.
     if sense == MOI.MIN_SENSE && reduced_cost < 0
+        # If minimizing, the reduced cost must be negative (ignoring
+        # tolerances).
         return reduced_cost
     elseif sense == MOI.MAX_SENSE && reduced_cost > 0
+        # If minimizing, the reduced cost must be positive (ignoring
+        # tolerances). However, because of the MOI dual convention, we return a
+        # negative value.
         return -reduced_cost
     else
+        # The reduced cost, if non-zero, must related to the lower bound.
         return 0.0
     end
 end
@@ -1530,11 +1539,20 @@ function MOI.get(
         GLPK.ipt_col_dual(model.inner, column)
     end
     sense = MOI.get(model, MOI.ObjectiveSense())
+    # The following is a heuristic for determining whether the reduced cost
+    # (i.e., the column dual) applies to the lower or upper bound. It can be
+    # wrong by at most `tol_dj`.
     if sense == MOI.MIN_SENSE && reduced_cost > 0
+        # If minimizing, the reduced cost must be negative (ignoring
+        # tolerances).
         return reduced_cost
     elseif sense == MOI.MAX_SENSE && reduced_cost < 0
+        # If minimizing, the reduced cost must be positive (ignoring
+        # tolerances). However, because of the MOI dual convention, we return a
+        # negative value.
         return -reduced_cost
     else
+        # The reduced cost, if non-zero, must related to the lower bound.
         return 0.0
     end
 end
