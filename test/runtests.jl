@@ -19,4 +19,5 @@ end
 
 @testset "MathOptInterface" begin
     include("MOI_wrapper.jl")
+    include("MOI_callbacks.jl")
 end

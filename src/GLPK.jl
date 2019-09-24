@@ -2232,5 +2232,6 @@ end
 #}}}
 
 include("MOI_wrapper.jl")
+include("MOI_callbacks.jl")
 
 end # module
