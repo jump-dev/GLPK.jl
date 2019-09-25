@@ -165,8 +165,8 @@ end
 #
 # !!! Very Important Note
 #
-# If the Julia throws an exception from within the callback, the GLPK model does
-# not gracefully exit! Instead, it throws a `glp_delete_prob: operation not
+# If Julia throws an exception from within the callback, the GLPK model does not
+# gracefully exit! Instead, it throws a `glp_delete_prob: operation not
 # supported` error when Julia tries to finalize `prob`. This is very annoying to
 # debug.
 #
@@ -178,16 +178,16 @@ end
 function set_callback(model::Optimizer, callback_function::Function)
     internal_callback = (tree::Ptr{Cvoid}, info::Ptr{Cvoid}) -> begin
         cb_data = unsafe_pointer_to_objref(info)::CallbackData
-        cb_data.tree = tree
         node = GLPK.ios_best_node(tree)
         if node != 0
             model.objective_bound = GLPK.ios_node_bound(tree, node)
             model.relative_gap = GLPK.ios_mip_gap(tree)
         end
         try
+            cb_data.tree = tree
             callback_function(cb_data)
         catch ex
-            GLPK.ios_terminate(cb_data.tree)
+            GLPK.ios_terminate(tree)
             cb_data.exception = ex
         end
         return Cint(0)
@@ -1365,13 +1365,15 @@ function MOI.optimize!(model::Optimizer)
     else
         _solve_linear_problem(model)
     end
-    if MOI.get(model, MOI.PrimalStatus()) == MOI.INFEASIBILITY_CERTIFICATE
-        model.unbounded_ray = fill(NaN, GLPK.get_num_cols(model.inner))
-        get_unbounded_ray(model, model.unbounded_ray)
-    end
-    if MOI.get(model, MOI.DualStatus()) == MOI.INFEASIBILITY_CERTIFICATE
-        model.infeasibility_cert = fill(NaN, GLPK.get_num_rows(model.inner))
-        get_infeasibility_ray(model, model.infeasibility_cert)
+    if MOI.get(model, MOI.ResultCount()) > 0
+        if MOI.get(model, MOI.PrimalStatus()) == MOI.INFEASIBILITY_CERTIFICATE
+            model.unbounded_ray = fill(NaN, GLPK.get_num_cols(model.inner))
+            get_unbounded_ray(model, model.unbounded_ray)
+        end
+        if MOI.get(model, MOI.DualStatus()) == MOI.INFEASIBILITY_CERTIFICATE
+            model.infeasibility_cert = fill(NaN, GLPK.get_num_rows(model.inner))
+            get_infeasibility_ray(model, model.infeasibility_cert)
+        end
     end
     model.solve_time = time() - start_time
     return
@@ -1724,6 +1726,7 @@ end
 
 function MOI.get(model::Optimizer, attr::MOI.DualObjectiveValue)
     _throw_if_optimize_in_progress(model, attr)
+    MOI.check_result_index_bounds(model, attr)
     return MOI.Utilities.get_fallback(model, attr, Float64)
 end
 
@@ -1742,13 +1745,13 @@ end
 
 function MOI.get(model::Optimizer, attr::MOI.ResultCount)
     _throw_if_optimize_in_progress(model, attr)
-    primal = MOI.get(model, MOI.PrimalStatus())
-    if primal == MOI.FEASIBLE_POINT || primal == MOI.INFEASIBILITY_CERTIFICATE
+    (status, _) = _get_status(model)
+    if status in (MOI.OPTIMAL, MOI.LOCALLY_SOLVED, MOI.LOCALLY_INFEASIBLE)
         return 1
-    end
-    dual = MOI.get(model, MOI.DualStatus())
-    if dual == MOI.FEASIBLE_POINT || dual == MOI.INFEASIBILITY_CERTIFICATE
-        return 1
+    elseif status in (MOI.DUAL_INFEASIBLE, MOI. INFEASIBLE, MOI.LOCALLY_INFEASIBLE)
+        if _certificates_potentially_available(model)
+            return 1
+        end
     end
     return 0
 end
