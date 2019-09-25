@@ -22,8 +22,6 @@ end
 
 let valid_objs = Dict{UInt, Bool}()
     global jl_obj_is_valid, _add_obj, _del_obj, _del_all_objs
-    global jl_show_valid
-    jl_show_valid() = @show valid_objs
     function jl_obj_is_valid(x)
         haskey(valid_objs, objectid(x))
     end
