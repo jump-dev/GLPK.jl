@@ -155,9 +155,50 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
 end
 
 mutable struct CallbackData
-    model::Optimizer
+    c_callback::Base.CFunction
     tree::Ptr{Cvoid}
-    CallbackData(model::Optimizer) = new(model, C_NULL)
+    exception::Union{Nothing, Exception}
+end
+
+# Dummy callback function for internal use only. Responsible for updating the
+# objective bound, saving the mip gap, and calling the user's callback.
+#
+# !!! Very Important Note
+#
+# If the Julia throws an exception from within the callback, the GLPK model does
+# not gracefully exit! Instead, it throws a `glp_delete_prob: operation not
+# supported` error when Julia tries to finalize `prob`. This is very annoying to
+# debug.
+#
+# As a work-around, we catch all Julia exceptions with a try-catch, terminate
+# the callback with `ios_terminate`, store the exception in `cb_data.exception`,
+# and then re-throw it once we have gracefully exited from the callback.
+#
+# See also: the note in `_solve_mip_problem`.
+function set_callback(model::Optimizer, callback_function::Function)
+    internal_callback = (tree::Ptr{Cvoid}, info::Ptr{Cvoid}) -> begin
+        cb_data = unsafe_pointer_to_objref(info)::CallbackData
+        cb_data.tree = tree
+        node = GLPK.ios_best_node(tree)
+        if node != 0
+            model.objective_bound = GLPK.ios_node_bound(tree, node)
+            model.relative_gap = GLPK.ios_mip_gap(tree)
+        end
+        try
+            callback_function(cb_data)
+        catch ex
+            GLPK.ios_terminate(cb_data.tree)
+            cb_data.exception = ex
+        end
+        return Cint(0)
+    end
+    c_callback = @cfunction(
+        $internal_callback, Cint, (Ptr{Cvoid}, Ptr{Cvoid})
+    )
+    model.callback_data = CallbackData(c_callback, C_NULL, nothing)
+    model.intopt_param.cb_func = c_callback.ptr
+    model.intopt_param.cb_info = pointer_from_objref(model.callback_data)
+    return
 end
 
 Base.show(io::IO, model::Optimizer) = print(io, "A GLPK model")
@@ -1276,6 +1317,15 @@ function _solve_mip_problem(model::Optimizer)
         end
         model.solver_status = GLPK.intopt(model.inner, model.intopt_param)
         model.last_solved_by_mip = true
+
+        # !!! Very Important Note
+        #
+        #  This next bit is _very_ important! See the note associated with
+        #  set_callback.
+        if model.callback_data.exception !== nothing
+            throw(model.callback_data.exception)
+        end
+
     finally
         for (column, lower, upper) in bounds_to_reset
             _set_variable_bound(model, column, lower, upper)
@@ -1673,11 +1723,7 @@ function MOI.get(model::Optimizer, attr::MOI.ObjectiveBound)
 end
 
 function MOI.get(model::Optimizer, attr::MOI.DualObjectiveValue)
-<<<<<<< HEAD
-    MOI.check_result_index_bounds(model, attr)
-=======
     _throw_if_optimize_in_progress(model, attr)
->>>>>>> Initial attempt at callbacks
     return MOI.Utilities.get_fallback(model, attr, Float64)
 end
 

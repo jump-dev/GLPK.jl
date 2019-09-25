@@ -11,11 +11,11 @@ struct CallbackFunction <: MOI.AbstractOptimizerAttribute end
 
 function MOI.set(model::Optimizer, ::CallbackFunction, f::Function)
     model.has_generic_callback = true
-    model.callback_function = (cb_data) -> begin
-        cb_data.model.callback_state = CB_GENERIC
-        f(cb_data)
-        cb_data.model.callback_state = CB_NONE
-    end
+    set_callback(model, (cb_data) -> begin
+        model.callback_state = CB_GENERIC
+        callback_function(cb_data)
+        model.callback_state = CB_NONE
+    end)
     return
 end
 
@@ -36,7 +36,7 @@ function default_moi_callback(model::Optimizer)
             model.callback_state = CB_HEURISTIC
             model.heuristic_callback(cb_data)
         end
-        model.callback_state = CB_NONE
+        return
     end
 end
 
