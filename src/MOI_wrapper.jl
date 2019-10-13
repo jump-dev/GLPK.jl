@@ -942,13 +942,13 @@ end
 
 function _info(
     model::Optimizer,
-    c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64}, <:Any}
+    c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64}}
 )
     key = ConstraintKey(c.value)
     if haskey(model.affine_constraint_info, key)
         return model.affine_constraint_info[key]
     end
-    throw(MOI.InvalidIndex(key))
+    throw(MOI.InvalidIndex(c))
 end
 
 function MOI.is_valid(
@@ -1408,7 +1408,10 @@ function MOI.get(model::Optimizer, ::MOI.TerminationStatus)
     end
 end
 
-function MOI.get(model::Optimizer, ::MOI.PrimalStatus)
+function MOI.get(model::Optimizer, attr::MOI.PrimalStatus)
+    if attr.N > 1
+        return MOI.NO_SOLUTION
+    end
     (status, _) = _get_status(model)
     if status == MOI.OPTIMAL || status == MOI.LOCALLY_SOLVED
         return MOI.FEASIBLE_POINT
@@ -1424,8 +1427,8 @@ function MOI.get(model::Optimizer, ::MOI.PrimalStatus)
     return MOI.NO_SOLUTION
 end
 
-function MOI.get(model::Optimizer, ::MOI.DualStatus)
-    if model.last_solved_by_mip
+function MOI.get(model::Optimizer, attr::MOI.DualStatus)
+    if attr.N > 1 || model.last_solved_by_mip
         return MOI.NO_SOLUTION
     end
     (status, _) = _get_status(model)
@@ -1471,7 +1474,8 @@ function _get_row_primal(model::Optimizer, row::Int)
     end
 end
 
-function MOI.get(model::Optimizer, ::MOI.VariablePrimal, x::MOI.VariableIndex)
+function MOI.get(model::Optimizer, attr::MOI.VariablePrimal, x::MOI.VariableIndex)
+    MOI.check_result_index_bounds(model, attr)
     if model.unbounded_ray !== nothing
         return model.unbounded_ray[_info(model, x).column]
     else
@@ -1480,16 +1484,18 @@ function MOI.get(model::Optimizer, ::MOI.VariablePrimal, x::MOI.VariableIndex)
 end
 
 function MOI.get(
-    model::Optimizer, ::MOI.ConstraintPrimal,
+    model::Optimizer, attr::MOI.ConstraintPrimal,
     c::MOI.ConstraintIndex{MOI.SingleVariable, <:Any}
 )
+    MOI.check_result_index_bounds(model, attr)
     return MOI.get(model, MOI.VariablePrimal(), MOI.VariableIndex(c.value))
 end
 
 function MOI.get(
-    model::Optimizer, ::MOI.ConstraintPrimal,
+    model::Optimizer, attr::MOI.ConstraintPrimal,
     c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64}, <:Any}
 )
+    MOI.check_result_index_bounds(model, attr)
     return _get_row_primal(model, _info(model, c).row)
 end
 
@@ -1498,9 +1504,10 @@ function _dual_multiplier(model::Optimizer)
 end
 
 function MOI.get(
-    model::Optimizer, ::MOI.ConstraintDual,
+    model::Optimizer, attr::MOI.ConstraintDual,
     c::MOI.ConstraintIndex{MOI.SingleVariable, MOI.LessThan{Float64}}
 )
+    MOI.check_result_index_bounds(model, attr)
     column = _info(model, c).column
     reduced_cost = if model.method == SIMPLEX || model.method == EXACT
         GLPK.get_col_dual(model.inner, column)
@@ -1528,9 +1535,10 @@ function MOI.get(
 end
 
 function MOI.get(
-    model::Optimizer, ::MOI.ConstraintDual,
+    model::Optimizer, attr::MOI.ConstraintDual,
     c::MOI.ConstraintIndex{MOI.SingleVariable, MOI.GreaterThan{Float64}}
 )
+    MOI.check_result_index_bounds(model, attr)
     column = _info(model, c).column
     reduced_cost = if model.method == SIMPLEX || model.method == EXACT
         GLPK.get_col_dual(model.inner, column)
@@ -1558,16 +1566,18 @@ function MOI.get(
 end
 
 function MOI.get(
-    model::Optimizer, ::MOI.ConstraintDual,
+    model::Optimizer, attr::MOI.ConstraintDual,
     c::MOI.ConstraintIndex{MOI.SingleVariable, S}
 ) where {S <: Union{MOI.EqualTo, MOI.Interval}}
+    MOI.check_result_index_bounds(model, attr)
     return _get_col_dual(model, _info(model, c).column)
 end
 
 function MOI.get(
-    model::Optimizer, ::MOI.ConstraintDual,
+    model::Optimizer, attr::MOI.ConstraintDual,
     c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64}, <:Any}
 )
+    MOI.check_result_index_bounds(model, attr)
     row = _info(model, c).row
     if model.infeasibility_cert !== nothing
         return model.infeasibility_cert[row]
@@ -1582,7 +1592,8 @@ function MOI.get(
     end
 end
 
-function MOI.get(model::Optimizer, ::MOI.ObjectiveValue)
+function MOI.get(model::Optimizer, attr::MOI.ObjectiveValue)
+    MOI.check_result_index_bounds(model, attr)
     if model.last_solved_by_mip
         return GLPK.mip_obj_val(model.inner)
     elseif model.method == SIMPLEX || model.method == EXACT
@@ -1607,6 +1618,7 @@ function MOI.get(model::Optimizer, ::MOI.ObjectiveBound)
 end
 
 function MOI.get(model::Optimizer, attr::MOI.DualObjectiveValue)
+    MOI.check_result_index_bounds(model, attr)
     return MOI.Utilities.get_fallback(model, attr, Float64)
 end
 
