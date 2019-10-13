@@ -485,3 +485,12 @@ end
     @test MOI.get(model, MOI.ConstraintDual(), xl) == 1.0
     @test MOI.get(model, MOI.ConstraintDual(), xu) == 0.0
 end
+
+# TODO move to MOI
+@testset "PR #121" begin
+    model = GLPK.Optimizer()
+    ci = MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64}, MOI.LessThan{Float64}}(1)
+    @test_throws MOI.InvalidIndex(ci) MOI.get(model, MOI.ConstraintSet(), ci)
+    @test_throws MOI.InvalidIndex(ci) MOI.get(model, MOI.ConstraintFunction(), ci)
+    @test_throws MOI.InvalidIndex(ci) MOI.delete(model, ci)
+end

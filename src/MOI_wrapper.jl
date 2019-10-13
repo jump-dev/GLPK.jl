@@ -942,13 +942,13 @@ end
 
 function _info(
     model::Optimizer,
-    c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64}, <:Any}
+    c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64}}
 )
     key = ConstraintKey(c.value)
     if haskey(model.affine_constraint_info, key)
         return model.affine_constraint_info[key]
     end
-    throw(MOI.InvalidIndex(key))
+    throw(MOI.InvalidIndex(c))
 end
 
 function MOI.is_valid(
