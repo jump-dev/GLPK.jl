@@ -496,3 +496,17 @@ end
     @test_throws MOI.InvalidIndex(ci) MOI.get(model, MOI.ConstraintFunction(), ci)
     @test_throws MOI.InvalidIndex(ci) MOI.delete(model, ci)
 end
+
+@testset "Non-ascii names" begin
+    model = GLPK.Optimizer()
+    x = MOI.add_variable(model)
+    MOI.set(model, MOI.VariableName(), x, "ω")
+    @test MOI.get(model, MOI.VariableName(), x) == "ω"
+    c = MOI.add_constraint(
+        model,
+        MOI.ScalarAffineFunction([MOI.ScalarAffineTerm(1.0, x)], 0.0),
+        MOI.GreaterThan(0.0)
+    )
+    MOI.set(model, MOI.ConstraintName(), c, "ω")
+    @test MOI.get(model, MOI.ConstraintName(), c) == "ω"
+end
