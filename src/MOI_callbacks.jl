@@ -68,16 +68,14 @@ function MOI.submit(
         throw(MOI.InvalidCallbackUsage(MOI.UserCutCallback(), cb))
     elseif model.callback_state == CB_HEURISTIC
         throw(MOI.InvalidCallbackUsage(MOI.HeuristicCallback(), cb))
-    elseif !iszero(f.constant)
-        throw(MOI.ScalarFunctionConstantNotZero{Float64, typeof(f), typeof(s)}(f.constant))
     end
     key = CleverDicts.add_item(model.affine_constraint_info, ConstraintInfo(s))
     model.affine_constraint_info[key].row = length(model.affine_constraint_info)
     indices, coefficients = _indices_and_coefficients(model, f)
     sense, rhs = _sense_and_rhs(s)
     inner = GLPK.ios_get_prob(cb.callback_data.tree)
-    _add_affine_constraint(inner, indices, coefficients, sense, rhs)
-    return MOI.ConstraintIndex{typeof(f), typeof(s)}(key.value)
+    _add_affine_constraint(inner, indices, coefficients, sense, rhs - f.constant)
+    return
 end
 
 # ==============================================================================
