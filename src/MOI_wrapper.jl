@@ -453,6 +453,7 @@ function MOI.set(
     info = _info(model, v)
     info.name = name
     if !isempty(name) && isascii(name)
+        # Note: GLPK errors if we try to set non-ascii column names.
         GLPK.set_col_name(model.inner, info.column, name)
     end
     model.name_to_variable = nothing
@@ -1097,6 +1098,7 @@ function MOI.set(
     old_name = info.name
     info.name = name
     if !isempty(name) && isascii(name)
+        # Note: GLPK errors if we try to set non-ascii row names.
         GLPK.set_row_name(model.inner, info.row, name)
     end
     model.name_to_constraint_index = nothing
