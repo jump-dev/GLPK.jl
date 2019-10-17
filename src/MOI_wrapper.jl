@@ -70,11 +70,10 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
     num_binaries::Int
     num_integers::Int
 
-    callback_data::Any
     objective_bound::Float64
     relative_gap::Float64
     solve_time::Float64
-    callback_function::Function
+    callback_data::Any
 
     # A flag to keep track of MOI.Silent, which over-rides the print_level
     # parameter.
@@ -123,6 +122,7 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
     """
     function Optimizer(; presolve = false, method = SIMPLEX, kwargs...)
         model = new()
+        model.inner = GLPK.Prob()
         model.presolve = presolve
         model.method = method
 
@@ -140,13 +140,6 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
         model.silent = false
         model.variable_info = CleverDicts.CleverDict{MOI.VariableIndex, VariableInfo}()
         model.affine_constraint_info = CleverDicts.CleverDict{ConstraintKey, ConstraintInfo}()
-
-        # We initialize a default callback (_internal_callback) to manage the
-        # user's callback, and to update the objective bound and MIP gap.
-        model.callback_data = CallbackData(model)
-        model.intopt_param.cb_func = @cfunction(_internal_callback, Cvoid, (Ptr{Cvoid}, Ptr{Cvoid}))
-        model.intopt_param.cb_info = pointer_from_objref(model.callback_data)
-        model.callback_function = (cb_data) -> nothing
 
         MOI.empty!(model)
 
@@ -204,7 +197,7 @@ end
 Base.show(io::IO, model::Optimizer) = print(io, "A GLPK model")
 
 function MOI.empty!(model::Optimizer)
-    model.inner = GLPK.Prob()
+    GLPK.erase_prob(model.inner)
     model.solver_status = GLPK.UNDEF
     model.last_solved_by_mip = false
     model.num_binaries = 0
@@ -226,6 +219,7 @@ function MOI.empty!(model::Optimizer)
     model.lazy_callback = nothing
     model.user_cut_callback = nothing
     model.heuristic_callback = nothing
+    set_callback(model, cb_data -> nothing)
     return
 end
 
