@@ -1337,7 +1337,7 @@ function check_moi_callback_validity(model::Optimizer)
         model.user_cut_callback !== nothing ||
         model.heuristic_callback !== nothing
     if has_moi_callback && model.has_generic_callback
-        error("Cannot use GLPK.CallbackFunction as well as MOI.AbstractCallbackFunction")
+        error("Cannot use `GLPK.CallbackFunction` as well as `MOI.AbstractCallbackFunction`.")
     end
     return has_moi_callback
 end
