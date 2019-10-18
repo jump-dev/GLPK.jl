@@ -10,8 +10,8 @@ MathOptInterface = "b8f27783-ece8-5eb3-8dc8-9495eed66fee"
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 
 [compat]
-BinaryProvider = "≥ 0.3.0"
-MathOptInterface = "0.9.1"
+BinaryProvider = "~0.5"
+MathOptInterface = "~0.9.5"
 julia = "1"
 
 [extras]

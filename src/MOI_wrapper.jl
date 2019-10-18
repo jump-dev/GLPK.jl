@@ -7,6 +7,7 @@ const CleverDicts = MOI.Utilities.CleverDicts
 @enum(BoundEnum, NONE, LESS_THAN, GREATER_THAN, LESS_AND_GREATER_THAN, INTERVAL, EQUAL_TO)
 @enum(ObjectiveEnum, SINGLE_VARIABLE, SCALAR_AFFINE)
 @enum(MethodEnum, SIMPLEX, INTERIOR, EXACT)
+@enum(CallbackState, CB_NONE, CB_GENERIC, CB_LAZY, CB_USER_CUT, CB_HEURISTIC)
 
 mutable struct VariableInfo
     index::MOI.VariableIndex
@@ -69,11 +70,10 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
     num_binaries::Int
     num_integers::Int
 
-    callback_data
     objective_bound::Float64
     relative_gap::Float64
     solve_time::Float64
-    callback_function::Function
+    callback_data::Any
 
     # A flag to keep track of MOI.Silent, which over-rides the print_level
     # parameter.
@@ -102,6 +102,13 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
     unbounded_ray::Union{Vector{Float64}, Nothing}
     infeasibility_cert::Union{Vector{Float64}, Nothing}
 
+    # Callback fields.
+    has_generic_callback::Bool
+    callback_state::CallbackState
+    lazy_callback::Union{Nothing, Function}
+    user_cut_callback::Union{Nothing, Function}
+    heuristic_callback::Union{Nothing, Function}
+
     """
         Optimizer(;kwargs...)
 
@@ -115,6 +122,7 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
     """
     function Optimizer(; presolve = false, method = SIMPLEX, kwargs...)
         model = new()
+        model.inner = GLPK.Prob()
         model.presolve = presolve
         model.method = method
 
@@ -133,13 +141,6 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
         model.variable_info = CleverDicts.CleverDict{MOI.VariableIndex, VariableInfo}()
         model.affine_constraint_info = CleverDicts.CleverDict{ConstraintKey, ConstraintInfo}()
 
-        # We initialize a default callback (_internal_callback) to manage the
-        # user's callback, and to update the objective bound and MIP gap.
-        model.callback_data = CallbackData(model)
-        model.intopt_param.cb_func = @cfunction(_internal_callback, Cvoid, (Ptr{Cvoid}, Ptr{Cvoid}))
-        model.intopt_param.cb_info = pointer_from_objref(model.callback_data)
-        model.callback_function = (cb_data) -> nothing
-
         MOI.empty!(model)
 
         return model
@@ -147,15 +148,56 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
 end
 
 mutable struct CallbackData
-    model::Optimizer
+    c_callback::Base.CFunction
     tree::Ptr{Cvoid}
-    CallbackData(model::Optimizer) = new(model, C_NULL)
+    exception::Union{Nothing, Exception}
+end
+
+# Dummy callback function for internal use only. Responsible for updating the
+# objective bound, saving the mip gap, and calling the user's callback.
+#
+# !!! Very Important Note
+#
+# If Julia throws an exception from within the callback, the GLPK model does not
+# gracefully exit! Instead, it throws a `glp_delete_prob: operation not
+# supported` error when Julia tries to finalize `prob`. This is very annoying to
+# debug.
+#
+# As a work-around, we catch all Julia exceptions with a try-catch, terminate
+# the callback with `ios_terminate`, store the exception in `cb_data.exception`,
+# and then re-throw it once we have gracefully exited from the callback.
+#
+# See also: the note in `_solve_mip_problem`.
+function set_callback(model::Optimizer, callback_function::Function)
+    internal_callback = (tree::Ptr{Cvoid}, info::Ptr{Cvoid}) -> begin
+        cb_data = unsafe_pointer_to_objref(info)::CallbackData
+        node = GLPK.ios_best_node(tree)
+        if node != 0
+            model.objective_bound = GLPK.ios_node_bound(tree, node)
+            model.relative_gap = GLPK.ios_mip_gap(tree)
+        end
+        try
+            cb_data.tree = tree
+            callback_function(cb_data)
+        catch ex
+            GLPK.ios_terminate(tree)
+            cb_data.exception = ex
+        end
+        return Cint(0)
+    end
+    c_callback = @cfunction(
+        $internal_callback, Cint, (Ptr{Cvoid}, Ptr{Cvoid})
+    )
+    model.callback_data = CallbackData(c_callback, C_NULL, nothing)
+    model.intopt_param.cb_func = c_callback.ptr
+    model.intopt_param.cb_info = pointer_from_objref(model.callback_data)
+    return
 end
 
 Base.show(io::IO, model::Optimizer) = print(io, "A GLPK model")
 
 function MOI.empty!(model::Optimizer)
-    model.inner = GLPK.Prob()
+    GLPK.erase_prob(model.inner)
     model.solver_status = GLPK.UNDEF
     model.last_solved_by_mip = false
     model.num_binaries = 0
@@ -172,6 +214,12 @@ function MOI.empty!(model::Optimizer)
     model.name_to_constraint_index = nothing
     model.unbounded_ray = nothing
     model.infeasibility_cert = nothing
+    model.has_generic_callback = false
+    model.callback_state = CB_NONE
+    model.lazy_callback = nothing
+    model.user_cut_callback = nothing
+    model.heuristic_callback = nothing
+    set_callback(model, cb_data -> nothing)
     return
 end
 
@@ -184,6 +232,11 @@ function MOI.is_empty(model::Optimizer)
     model.name_to_constraint_index !== nothing && return false
     model.unbounded_ray !== nothing && return false
     model.infeasibility_cert !== nothing && return false
+    model.has_generic_callback && return false
+    model.callback_state != CB_NONE && return false
+    model.lazy_callback !== nothing && return false
+    model.user_cut_callback !== nothing && return false
+    model.heuristic_callback !== nothing && return false
     return true
 end
 
@@ -1260,6 +1313,15 @@ function _solve_mip_problem(model::Optimizer)
         end
         model.solver_status = GLPK.intopt(model.inner, model.intopt_param)
         model.last_solved_by_mip = true
+
+        # !!! Very Important Note
+        #
+        #  This next bit is _very_ important! See the note associated with
+        #  set_callback.
+        if model.callback_data.exception !== nothing
+            throw(model.callback_data.exception)
+        end
+
     finally
         for (column, lower, upper) in bounds_to_reset
             _set_variable_bound(model, column, lower, upper)
@@ -1271,26 +1333,52 @@ end
 
 include("infeasibility_certificates.jl")
 
+function check_moi_callback_validity(model::Optimizer)
+    has_moi_callback =
+        model.lazy_callback !== nothing ||
+        model.user_cut_callback !== nothing ||
+        model.heuristic_callback !== nothing
+    if has_moi_callback && model.has_generic_callback
+        error("Cannot use `GLPK.CallbackFunction` as well as `MOI.AbstractCallbackFunction`.")
+    end
+    return has_moi_callback
+end
+
 function MOI.optimize!(model::Optimizer)
     start_time = time()
     model.optimize_not_called = false
     model.infeasibility_cert = nothing
     model.unbounded_ray = nothing
+
+    # Initialize callbacks if necessary.
+    if check_moi_callback_validity(model)
+        MOI.set(model, CallbackFunction(), default_moi_callback(model))
+        model.has_generic_callback = false
+    end
+
     if model.num_binaries > 0 || model.num_integers > 0
         _solve_mip_problem(model)
     else
         _solve_linear_problem(model)
     end
-    if MOI.get(model, MOI.PrimalStatus()) == MOI.INFEASIBILITY_CERTIFICATE
-        model.unbounded_ray = fill(NaN, GLPK.get_num_cols(model.inner))
-        get_unbounded_ray(model, model.unbounded_ray)
-    end
-    if MOI.get(model, MOI.DualStatus()) == MOI.INFEASIBILITY_CERTIFICATE
-        model.infeasibility_cert = fill(NaN, GLPK.get_num_rows(model.inner))
-        get_infeasibility_ray(model, model.infeasibility_cert)
+    if MOI.get(model, MOI.ResultCount()) > 0
+        if MOI.get(model, MOI.PrimalStatus()) == MOI.INFEASIBILITY_CERTIFICATE
+            model.unbounded_ray = fill(NaN, GLPK.get_num_cols(model.inner))
+            get_unbounded_ray(model, model.unbounded_ray)
+        end
+        if MOI.get(model, MOI.DualStatus()) == MOI.INFEASIBILITY_CERTIFICATE
+            model.infeasibility_cert = fill(NaN, GLPK.get_num_rows(model.inner))
+            get_infeasibility_ray(model, model.infeasibility_cert)
+        end
     end
     model.solve_time = time() - start_time
     return
+end
+
+function _throw_if_optimize_in_progress(model::Optimizer, attr)
+    if model.callback_state != CB_NONE
+        throw(MOI.OptimizeInProgress(attr))
+    end
 end
 
 # GLPK has a complicated status reporting system because it can be solved via
@@ -1350,7 +1438,8 @@ const RAW_SOLUTION_STATUS = Dict{Int32, Tuple{MOI.TerminationStatusCode, String}
     GLPK.UNDEF  => (MOI.OTHER_ERROR,        "Solution is undefined")
 )
 
-function MOI.get(model::Optimizer, ::MOI.RawStatusString)
+function MOI.get(model::Optimizer, attr::MOI.RawStatusString)
+    _throw_if_optimize_in_progress(model, attr)
     if model.solver_status == Int32(0)
         (_, msg) = _get_status(model)
         return msg
@@ -1389,7 +1478,8 @@ function _certificates_potentially_available(model::Optimizer)
     return !model.last_solved_by_mip && (model.method == SIMPLEX || model.method == EXACT)
 end
 
-function MOI.get(model::Optimizer, ::MOI.TerminationStatus)
+function MOI.get(model::Optimizer, attr::MOI.TerminationStatus)
+    _throw_if_optimize_in_progress(model, attr)
     if model.optimize_not_called
         return MOI.OPTIMIZE_NOT_CALLED
     elseif model.solver_status != Int32(0)
@@ -1411,7 +1501,8 @@ function MOI.get(model::Optimizer, ::MOI.TerminationStatus)
 end
 
 function MOI.get(model::Optimizer, attr::MOI.PrimalStatus)
-    if attr.N > 1
+    _throw_if_optimize_in_progress(model, attr)
+    if attr.N != 1
         return MOI.NO_SOLUTION
     end
     (status, _) = _get_status(model)
@@ -1430,7 +1521,8 @@ function MOI.get(model::Optimizer, attr::MOI.PrimalStatus)
 end
 
 function MOI.get(model::Optimizer, attr::MOI.DualStatus)
-    if attr.N > 1 || model.last_solved_by_mip
+    _throw_if_optimize_in_progress(model, attr)
+    if attr.N != 1 || model.last_solved_by_mip
         return MOI.NO_SOLUTION
     end
     (status, _) = _get_status(model)
@@ -1477,6 +1569,7 @@ function _get_row_primal(model::Optimizer, row::Int)
 end
 
 function MOI.get(model::Optimizer, attr::MOI.VariablePrimal, x::MOI.VariableIndex)
+    _throw_if_optimize_in_progress(model, attr)
     MOI.check_result_index_bounds(model, attr)
     if model.unbounded_ray !== nothing
         return model.unbounded_ray[_info(model, x).column]
@@ -1489,6 +1582,7 @@ function MOI.get(
     model::Optimizer, attr::MOI.ConstraintPrimal,
     c::MOI.ConstraintIndex{MOI.SingleVariable, <:Any}
 )
+    _throw_if_optimize_in_progress(model, attr)
     MOI.check_result_index_bounds(model, attr)
     return MOI.get(model, MOI.VariablePrimal(), MOI.VariableIndex(c.value))
 end
@@ -1497,6 +1591,7 @@ function MOI.get(
     model::Optimizer, attr::MOI.ConstraintPrimal,
     c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64}, <:Any}
 )
+    _throw_if_optimize_in_progress(model, attr)
     MOI.check_result_index_bounds(model, attr)
     return _get_row_primal(model, _info(model, c).row)
 end
@@ -1509,6 +1604,7 @@ function MOI.get(
     model::Optimizer, attr::MOI.ConstraintDual,
     c::MOI.ConstraintIndex{MOI.SingleVariable, MOI.LessThan{Float64}}
 )
+    _throw_if_optimize_in_progress(model, attr)
     MOI.check_result_index_bounds(model, attr)
     column = _info(model, c).column
     reduced_cost = if model.method == SIMPLEX || model.method == EXACT
@@ -1540,6 +1636,7 @@ function MOI.get(
     model::Optimizer, attr::MOI.ConstraintDual,
     c::MOI.ConstraintIndex{MOI.SingleVariable, MOI.GreaterThan{Float64}}
 )
+    _throw_if_optimize_in_progress(model, attr)
     MOI.check_result_index_bounds(model, attr)
     column = _info(model, c).column
     reduced_cost = if model.method == SIMPLEX || model.method == EXACT
@@ -1571,6 +1668,7 @@ function MOI.get(
     model::Optimizer, attr::MOI.ConstraintDual,
     c::MOI.ConstraintIndex{MOI.SingleVariable, S}
 ) where {S <: Union{MOI.EqualTo, MOI.Interval}}
+    _throw_if_optimize_in_progress(model, attr)
     MOI.check_result_index_bounds(model, attr)
     return _get_col_dual(model, _info(model, c).column)
 end
@@ -1579,6 +1677,7 @@ function MOI.get(
     model::Optimizer, attr::MOI.ConstraintDual,
     c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64}, <:Any}
 )
+    _throw_if_optimize_in_progress(model, attr)
     MOI.check_result_index_bounds(model, attr)
     row = _info(model, c).row
     if model.infeasibility_cert !== nothing
@@ -1595,6 +1694,7 @@ function MOI.get(
 end
 
 function MOI.get(model::Optimizer, attr::MOI.ObjectiveValue)
+    _throw_if_optimize_in_progress(model, attr)
     MOI.check_result_index_bounds(model, attr)
     if model.last_solved_by_mip
         return GLPK.mip_obj_val(model.inner)
@@ -1606,7 +1706,8 @@ function MOI.get(model::Optimizer, attr::MOI.ObjectiveValue)
     end
 end
 
-function MOI.get(model::Optimizer, ::MOI.ObjectiveBound)
+function MOI.get(model::Optimizer, attr::MOI.ObjectiveBound)
+    _throw_if_optimize_in_progress(model, attr)
     if !model.last_solved_by_mip
         return MOI.get(model, MOI.ObjectiveSense()) == MOI.MIN_SENSE ? -Inf : Inf
     end
@@ -1620,26 +1721,33 @@ function MOI.get(model::Optimizer, ::MOI.ObjectiveBound)
 end
 
 function MOI.get(model::Optimizer, attr::MOI.DualObjectiveValue)
+    _throw_if_optimize_in_progress(model, attr)
     MOI.check_result_index_bounds(model, attr)
     return MOI.Utilities.get_fallback(model, attr, Float64)
 end
 
-function MOI.get(model::Optimizer, ::MOI.RelativeGap)
+function MOI.get(model::Optimizer, attr::MOI.RelativeGap)
+    _throw_if_optimize_in_progress(model, attr)
     if !model.last_solved_by_mip
         error("RelativeGap is only available for models with integer variables.")
     end
     return model.relative_gap
 end
-MOI.get(model::Optimizer, ::MOI.SolveTime) = model.solve_time
 
-function MOI.get(model::Optimizer, ::MOI.ResultCount)
-    primal = MOI.get(model, MOI.PrimalStatus())
-    if primal == MOI.FEASIBLE_POINT || primal == MOI.INFEASIBILITY_CERTIFICATE
+function MOI.get(model::Optimizer, attr::MOI.SolveTime)
+    _throw_if_optimize_in_progress(model, attr)
+    return model.solve_time
+end
+
+function MOI.get(model::Optimizer, attr::MOI.ResultCount)
+    _throw_if_optimize_in_progress(model, attr)
+    (status, _) = _get_status(model)
+    if status in (MOI.OPTIMAL, MOI.LOCALLY_SOLVED, MOI.LOCALLY_INFEASIBLE)
         return 1
-    end
-    dual = MOI.get(model, MOI.DualStatus())
-    if dual == MOI.FEASIBLE_POINT || dual == MOI.INFEASIBILITY_CERTIFICATE
-        return 1
+    elseif status in (MOI.DUAL_INFEASIBLE, MOI. INFEASIBLE, MOI.LOCALLY_INFEASIBLE)
+        if _certificates_potentially_available(model)
+            return 1
+        end
     end
     return 0
 end
@@ -1796,9 +1904,10 @@ function MOI.set(
 end
 
 function MOI.get(
-    model::Optimizer, ::MOI.ConstraintBasisStatus,
+    model::Optimizer, attr::MOI.ConstraintBasisStatus,
     c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64}, S}
 ) where {S <: SCALAR_SETS}
+    _throw_if_optimize_in_progress(model, attr)
     row = _info(model, c).row
     cbasis = GLPK.get_row_stat(model.inner, row)
     if cbasis == GLPK.BS
@@ -1811,9 +1920,10 @@ function MOI.get(
 end
 
 function MOI.get(
-    model::Optimizer, ::MOI.ConstraintBasisStatus,
+    model::Optimizer, attr::MOI.ConstraintBasisStatus,
     c::MOI.ConstraintIndex{MOI.SingleVariable, S}
 ) where {S <: SCALAR_SETS}
+    _throw_if_optimize_in_progress(model, attr)
     column = _info(model, c).column
     vbasis = GLPK.get_col_stat(model.inner, column)
     if vbasis == GLPK.BS
@@ -1842,39 +1952,4 @@ function MOI.get(
     else
         error("VBasis value of $(vbasis) isn't defined.")
     end
-end
-
-struct CallbackFunction <: MOI.AbstractOptimizerAttribute end
-
-function MOI.set(model::Optimizer, ::CallbackFunction, f::Function)
-    model.callback_function = f
-    return
-end
-
-struct CallbackVariablePrimal <: MOI.AbstractVariableAttribute
-    cb_data::CallbackData
-end
-
-function MOI.get(
-    model::Optimizer, attr::CallbackVariablePrimal, x::MOI.VariableIndex
-)
-    model = attr.cb_data.model
-    if GLPK.ios_reason(attr.cb_data.tree) != GLPK.IROWGEN
-        error("CallbackVariablePrimal can only be called when reason is GLPK.IROWGEN.")
-    end
-    subproblem = GLPK.ios_get_prob(attr.cb_data.tree)
-    return GLPK.get_col_prim(subproblem, _info(model, x).column)
-end
-
-function cblazy!(
-    cb_data::CallbackData,
-    f::MOI.ScalarAffineFunction{Float64},
-    s::Union{MOI.LessThan{Float64}, MOI.GreaterThan{Float64}, MOI.EqualTo{Float64}}
-)
-    indices, coefficients = _indices_and_coefficients(cb_data.model, f)
-    sense, rhs = _sense_and_rhs(s)
-    _add_affine_constraint(
-        GLPK.ios_get_prob(cb_data.tree), indices, coefficients, sense, rhs
-    )
-    return
 end
