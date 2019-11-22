@@ -7,7 +7,7 @@
 
 Set a generic GLPK callback function.
 """
-struct CallbackFunction <: MOI.AbstractOptimizerAttribute end
+struct CallbackFunction <: MOI.AbstractCallback end
 
 function MOI.set(model::Optimizer, ::CallbackFunction, callback::Function)
     model.has_generic_callback = true
