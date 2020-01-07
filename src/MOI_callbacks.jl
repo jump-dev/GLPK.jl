@@ -18,6 +18,7 @@ function MOI.set(model::Optimizer, ::CallbackFunction, callback::Function)
     end)
     return
 end
+MOI.supports(::Optimizer, ::CallbackFunction) = true
 
 # ==============================================================================
 #    MOI callbacks
@@ -57,6 +58,8 @@ function MOI.set(model::Optimizer, ::MOI.LazyConstraintCallback, cb::Function)
     model.lazy_callback = cb
     return
 end
+MOI.supports(::Optimizer, ::MOI.LazyConstraintCallback) = true
+
 
 function MOI.submit(
     model::Optimizer,
@@ -77,6 +80,7 @@ function MOI.submit(
     _add_affine_constraint(inner, indices, coefficients, sense, rhs - f.constant)
     return
 end
+MOI.supports(::Optimizer, ::MOI.LazyConstraint{CallbackData}) = true
 
 # ==============================================================================
 #    MOI.UserCutCallback
@@ -86,6 +90,7 @@ function MOI.set(model::Optimizer, ::MOI.UserCutCallback, cb::Function)
     model.user_cut_callback = cb
     return
 end
+MOI.supports(::Optimizer, ::MOI.UserCutCallback) = true
 
 function MOI.submit(
     model::Optimizer,
@@ -112,8 +117,7 @@ function MOI.submit(
     )
     return
 end
-
-#
+MOI.supports(::Optimizer, ::MOI.UserCut{CallbackData}) = true
 
 # ==============================================================================
 #    MOI.HeuristicCallback
@@ -123,6 +127,7 @@ function MOI.set(model::Optimizer, ::MOI.HeuristicCallback, cb::Function)
     model.heuristic_callback = cb
     return
 end
+MOI.supports(::Optimizer, ::MOI.HeuristicCallback) = true
 
 function MOI.submit(
     model::Optimizer,
@@ -142,3 +147,4 @@ function MOI.submit(
     ret = ios_heur_sol(cb.callback_data.tree, solution)
     return ret == 0 ? MOI.HEURISTIC_SOLUTION_ACCEPTED : MOI.HEURISTIC_SOLUTION_REJECTED
 end
+MOI.supports(::Optimizer, ::MOI.HeuristicSolution{CallbackData}) = true
