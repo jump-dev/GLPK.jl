@@ -190,10 +190,14 @@ import Base.setindex!, Base.getindex
 
 ## Shared library interface setup
 #{{{
-if isfile(joinpath(dirname(@__FILE__),"..","deps","deps.jl"))
-    include("../deps/deps.jl")
+if VERSION < v"1.3"
+    if isfile(joinpath(dirname(@__FILE__),"..","deps","deps.jl"))
+        include("../deps/deps.jl")
+    else
+        error("GLPK not properly installed. Please run Pkg.build(\"GLPK\")")
+    end
 else
-    error("GLPK not properly installed. Please run Pkg.build(\"GLPK\")")
+    import GLPK_jll: libglpk
 end
 
 include("GLPK_constants.jl")
@@ -238,11 +242,13 @@ function version()
     return tuple(map(x->parse(Int, x), split(vstr, '.'))...)
 end
 
-include("../deps/verreq.jl")
+if VERSION < v"1.3"
+    include("../deps/verreq.jl")
 
-function __init__()
-    major_ver, minor_ver = version()
-    check_glpk_version(major_ver, minor_ver)
+    function __init__()
+        major_ver, minor_ver = version()
+        check_glpk_version(major_ver, minor_ver)
+    end
 end
 
 #}}}
