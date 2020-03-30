@@ -12,7 +12,7 @@ SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 
 [compat]
 BinaryProvider = "~0.5"
-GLPK_jll = "4.65"
+GLPK_jll = "4.64"
 MathOptInterface = "~0.9.5"
 julia = "1"
 

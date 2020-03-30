@@ -190,7 +190,7 @@ import Base.setindex!, Base.getindex
 
 ## Shared library interface setup
 #{{{
-if VERSION < v"1.3"
+if haskey(ENV,"JULIA_GLPK_LIBRARY_PATH") || VERSION < v"1.3"
     if isfile(joinpath(dirname(@__FILE__),"..","deps","deps.jl"))
         include("../deps/deps.jl")
     else
@@ -242,7 +242,7 @@ function version()
     return tuple(map(x->parse(Int, x), split(vstr, '.'))...)
 end
 
-if VERSION < v"1.3"
+if haskey(ENV,"JULIA_GLPK_LIBRARY_PATH") || VERSION < v"1.3"
     include("../deps/verreq.jl")
 
     function __init__()
