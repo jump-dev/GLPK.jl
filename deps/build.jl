@@ -1,12 +1,14 @@
-@static if VERSION < v"1.3"
+if VERSION >= v"1.3" && !haskey(ENV, "JULIA_GLPK_LIBRARY_PATH")
+    exit()  # Use GLPK_jll instead.
+end
 
-using BinaryProvider # requires BinaryProvider 0.3.0 or later
+using BinaryProvider
 
 # Parse some basic command-line arguments
 const verbose = "--verbose" in ARGS
 const prefix = Prefix(get([a for a in ARGS if a != "--verbose"], 1, joinpath(@__DIR__, "usr")))
 products = [
-    LibraryProduct(prefix, String["libglpk"], :libglpk),
+    LibraryProduct(prefix, ["libglpk"], :libglpk),
 ]
 
 # Download binaries from hosted location
@@ -32,8 +34,15 @@ download_info = Dict(
 this_platform = platform_key_abi()
 
 custom_library = false
-if haskey(ENV,"JULIA_GLPK_LIBRARY_PATH")
-    custom_products = [LibraryProduct(ENV["JULIA_GLPK_LIBRARY_PATH"],product.libnames,product.variable_name) for product in products]
+if haskey(ENV, "JULIA_GLPK_LIBRARY_PATH")
+    custom_products = [
+        LibraryProduct(
+            ENV["JULIA_GLPK_LIBRARY_PATH"],
+            product.libnames,
+            product.variable_name
+        )
+        for product in products
+    ]
     if all(satisfied(p; verbose=verbose) for p in custom_products)
         products = custom_products
         custom_library = true
@@ -65,5 +74,3 @@ end
 
 # Write out a deps.jl file that will contain mappings for our products
 write_deps_file(joinpath(@__DIR__, "deps.jl"), products, verbose=verbose)
-
-end # VERSION
