@@ -1,3 +1,5 @@
+@static if VERSION < v"1.3"
+
 using BinaryProvider # requires BinaryProvider 0.3.0 or later
 
 # Parse some basic command-line arguments
@@ -26,9 +28,9 @@ download_info = Dict(
     FreeBSD(:x86_64) => ("$bin_prefix/GLPK.v4.64.0.x86_64-unknown-freebsd11.1.tar.gz", "0f4f2204d4789bbbbb8349429114d86eee27d3df7b6d3312292159771d99e5a6"),
     Windows(:x86_64) => ("$bin_prefix/GLPK.v4.64.0.x86_64-w64-mingw32.tar.gz", "99baca281baf7c8f9e55a6686f98e3d12575d9a760494d19556b22ece9cc109b"),
 )
-                    
+
 this_platform = platform_key_abi()
-                  
+
 custom_library = false
 if haskey(ENV,"JULIA_GLPK_LIBRARY_PATH")
     custom_products = [LibraryProduct(ENV["JULIA_GLPK_LIBRARY_PATH"],product.libnames,product.variable_name) for product in products]
@@ -39,7 +41,7 @@ if haskey(ENV,"JULIA_GLPK_LIBRARY_PATH")
         error("Could not install custom libraries from $(ENV["JULIA_GLPK_LIBRARY_PATH"]).\nTo fall back to BinaryProvider call delete!(ENV,\"JULIA_GLPK_LIBRARY_PATH\") and run build again.")
     end
 end
-                    
+
 if !custom_library
     # Install unsatisfied or updated dependencies:
     unsatisfied = any(!satisfied(p; verbose=verbose) for p in products)
@@ -59,8 +61,9 @@ if !custom_library
         evalfile("build_GMP.v6.1.2.jl")  # We do not check for already installed GMP libraries
         install(dl_info...; prefix=prefix, force=true, verbose=verbose)
     end
-end                   
+end
 
 # Write out a deps.jl file that will contain mappings for our products
 write_deps_file(joinpath(@__DIR__, "deps.jl"), products, verbose=verbose)
 
+end # VERSION
