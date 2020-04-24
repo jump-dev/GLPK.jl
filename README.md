@@ -41,13 +41,15 @@ Use `GLPK.Optimizer` to create a new optimizer object:
 In the following examples the time limit is set to one minute and logging is turned off.
 ```julia
 using GLPK
-model = GLPK.Optimizer(tm_lim = 60000, msg_lev = GLPK.OFF)
+model = GLPK.Optimizer()
+MOI.set(model, MOI.RawParameter("tm_lim"), 60000)
+MOI.set(model, MOI.RawParameter("msg_lev"), GLPK.MSG_OFF)
 ```
 For JuMP, use:
 ```julia
 using JuMP, GLPK
 model = Model(
-    with_optimizer(GLPK.Optimizer, tm_lim = 60000, msg_lev = GLPK.OFF)
+    optimizer_with_attributes(GLPK.Optimizer, "tm_lim" => 60000, "msg_lev" => GLPK.MSG_OFF)
 )
 ```
 
