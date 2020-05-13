@@ -18,48 +18,48 @@
 
 Get the Farkas certificate of primal infeasiblity.
 
-Can only be called when GLPK.simplex is used as the solver.
+Can only be called when glp_simplex is used as the solver.
 """
 function get_infeasibility_ray(model::Optimizer, ray::Vector{Float64})
-    num_rows = GLPK.get_num_rows(model.inner)
+    num_rows = glp_get_num_rows(model.inner)
     @assert length(ray) == num_rows
-    ur = GLPK.get_unbnd_ray(model.inner)
+    ur = glp_get_unbnd_ray(model.inner)
     if ur != 0
         if ur <= num_rows
             k = ur
-            status      = GLPK.get_row_stat(model.inner, k)
-            bind        = GLPK.get_row_bind(model.inner, k)
-            primal      = GLPK.get_row_prim(model.inner, k)
-            upper_bound = GLPK.get_row_ub(model.inner, k)
+            status      = glp_get_row_stat(model.inner, k)
+            bind        = glp_get_row_bind(model.inner, k)
+            primal      = glp_get_row_prim(model.inner, k)
+            upper_bound = glp_get_row_ub(model.inner, k)
         else
             k = ur - num_rows
-            status      = GLPK.get_col_stat(model.inner, k)
-            bind        = GLPK.get_col_bind(model.inner, k)
-            primal      = GLPK.get_col_prim(model.inner, k)
-            upper_bound = GLPK.get_col_ub(model.inner, k)
+            status      = glp_get_col_stat(model.inner, k)
+            bind        = glp_get_col_bind(model.inner, k)
+            primal      = glp_get_col_prim(model.inner, k)
+            upper_bound = glp_get_col_ub(model.inner, k)
         end
-        if status != GLPK.BS
+        if status != GLP_BS
             error("unbounded ray is primal (use getunboundedray)")
         end
         ray[bind] = (primal > upper_bound) ? -1 : 1
-        GLPK.btran(model.inner, ray)
+        glp_btran(model.inner, ray)
     else
         eps = 1e-7
         # We need to factorize here because sometimes GLPK will prove
         # infeasibility before it has a factorized basis in memory.
-        GLPK.factorize(model.inner)
+        glp_factorize(model.inner)
         for row in 1:num_rows
-            idx = GLPK.get_bhead(model.inner, row)
+            idx = glp_get_bhead(model.inner, row)
             if idx <= num_rows
                 k = idx
-                primal      = GLPK.get_row_prim(model.inner, k)
-                upper_bound = GLPK.get_row_ub(model.inner, k)
-                lower_bound = GLPK.get_row_lb(model.inner, k)
+                primal      = glp_get_row_prim(model.inner, k)
+                upper_bound = glp_get_row_ub(model.inner, k)
+                lower_bound = glp_get_row_lb(model.inner, k)
             else
                 k = idx - num_rows
-                primal      = GLPK.get_col_prim(model.inner, k)
-                upper_bound = GLPK.get_col_ub(model.inner, k)
-                lower_bound = GLPK.get_col_lb(model.inner, k)
+                primal      = glp_get_col_prim(model.inner, k)
+                upper_bound = glp_get_col_ub(model.inner, k)
+                lower_bound = glp_get_col_lb(model.inner, k)
             end
             if primal > upper_bound + eps
                 ray[row] = -1
@@ -69,14 +69,14 @@ function get_infeasibility_ray(model::Optimizer, ray::Vector{Float64})
                 continue # ray[row] == 0
             end
             if idx <= num_rows
-                ray[row] *= GLPK.get_rii(model.inner, k)
+                ray[row] *= glp_get_rii(model.inner, k)
             else
-                ray[row] /= GLPK.get_sjj(model.inner, k)
+                ray[row] /= glp_get_sjj(model.inner, k)
             end
         end
-        GLPK.btran(model.inner, ray)
+        glp_btran(model.inner, ray)
         for row in 1:num_rows
-            ray[row] /= GLPK.get_rii(model.inner, row)
+            ray[row] /= glp_get_rii(model.inner, row)
         end
     end
 end
@@ -86,33 +86,42 @@ end
 
 Get the certificate of primal unboundedness.
 
-Can only be called when GLPK.simplex is used as the solver.
+Can only be called when glp_simplex is used as the solver.
 """
 function get_unbounded_ray(model::Optimizer, ray::Vector{Float64})
-    num_rows = GLPK.get_num_rows(model.inner)
-    n = GLPK.get_num_cols(model.inner)
+    num_rows = glp_get_num_rows(model.inner)
+    n = glp_get_num_cols(model.inner)
     @assert length(ray) == n
-    ur = GLPK.get_unbnd_ray(model.inner)
+    ur = glp_get_unbnd_ray(model.inner)
     if ur <= num_rows
         k = ur
-        status = GLPK.get_row_stat(model.inner, k)
-        dual = GLPK.get_row_dual(model.inner, k)
+        status = glp_get_row_stat(model.inner, k)
+        dual = glp_get_row_dual(model.inner, k)
     else
         k = ur - num_rows
-        status = GLPK.get_col_stat(model.inner, k)
-        dual = GLPK.get_col_dual(model.inner, k)
+        status = glp_get_col_stat(model.inner, k)
+        dual = glp_get_col_dual(model.inner, k)
         ray[k] = 1
     end
-    if status == GLPK.BS
-        error("unbounded ray is dual (use getinfeasibilityray)")
+    if status == GLP_BS
+        error("unbounded ray is dual (use get_infeasibility_ray)")
     end
-    indices, values = GLPK.eval_tab_col(model.inner, ur)
-    for (row, coef) in zip(indices, values)
+    nnz = n + num_rows
+    indices, coefficients = zeros(Cint, nnz), zeros(Cdouble, nnz)
+    len = glp_eval_tab_col(
+        model.inner,
+        nnz,
+        pointer(indices) - sizeof(Cint),
+        pointer(coefficients) - sizeof(Cdouble),
+    )
+    splice!(indices, (len+1):nnz)
+    splice!(coefficients, (len+1):nnz)
+    for (row, coef) in zip(indices, coefficients)
         if row > num_rows
             ray[row - num_rows] = coef
         end
     end
-    if xor(GLPK.get_obj_dir(model.inner) == GLPK.MAX, dual > 0)
+    if xor(glp_get_obj_dir(model.inner) == GLP_MAX, dual > 0)
         ray *= -1
     end
 end

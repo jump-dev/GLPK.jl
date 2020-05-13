@@ -1,6 +1,6 @@
-using Test
-using SparseArrays
 import GLPK
+import SparseArrays
+using Test
 
 # Basically, same example as in the GLPK manual
 # but using many more functions just to test them out
@@ -71,7 +71,7 @@ function glpk_tst_1()
 
     # test setting the problem coefficients via sparse
     # matrix
-    sm = sparse(ia, ja, ar)
+    sm = SparseArrays.sparse(ia, ja, ar)
     GLPK.load_matrix(lp, sm)
 
     # test random scaling of the coefficients and

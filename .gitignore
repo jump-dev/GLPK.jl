@@ -1,3 +1,4 @@
 Manifest.toml
 *.json
 perf/Project.toml
+scripts/*.h

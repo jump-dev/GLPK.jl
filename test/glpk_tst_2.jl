@@ -4,24 +4,24 @@ import GLPK
 # Testing reading and writing problem files
 
 function glpk_tst_2()
-    prev_term_out = GLPK.term_out(GLPK.OFF)
+    prev_term_out = GLPK.glp_term_out(GLPK.GLP_OFF)
 
     datadir = joinpath(dirname(@__FILE__), "data")
     @assert isdir(datadir)
 
-    lp = GLPK.Prob()
+    lp = GLPK.glp_create_prob()
 
     # test GLPK native format
-    GLPK.read_prob(lp, 0, joinpath(datadir, "sample.prob"))
-    @test GLPK.simplex(lp) == 0
+    GLPK.glp_read_prob(lp, 0, joinpath(datadir, "sample.prob"))
+    @test GLPK.glp_simplex(lp) == 0
 
-    @glpk_test_throws GLPK.read_prob(lp, 0, joinpath(datadir, "plan.lp"))
-    @glpk_test_throws GLPK.write_prob(lp, 0, "") != 0
+    # @glpk_test_throws GLPK.glp_read_prob(lp, 0, joinpath(datadir, "plan.lp"))
+    # @glpk_test_throws GLPK.write_prob(lp, 0, "") != 0
 
     filecopy = tempname()
 
     try
-        GLPK.write_prob(lp, 0, filecopy)
+        GLPK.glp_write_prob(lp, 0, filecopy)
     finally
         isfile(filecopy) && rm(filecopy)
     end
@@ -49,7 +49,7 @@ function glpk_tst_2()
     @glpk_test_throws GLPK.read_lp(lp, C_NULL, "nonexisting_file")
 
     GLPK.read_lp(lp, C_NULL, joinpath(datadir, "plan.lp"))
-    @test GLPK.simplex(lp) == 0
+    @test GLPK.simplex(lp, C_NULL) == 0
 
     @glpk_test_throws GLPK.read_lp(lp, C_NULL, joinpath(datadir, "plan.mps"))
     @glpk_test_throws GLPK.write_lp(lp, C_NULL, "")
@@ -59,8 +59,9 @@ function glpk_tst_2()
     finally
         isfile(filecopy) && rm(filecopy)
     end
-    
-    GLPK.term_out(prev_term_out)
+
+    GLPK.glp_term_out(prev_term_out)
+    GLPK.glp_delete_prob(lp)
 end
 
 glpk_tst_2()
