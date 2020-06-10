@@ -112,8 +112,8 @@ function MOI.submit(
         101,
         0,
         Cint(length(indices)),
-        pointer(indices) - sizeof(Cint),
-        pointer(coefficients) - sizeof(Cdouble),
+        offset(indices),
+        offset(coefficients),
         bound_type,
         rhs,
     )
@@ -146,9 +146,7 @@ function MOI.submit(
     for (var, value) in zip(variables, values)
         solution[_info(model, var).column] = value
     end
-    ret = glp_ios_heur_sol(
-        cb.callback_data.tree, pointer(solution) - sizeof(Cdouble)
-    )
+    ret = glp_ios_heur_sol(cb.callback_data.tree, offset(solution))
     return ret == 0 ? MOI.HEURISTIC_SOLUTION_ACCEPTED : MOI.HEURISTIC_SOLUTION_REJECTED
 end
 MOI.supports(::Optimizer, ::MOI.HeuristicSolution{CallbackData}) = true

@@ -461,7 +461,7 @@ function MOI.delete(model::Optimizer, v::MOI.VariableIndex)
     glp_std_basis(model.inner)
     # GLPK has an offset in vectors!
     c = Cint[info.column]
-    glp_del_cols(model.inner, 1, pointer(c) - sizeof(Cint))
+    glp_del_cols(model.inner, 1, offset(c))
     delete!(model.variable_info, v)
     for other_info in values(model.variable_info)
         if other_info.column > info.column
@@ -1890,6 +1890,8 @@ function MOI.get(model::Optimizer, ::MOI.ObjectiveFunctionType)
     return MOI.ScalarAffineFunction{Float64}
 end
 
+offset(x::Vector{T}) where {T} = pointer(x) - sizeof(T)
+
 function offset_glp_set_mat_row(
     prob::Ptr{glp_prob},
     row::Cint,
@@ -1899,9 +1901,9 @@ function offset_glp_set_mat_row(
     if length(indices) == 0
         return
     end
-    ind32p = pointer(indices) - sizeof(Cint)
-    val64p = pointer(coefficients) - sizeof(Cdouble)
-    return glp_set_mat_row(prob, row, length(indices), ind32p, val64p)
+    return glp_set_mat_row(
+        prob, row, length(indices), offset(indices), offset(coefficients)
+    )
 end
 
 function offset_glp_get_mat_row(
@@ -1913,9 +1915,7 @@ function offset_glp_get_mat_row(
     if length(indices) == 0
         return
     end
-    ind32p = pointer(indices) - sizeof(Cint)
-    val64p = pointer(coefficients) - sizeof(Cdouble)
-    return glp_get_mat_row(prob, row, ind32p, val64p)
+    return glp_get_mat_row(prob, row, offset(indices), offset(coefficients))
 end
 
 # TODO(odow): is there a way to modify a single element, rather than the whole
