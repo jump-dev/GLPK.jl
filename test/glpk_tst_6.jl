@@ -58,8 +58,8 @@ function cb_callback(tree::Ptr{Cvoid}, info::Ptr{Cvoid})
             0,
             0,
             Cint(length(indices)),
-            pointer(indices) - sizeof(Cint),
-            pointer(coefficients) - sizeof(Cdouble),
+            GLPK.offset(indices),
+            GLPK.offset(coefficients),
             GLPK.GLP_LO,
             0.0,
         )
@@ -71,8 +71,8 @@ function cb_callback(tree::Ptr{Cvoid}, info::Ptr{Cvoid})
             0,
             0,
             Cint(length(indices)),
-            pointer(indices) - sizeof(Cint),
-            pointer(coefficients) - sizeof(Cdouble),
+            GLPK.offset(indices),
+            GLPK.offset(coefficients),
             GLPK.GLP_LO,
             0.0,
         )

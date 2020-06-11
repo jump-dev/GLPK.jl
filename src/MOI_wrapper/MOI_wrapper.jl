@@ -1882,7 +1882,19 @@ function MOI.get(model::Optimizer, ::MOI.ObjectiveFunctionType)
     return MOI.ScalarAffineFunction{Float64}
 end
 
-offset(x::Vector{T}) where {T} = pointer(x) - sizeof(T)
+"""
+    offset(x::Vector)
+
+GLPK uses 1-based indexing for its arrays. But since C has 0-based indexing, all
+1-based vectors passed to GLPK need to be padded with a "0'th" element that will
+never be accessed. To avoid doing this padding in Julia, we convert the vector
+to a reference, and use the optional second argument to ensure the reference
+points to the "0'th" element of the array. This is safe to do, provided C never
+accesses `x[0]`.
+
+See the GLPK manual for more details.
+"""
+offset(x::Vector) = Ref(x, 0)
 
 function offset_glp_set_mat_row(
     prob::Ptr{glp_prob},
