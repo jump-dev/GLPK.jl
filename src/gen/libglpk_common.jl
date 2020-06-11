@@ -140,6 +140,10 @@ mutable struct glp_bfcp
     foo_bar::NTuple{38, Cdouble}
 end
 
+function Base.cconvert(::Type{Ptr{glp_bfcp}}, x::glp_bfcp)
+    return pointer_from_objref(x)
+end
+
 mutable struct glp_smcp
     msg_lev::Cint
     meth::Cint
@@ -162,11 +166,19 @@ mutable struct glp_smcp
     glp_smcp() = new()
 end
 
+function Base.cconvert(::Type{Ptr{glp_smcp}}, x::glp_smcp)
+    return pointer_from_objref(x)
+end
+
 mutable struct glp_iptcp
     msg_lev::Cint
     ord_alg::Cint
     foo_bar::NTuple{48, Cdouble}
     glp_iptcp() = new()
+end
+
+function Base.cconvert(::Type{Ptr{glp_iptcp}}, x::glp_iptcp)
+    return pointer_from_objref(x)
 end
 
 const glp_tree = Cvoid
@@ -203,6 +215,10 @@ mutable struct glp_iocp
     glp_iocp() = new()
 end
 
+function Base.cconvert(::Type{Ptr{glp_iocp}}, x::glp_iocp)
+    return pointer_from_objref(x)
+end
+
 mutable struct glp_attr
     level::Cint
     origin::Cint
@@ -210,15 +226,29 @@ mutable struct glp_attr
     foo_bar::NTuple{7, Cdouble}
 end
 
+function Base.cconvert(::Type{Ptr{glp_attr}}, x::glp_attr)
+    return pointer_from_objref(x)
+end
+
 mutable struct glp_mpscp
     blank::Cint
     obj_name::Cstring
     tol_mps::Cdouble
     foo_bar::NTuple{17, Cdouble}
+    glp_mpscp() = new()
+end
+
+function Base.cconvert(::Type{Ptr{glp_mpscp}}, x::glp_mpscp)
+    return pointer_from_objref(x)
 end
 
 mutable struct glp_cpxcp
     foo_bar::NTuple{20, Cdouble}
+    glp_cpxcp() = new()
+end
+
+function Base.cconvert(::Type{Ptr{glp_cpxcp}}, x::glp_cpxcp)
+    return pointer_from_objref(x)
 end
 
 const glp_tran = Cvoid
@@ -235,6 +265,10 @@ mutable struct glp_arc
     h_next::Ptr{glp_arc}
 end
 
+function Base.cconvert(::Type{Ptr{glp_arc}}, x::glp_arc)
+    return pointer_from_objref(x)
+end
+
 mutable struct glp_vertex
     i::Cint
     name::Cstring
@@ -243,6 +277,10 @@ mutable struct glp_vertex
     temp::Ptr{Cvoid}
     in::Ptr{glp_arc}
     out::Ptr{glp_arc}
+end
+
+function Base.cconvert(::Type{Ptr{glp_vertex}}, x::glp_vertex)
+    return pointer_from_objref(x)
 end
 
 mutable struct glp_graph
@@ -255,4 +293,8 @@ mutable struct glp_graph
     index::Ptr{Cvoid}
     v_size::Cint
     a_size::Cint
+end
+
+function Base.cconvert(::Type{Ptr{glp_graph}}, x::glp_graph)
+    return pointer_from_objref(x)
 end

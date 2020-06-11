@@ -35,7 +35,7 @@ function cb_callback(tree::Ptr{Cvoid}, info::Ptr{Cvoid})
 
     for i = 1:GLPK.glp_get_num_rows(prob)
         attr = GLPK.glp_attr(0, 0, 0, tuple(fill(0.0, 7)...))
-        GLPK.glp_ios_row_attr(tree, i, pointer_from_objref(attr))
+        GLPK.glp_ios_row_attr(tree, i, attr)
     end
     for i = 1:GLPK.glp_get_num_cols(prob)
         cb = GLPK.glp_ios_can_branch(tree, i)
@@ -109,13 +109,13 @@ function glpk_tst_6()
     #@test GLPK.glp_simplex(mip, nothing) == 0
 
     params = GLPK.glp_iocp()
-    GLPK.glp_init_iocp(pointer_from_objref(params))
+    GLPK.glp_init_iocp(params)
     params.presolve = GLPK.GLP_ON
     params.cb_size = 1
 
     params.cb_func = @cfunction(cb_callback, Cvoid, (Ptr{Cvoid}, Ptr{Cvoid}))
 
-    @test GLPK.glp_intopt(mip, pointer_from_objref(params)) == 0
+    @test GLPK.glp_intopt(mip, params) == 0
 
     GLPK.glp_mpl_postsolve(tran, mip, GLPK.GLP_MIP)
 

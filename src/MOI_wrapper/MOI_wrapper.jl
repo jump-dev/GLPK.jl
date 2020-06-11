@@ -124,11 +124,11 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
         model.method = method
 
         model.interior_param = glp_iptcp()
-        glp_init_iptcp(pointer_from_objref(model.interior_param))
+        glp_init_iptcp(model.interior_param)
         model.intopt_param = glp_iocp()
-        glp_init_iocp(pointer_from_objref(model.intopt_param))
+        glp_init_iocp(model.intopt_param)
         model.simplex_param = glp_smcp()
-        glp_init_smcp(pointer_from_objref(model.simplex_param))
+        glp_init_smcp(model.simplex_param)
 
         MOI.set(model, MOI.RawParameter("msg_lev"), GLP_MSG_ERR)
         if model.presolve
@@ -1094,7 +1094,7 @@ function MOI.delete(
     row = _info(model, c).row
     glp_std_basis(model.inner)
     x = Cint[row]
-    glp_del_rows(model.inner, 1, pointer(x) - sizeof(Cint))
+    glp_del_rows(model.inner, 1, offset(x))
     for info in values(model.affine_constraint_info)
         if info.row > row
             info.row -= 1
@@ -1281,18 +1281,12 @@ end
 function _solve_linear_problem(model::Optimizer)
     model.last_solved_by_mip = false
     if model.method == SIMPLEX
-        model.solver_status = glp_simplex(
-            model.inner, pointer_from_objref(model.simplex_param)
-        )
+        model.solver_status = glp_simplex(model.inner, model.simplex_param)
     elseif model.method == EXACT
-        model.solver_status = glp_exact(
-            model.inner, pointer_from_objref(model.simplex_param)
-        )
+        model.solver_status = glp_exact(model.inner, model.simplex_param)
     else
         @assert model.method == INTERIOR
-        model.solver_status = glp_interior(
-            model.inner, pointer_from_objref(model.interior_param)
-        )
+        model.solver_status = glp_interior(model.inner, model.interior_param)
     end
     return
 end
@@ -1338,7 +1332,7 @@ function _solve_mip_problem(model::Optimizer)
         # a basis. If presolve=glp_OFF, then we should solve the problem via
         # glp_simplex first.
         if model.intopt_param.presolve == GLP_OFF
-            glp_simplex(model.inner, pointer_from_objref(model.simplex_param))
+            glp_simplex(model.inner, model.simplex_param)
             if glp_get_status(model.inner) != GLP_OPT
                 # We didn't find an optimal solution to the LP relaxation, so
                 # let's turn presolve on and let intopt figure out what the
@@ -1346,9 +1340,7 @@ function _solve_mip_problem(model::Optimizer)
                 model.intopt_param.presolve = GLP_ON
             end
         end
-        model.solver_status = glp_intopt(
-            model.inner, pointer_from_objref(model.intopt_param)
-        )
+        model.solver_status = glp_intopt(model.inner, model.intopt_param)
         model.last_solved_by_mip = true
 
         # !!! Very Important Note

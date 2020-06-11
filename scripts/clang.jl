@@ -1,6 +1,6 @@
 # TODO(odow):
 #
-# This script can be used to build the C interface to Clp. However, it requires
+# This script can be used to build the C interface to GLPK. However, it requires
 # you to manually do the following steps first:
 #
 # 1) Copy glpk.h from GLPK into this /scripts directory
@@ -36,11 +36,30 @@ function manual_corrections()
     ]
         file = replace(file, correction)
     end
-    for s_type in ["glp_smcp", "glp_iptcp", "glp_iocp"]
+
+    function new_functions(name, constr)
+        s = constr ? "\n    $(name)() = new()\nend" : "\nend"
+        return """
+        $(s)
+
+        function Base.cconvert(::Type{Ptr{$(name)}}, x::$(name))
+            return pointer_from_objref(x)
+        end"""
+    end
+    for (s_type, constr) in [
+        "glp_bfcp" => false,
+        "glp_smcp" => true,
+        "glp_iptcp" => true,
+        "glp_iocp" => true,
+        "glp_attr" => false,
+        "glp_mpscp" => true,
+        "glp_cpxcp" => true,
+        "glp_arc" => false,
+        "glp_vertex" => false,
+        "glp_graph" => false,
+    ]
         r = Regex("(mutable struct $(s_type).+?end)", "s")
-        str = replace(
-            match(r, file)[1], "end" => "    $(s_type)() = new()\nend"
-        )
+        str = replace(match(r, file)[1], "\nend" => new_functions(s_type, constr))
         file = replace(file, r => str)
     end
     write(COMMON, file)
