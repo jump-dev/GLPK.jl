@@ -36,21 +36,22 @@ To switch back to the default binaries clear `JULIA_GLPK_LIBRARY_PATH` and call 
 
 ## `GLPK.Optimizer`
 
-Use `GLPK.Optimizer` to create a new optimizer object:
+Use `GLPK.Optimizer` to create a new optimizer object.
 
 In the following examples the time limit is set to one minute and logging is turned off.
 ```julia
 using GLPK
 model = GLPK.Optimizer()
-MOI.set(model, MOI.RawParameter("tm_lim"), 60000)
-MOI.set(model, MOI.RawParameter("msg_lev"), GLPK.MSG_OFF)
+MOI.set(model, MOI.RawParameter("tm_lim"), 60_000) #  tm_lim is in milliseconds.
+MOI.set(model, MOI.RawParameter("msg_lev"), GLPK.GLP_MSG_OFF)
 ```
+
 For JuMP, use:
 ```julia
 using JuMP, GLPK
-model = Model(
-    optimizer_with_attributes(GLPK.Optimizer, "tm_lim" => 60000, "msg_lev" => GLPK.MSG_OFF)
-)
+model = Model(GLPK.Optimizer)
+set_optimizer_attribute(model, "tm_lim", 60 * 1_000)
+set_optimizer_attribute(model, "msg_lev", GLPK.GLP_MSG_OFF)
 ```
 
 **Note: previous versions of `GLPK.jl` required you to choose either `GLPKSolverLP` or `GLPKSolverMIP`. This is no longer needed; just use `GLPK.Optimizer`.**
