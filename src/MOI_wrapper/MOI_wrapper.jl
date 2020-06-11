@@ -3,6 +3,20 @@ import MathOptInterface
 const MOI = MathOptInterface
 const CleverDicts = MOI.Utilities.CleverDicts
 
+"""
+    offset(x::Vector)
+
+GLPK uses 1-based indexing for its arrays. But since C has 0-based indexing, all
+1-based vectors passed to GLPK need to be padded with a "0'th" element that will
+never be accessed. To avoid doing this padding in Julia, we convert the vector
+to a reference, and use the optional second argument to ensure the reference
+points to the "0'th" element of the array. This is safe to do, provided C never
+accesses `x[0]`.
+
+See the GLPK manual for more details.
+"""
+offset(x::Vector) = Ref(x, 0)
+
 @enum(TypeEnum, CONTINUOUS, BINARY, INTEGER)
 @enum(BoundEnum, NONE, LESS_THAN, GREATER_THAN, LESS_AND_GREATER_THAN, INTERVAL, EQUAL_TO)
 @enum(ObjectiveEnum, SINGLE_VARIABLE, SCALAR_AFFINE)
@@ -79,7 +93,7 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
     # parameter.
     silent::Bool
 
-    # A flag to keep track of MOI.FEASIBILITY_SENSE, since Gurobi only stores
+    # A flag to keep track of MOI.FEASIBILITY_SENSE, since GLPK only stores
     # MIN_SENSE or MAX_SENSE. This allows us to differentiate between MIN_SENSE
     # and FEASIBILITY_SENSE.
     is_feasibility::Bool
@@ -308,7 +322,7 @@ end
 
 function MOI.set(model::Optimizer, param::MOI.RawParameter, value)
     if typeof(param.name) != String
-        error("glp_jl requires strings as arguments to `RawParameter`.")
+        error("GLPK.jl requires strings as arguments to `RawParameter`.")
     end
     key = Symbol(param.name)
     set_interior = set_parameter(model.interior_param, key, value)
@@ -322,7 +336,7 @@ end
 
 function MOI.get(model::Optimizer, param::MOI.RawParameter)
     if typeof(param.name) != String
-        error("glp_jl requires strings as arguments to `RawParameter`.")
+        error("GLPK.jl requires strings as arguments to `RawParameter`.")
     end
     name = Symbol(param.name)
     if (model.method == SIMPLEX || model.method == EXACT) && name in fieldnames(glp_smcp)
@@ -459,7 +473,6 @@ end
 function MOI.delete(model::Optimizer, v::MOI.VariableIndex)
     info = _info(model, v)
     glp_std_basis(model.inner)
-    # GLPK has an offset in vectors!
     c = Cint[info.column]
     glp_del_cols(model.inner, 1, offset(c))
     delete!(model.variable_info, v)
@@ -519,7 +532,7 @@ function MOI.set(
     return
 end
 
-###]
+###
 ### Objectives
 ###
 
@@ -550,6 +563,13 @@ function MOI.get(model::Optimizer, ::MOI.ObjectiveSense)
         @assert sense == GLP_MIN
         return MOI.MIN_SENSE
     end
+end
+
+function MOI.get(model::Optimizer, ::MOI.ObjectiveFunction{F}) where {F}
+    obj = MOI.get(
+        model, MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}()
+    )
+    return convert(F, obj)
 end
 
 function MOI.set(
@@ -583,15 +603,6 @@ function MOI.get(
     end
     constant = glp_get_obj_coef(model.inner, 0)
     return MOI.ScalarAffineFunction(terms, constant)
-end
-
-function MOI.get(model::Optimizer, ::MOI.ObjectiveFunction{F}) where {F}
-    return convert(
-        F,
-        MOI.get(
-            model, MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}()
-        )
-    )
 end
 
 function MOI.modify(
@@ -1033,7 +1044,7 @@ end
 """
     _add_affine_constraint(
         problem::Ptr{glp_prob},
-        columns::Vector{Int},
+        columns::Vector{Cint},
         coefficients::Vector{Float64},
         sense::Cchar,
         rhs::Float64,
@@ -1053,21 +1064,24 @@ function _add_affine_constraint(
         error("columns and coefficients have different lengths.")
     end
     glp_add_rows(problem, 1)
-    num_rows = glp_get_num_rows(problem)
-    offset_glp_set_mat_row(problem, num_rows, indices, coefficients)
+    row = glp_get_num_rows(problem)
+    glp_set_mat_row(
+        problem, row, length(indices), offset(indices), offset(coefficients)
+    )
     # According to http://most.ccib.rutgers.edu/glpk.pdf page 22, the `lb`
-    # argument is ignored for constraint types with no lower bound (glp_UP) and
+    # argument is ignored for constraint types with no lower bound (GLP_UP) and
     # the `ub` argument is ignored for constraint types with no upper bound
-    # (glp_LO). We pass ±DBL_MAX for those unused bounds since (a) we have to
-    # pass something, and (b) it is consistent with the other usages of ±DBL_MAX
-    # to represent infinite bounds in the rest of the GLPK interface.
+    # (GLP_LO). We pass ±GLP_DBL_MAX for those unused bounds since (a) we have
+    # to pass something, and (b) it is consistent with the other usages of
+    # ±GLP_DBL_MAX to represent infinite bounds in the rest of the GLPK
+    # interface.
     if sense == Cchar('E')
-        glp_set_row_bnds(problem, num_rows, GLP_FX, rhs, rhs)
+        glp_set_row_bnds(problem, row, GLP_FX, rhs, rhs)
     elseif sense == Cchar('G')
-        glp_set_row_bnds(problem, num_rows, GLP_LO, rhs, GLP_DBL_MAX)
+        glp_set_row_bnds(problem, row, GLP_LO, rhs, GLP_DBL_MAX)
     else
         @assert sense == Cchar('L')
-        glp_set_row_bnds(problem, num_rows, GLP_UP, -GLP_DBL_MAX, rhs)
+        glp_set_row_bnds(problem, row, GLP_UP, -GLP_DBL_MAX, rhs)
     end
     return
 end
@@ -1146,7 +1160,7 @@ function MOI.get(
     row = Cint(_info(model, c).row)
     nnz = glp_get_mat_row(model.inner, row, C_NULL, C_NULL)
     indices, coefficients = zeros(Cint, nnz), zeros(Cdouble, nnz)
-    offset_glp_get_mat_row(model.inner, row, indices, coefficients)
+    glp_get_mat_row(model.inner, row, offset(indices), offset(coefficients))
     terms = MOI.ScalarAffineTerm{Float64}[]
     for (col, val) in zip(indices, coefficients)
         if iszero(val)
@@ -1165,7 +1179,7 @@ end
 function MOI.get(
     model::Optimizer,
     ::MOI.ConstraintName,
-    c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64}, <:Any}
+    c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64}, <:Any},
 )
     return _info(model, c).name
 end
@@ -1328,8 +1342,8 @@ function _solve_mip_problem(model::Optimizer)
     presolve_cache = model.intopt_param.presolve
     try
         # glp_intopt requires a starting basis for the LP relaxation. There are
-        # two ways to get this. If presolve=glp_ON, then the presolve will find
-        # a basis. If presolve=glp_OFF, then we should solve the problem via
+        # two ways to get this. If presolve=GLP_ON, then the presolve will find
+        # a basis. If presolve=GLP_OFF, then we should solve the problem via
         # glp_simplex first.
         if model.intopt_param.presolve == GLP_OFF
             glp_simplex(model.inner, model.simplex_param)
@@ -1368,7 +1382,10 @@ function check_moi_callback_validity(model::Optimizer)
         model.user_cut_callback !== nothing ||
         model.heuristic_callback !== nothing
     if has_moi_callback && model.has_generic_callback
-        error("Cannot use `GLP.CallbackFunction` as well as `MOI.AbstractCallbackFunction`.")
+        error(
+            "Cannot use `GLPK.CallbackFunction` as well as " *
+            "`MOI.AbstractCallbackFunction`."
+        )
     end
     return has_moi_callback
 end
@@ -1882,46 +1899,6 @@ function MOI.get(model::Optimizer, ::MOI.ObjectiveFunctionType)
     return MOI.ScalarAffineFunction{Float64}
 end
 
-"""
-    offset(x::Vector)
-
-GLPK uses 1-based indexing for its arrays. But since C has 0-based indexing, all
-1-based vectors passed to GLPK need to be padded with a "0'th" element that will
-never be accessed. To avoid doing this padding in Julia, we convert the vector
-to a reference, and use the optional second argument to ensure the reference
-points to the "0'th" element of the array. This is safe to do, provided C never
-accesses `x[0]`.
-
-See the GLPK manual for more details.
-"""
-offset(x::Vector) = Ref(x, 0)
-
-function offset_glp_set_mat_row(
-    prob::Ptr{glp_prob},
-    row::Cint,
-    indices::Vector{Cint},
-    coefficients::Vector{Cdouble},
-)
-    if length(indices) == 0
-        return
-    end
-    return glp_set_mat_row(
-        prob, row, length(indices), offset(indices), offset(coefficients)
-    )
-end
-
-function offset_glp_get_mat_row(
-    prob::Ptr{glp_prob},
-    row::Cint,
-    indices::Vector{Cint},
-    coefficients::Vector{Cdouble},
-)
-    if length(indices) == 0
-        return
-    end
-    return glp_get_mat_row(prob, row, offset(indices), offset(coefficients))
-end
-
 # TODO(odow): is there a way to modify a single element, rather than the whole
 # row?
 function MOI.modify(
@@ -1933,7 +1910,7 @@ function MOI.modify(
     col = _info(model, chg.variable).column
     nnz = glp_get_mat_row(model.inner, row, C_NULL, C_NULL)
     indices, coefficients = zeros(Cint, nnz), zeros(Cdouble, nnz)
-    offset_glp_get_mat_row(model.inner, row, indices, coefficients)
+    glp_get_mat_row(model.inner, row, offset(indices), offset(coefficients))
     index = something(findfirst(isequal(col), indices), 0)
     if index > 0
         coefficients[index] = chg.new_coefficient
@@ -1941,7 +1918,9 @@ function MOI.modify(
         push!(indices, col)
         push!(coefficients, chg.new_coefficient)
     end
-    offset_glp_set_mat_row(model.inner, row, indices, coefficients)
+    glp_set_mat_row(
+        model.inner, row, length(indices), offset(indices), offset(coefficients)
+    )
     return
 end
 
@@ -1967,7 +1946,9 @@ function MOI.set(
     end
     row = Cint(_info(model, c).row)
     indices, coefficients = _indices_and_coefficients(model, f)
-    offset_glp_set_mat_row(model.inner, row, indices, coefficients)
+    glp_set_mat_row(
+        model.inner, row, length(indices), offset(indices), offset(coefficients)
+    )
     return
 end
 
