@@ -16,8 +16,9 @@ function MOI.set(
 )
     @warn(
         "The GLPK constants have been renamed from `GLPK.XXX` to " *
-        "`GLPK.GLP_XXX` in order to better match the C API. Support for the " *
-        "old constants will be removed in a future release."
+        "`GLPK.GLP_XXX` in order to better match the C API. For example, " *
+        "`GLPK.MSG_OFF` is now `GLPK.GLP_MSG_OFF`. Support for the old " *
+        "constants will be removed in a future release."
     )
     MOI.set(model, param, value.x)
 end
