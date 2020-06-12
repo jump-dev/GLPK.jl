@@ -14,13 +14,13 @@
 ### purpose.
 
 """
-    get_infeasibility_ray(model::Optimizer, ray::Vector{Float64})
+    _get_infeasibility_ray(model::Optimizer, ray::Vector{Float64})
 
 Get the Farkas certificate of primal infeasiblity.
 
 Can only be called when glp_simplex is used as the solver.
 """
-function get_infeasibility_ray(model::Optimizer, ray::Vector{Float64})
+function _get_infeasibility_ray(model::Optimizer, ray::Vector{Float64})
     num_rows = glp_get_num_rows(model.inner)
     @assert length(ray) == num_rows
     ur = glp_get_unbnd_ray(model.inner)
@@ -82,13 +82,13 @@ function get_infeasibility_ray(model::Optimizer, ray::Vector{Float64})
 end
 
 """
-    get_unbounded_ray(model::Optimizer, ray::Vector{Float64})
+    _get_unbounded_ray(model::Optimizer, ray::Vector{Float64})
 
 Get the certificate of primal unboundedness.
 
 Can only be called when glp_simplex is used as the solver.
 """
-function get_unbounded_ray(model::Optimizer, ray::Vector{Float64})
+function _get_unbounded_ray(model::Optimizer, ray::Vector{Float64})
     num_rows = glp_get_num_rows(model.inner)
     n = glp_get_num_cols(model.inner)
     @assert length(ray) == n
@@ -104,7 +104,7 @@ function get_unbounded_ray(model::Optimizer, ray::Vector{Float64})
         ray[k] = 1
     end
     if status == GLP_BS
-        error("unbounded ray is dual (use get_infeasibility_ray)")
+        error("unbounded ray is dual (use _get_infeasibility_ray)")
     end
     nnz = n + num_rows
     indices, coefficients = zeros(Cint, nnz), zeros(Cdouble, nnz)

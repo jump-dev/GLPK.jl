@@ -11,7 +11,7 @@ struct CallbackFunction <: MOI.AbstractCallback end
 
 function MOI.set(model::Optimizer, ::CallbackFunction, callback::Function)
     model.has_generic_callback = true
-    set_callback(model, (cb_data) -> begin
+    _set_callback(model, (cb_data) -> begin
         model.callback_state = CB_GENERIC
         callback(cb_data)
         model.callback_state = CB_NONE
@@ -24,7 +24,7 @@ MOI.supports(::Optimizer, ::CallbackFunction) = true
 #    MOI callbacks
 # ==============================================================================
 
-function default_moi_callback(model::Optimizer)
+function _default_moi_callback(model::Optimizer)
     return (cb_data) -> begin
         reason = glp_ios_reason(cb_data.tree)
         if reason == GLP_IROWGEN && model.lazy_callback !== nothing

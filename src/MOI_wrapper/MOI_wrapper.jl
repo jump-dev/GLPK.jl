@@ -185,7 +185,7 @@ end
 # and then re-throw it once we have gracefully exited from the callback.
 #
 # See also: the note in `_solve_mip_problem`.
-function set_callback(model::Optimizer, callback_function::Function)
+function _set_callback(model::Optimizer, callback_function::Function)
     internal_callback = (tree::Ptr{Cvoid}, info::Ptr{Cvoid}) -> begin
         cb_data = unsafe_pointer_to_objref(info)::CallbackData
         node = glp_ios_best_node(tree)
@@ -235,7 +235,7 @@ function MOI.empty!(model::Optimizer)
     model.lazy_callback = nothing
     model.user_cut_callback = nothing
     model.heuristic_callback = nothing
-    set_callback(model, cb_data -> nothing)
+    _set_callback(model, cb_data -> nothing)
     return
 end
 
@@ -284,7 +284,7 @@ function MOI.supports_constraint(
     return true
 end
 
-const SCALAR_SETS = Union{
+const _SCALAR_SETS = Union{
     MOI.GreaterThan{Float64},
     MOI.LessThan{Float64},
     MOI.EqualTo{Float64},
@@ -301,14 +301,14 @@ MOI.supports(::Optimizer, ::MOI.ObjectiveSense) = true
 MOI.supports(::Optimizer, ::MOI.RawParameter) = true
 
 """
-    set_parameter(param_store, key::Symbol, value)::Bool
+    _set_parameter(param_store, key::Symbol, value)::Bool
 
 Set the field name `key` in a `param_store` type (that is one of `InteriorParam`,
 `IntoptParam`, or `SimplexParam`) to `value`.
 
 Returns a `Bool` indicating if the parameter was set.
 """
-function set_parameter(param_store, key::Symbol, value)
+function _set_parameter(param_store, key::Symbol, value)
     if key == :cb_func || key == :cb_info
         error("Invalid option: $(string(key)). Use the MOI attribute " *
               "`GLPK.CallbackFunction` instead.")
@@ -325,9 +325,9 @@ function MOI.set(model::Optimizer, param::MOI.RawParameter, value)
         error("GLPK.jl requires strings as arguments to `RawParameter`.")
     end
     key = Symbol(param.name)
-    set_interior = set_parameter(model.interior_param, key, value)
-    set_intopt = set_parameter(model.intopt_param, key, value)
-    set_simplex = set_parameter(model.simplex_param, key, value)
+    set_interior = _set_parameter(model.interior_param, key, value)
+    set_intopt = _set_parameter(model.intopt_param, key, value)
+    set_simplex = _set_parameter(model.simplex_param, key, value)
     if !set_interior && !set_intopt && !set_simplex
         throw(MOI.UnsupportedAttribute(param))
     end
@@ -744,7 +744,7 @@ end
 
 function MOI.add_constraint(
     model::Optimizer, f::MOI.SingleVariable, s::S
-) where {S <: SCALAR_SETS}
+) where {S <: _SCALAR_SETS}
     info = _info(model, f.variable)
     if S <: MOI.LessThan{Float64}
         _throw_if_existing_upper(info.bound, info.type, S, f.variable)
@@ -899,7 +899,7 @@ function MOI.set(
     ::MOI.ConstraintSet,
     c::MOI.ConstraintIndex{MOI.SingleVariable, S},
     s::S,
-) where {S<:SCALAR_SETS}
+) where {S<:_SCALAR_SETS}
     MOI.throw_if_not_valid(model, c)
     lower, upper = _bounds(s)
     info = _info(model, c)
@@ -1376,7 +1376,7 @@ end
 
 include("infeasibility_certificates.jl")
 
-function check_moi_callback_validity(model::Optimizer)
+function _check_moi_callback_validity(model::Optimizer)
     has_moi_callback =
         model.lazy_callback !== nothing ||
         model.user_cut_callback !== nothing ||
@@ -1397,8 +1397,8 @@ function MOI.optimize!(model::Optimizer)
     model.unbounded_ray = nothing
 
     # Initialize callbacks if necessary.
-    if check_moi_callback_validity(model)
-        MOI.set(model, CallbackFunction(), default_moi_callback(model))
+    if _check_moi_callback_validity(model)
+        MOI.set(model, CallbackFunction(), _default_moi_callback(model))
         model.has_generic_callback = false
     end
 
@@ -1410,11 +1410,11 @@ function MOI.optimize!(model::Optimizer)
     if MOI.get(model, MOI.ResultCount()) > 0
         if MOI.get(model, MOI.PrimalStatus()) == MOI.INFEASIBILITY_CERTIFICATE
             model.unbounded_ray = fill(NaN, glp_get_num_cols(model.inner))
-            get_unbounded_ray(model, model.unbounded_ray)
+            _get_unbounded_ray(model, model.unbounded_ray)
         end
         if MOI.get(model, MOI.DualStatus()) == MOI.INFEASIBILITY_CERTIFICATE
             model.infeasibility_cert = fill(NaN, glp_get_num_rows(model.inner))
-            get_infeasibility_ray(model, model.infeasibility_cert)
+            _get_infeasibility_ray(model, model.infeasibility_cert)
         end
     end
     model.solve_time = time() - start_time
@@ -1435,7 +1435,7 @@ end
 # because it doesn't imply anything about the solution. If `solver_status` is
 # `Int32(0)`, then a solution-specific status can be queried with `_get_status`.
 
-const RAW_SIMPLEX_STRINGS = Dict{Int32, Tuple{MOI.TerminationStatusCode, String}}(
+const _RAW_SIMPLEX_STRINGS = Dict{Int32, Tuple{MOI.TerminationStatusCode, String}}(
     GLP_EBADB  => (MOI.INVALID_MODEL,   "Unable to start the search, because the initial basis specified in the problem object is invalid—the number of basic (auxiliary and structural) variables is not the same as the number of rows in the problem object."),
     GLP_ESING  => (MOI.NUMERICAL_ERROR, "Unable to start the search, because the basis matrix corresponding to the initial basis is singular within the working precision."),
     GLP_ECOND  => (MOI.NUMERICAL_ERROR, "Unable to start the search, because the basis matrix corresponding to the initial basis is ill-conditioned, i.e. its condition number is too large."),
@@ -1449,7 +1449,7 @@ const RAW_SIMPLEX_STRINGS = Dict{Int32, Tuple{MOI.TerminationStatusCode, String}
     GLP_ENODFS => (MOI.DUAL_INFEASIBLE, "The LP problem instance has no dual feasible solution (only if the LP presolver is used).")
 )
 
-const RAW_EXACT_STRINGS = Dict{Int32, Tuple{MOI.TerminationStatusCode, String}}(
+const _RAW_EXACT_STRINGS = Dict{Int32, Tuple{MOI.TerminationStatusCode, String}}(
     GLP_EBADB  => (MOI.INVALID_MODEL,   "Unable to start the search, because the initial basis specified in the problem object is invalid—the number of basic (auxiliary and structural) variables is not the same as the number of rows in the problem object."),
     GLP_ESING  => (MOI.NUMERICAL_ERROR, "Unable to start the search, because the basis matrix corresponding to the initial basis is exactly singular."),
     GLP_EBOUND => (MOI.INVALID_MODEL,   "Unable to start the search, because some double-bounded (auxiliary or structural) variables have incorrect bounds."),
@@ -1458,14 +1458,14 @@ const RAW_EXACT_STRINGS = Dict{Int32, Tuple{MOI.TerminationStatusCode, String}}(
     GLP_ETMLIM => (MOI.TIME_LIMIT,      "The search was prematurely terminated, because the time limit has been exceeded.")
 )
 
-const RAW_INTERIOR_STRINGS = Dict{Int32, Tuple{MOI.TerminationStatusCode, String}}(
+const _RAW_INTERIOR_STRINGS = Dict{Int32, Tuple{MOI.TerminationStatusCode, String}}(
     GLP_EFAIL   => (MOI.INVALID_MODEL,   "The problem instance has no rows/columns."),
     GLP_ENOCVG  => (MOI.SLOW_PROGRESS,   "Very slow convergence or divergence."),
     GLP_EITLIM  => (MOI.ITERATION_LIMIT, "Iteration limit exceeded."),
     GLP_EINSTAB => (MOI.NUMERICAL_ERROR, "Numerical instability on solving Newtonian system.")
 )
 
-const RAW_INTOPT_STRINGS = Dict{Int32, Tuple{MOI.TerminationStatusCode, String}}(
+const _RAW_INTOPT_STRINGS = Dict{Int32, Tuple{MOI.TerminationStatusCode, String}}(
     GLP_EBOUND  => (MOI.INVALID_MODEL,   "Unable to start the search, because some double-bounded (auxiliary or structural) variables have incorrect bounds."),
     GLP_ENOPFS  => (MOI.INFEASIBLE,      "Unable to start the search, because LP relaxation of the MIP problem instance has no primal feasible solution. (This code may appear only if the presolver is enabled.)"),
     GLP_ENODFS  => (MOI.DUAL_INFEASIBLE, "Unable to start the search, because LP relaxation of the MIP problem instance has no dual feasible solution. In other word, this code means that if the LP relaxation has at least one primal feasible solution, its optimal solution is unbounded, so if the MIP problem has at least one integer feasible solution, its (integer) optimal solution is also unbounded. (This code may appear only if the presolver is enabled.)"),
@@ -1475,7 +1475,7 @@ const RAW_INTOPT_STRINGS = Dict{Int32, Tuple{MOI.TerminationStatusCode, String}}
     GLP_ESTOP   => (MOI.INTERRUPTED,     "The search was prematurely terminated by application. (This code may appear only if the advanced solver interface is used.)")
 )
 
-const RAW_SOLUTION_STATUS = Dict{Int32, Tuple{MOI.TerminationStatusCode, String}}(
+const _RAW_SOLUTION_STATUS = Dict{Int32, Tuple{MOI.TerminationStatusCode, String}}(
     GLP_OPT    => (MOI.OPTIMAL,            "Solution is optimal"),
     GLP_FEAS   => (MOI.LOCALLY_SOLVED,     "Solution is feasible"),
     GLP_INFEAS => (MOI.LOCALLY_INFEASIBLE, "Solution is infeasible"),
@@ -1490,14 +1490,14 @@ function MOI.get(model::Optimizer, attr::MOI.RawStatusString)
         (_, msg) = _get_status(model)
         return msg
     elseif model.last_solved_by_mip
-        return RAW_INTOPT_STRINGS[model.solver_status][2]
+        return _RAW_INTOPT_STRINGS[model.solver_status][2]
     elseif model.method == SIMPLEX
-        return RAW_SIMPLEX_STRINGS[model.solver_status][2]
+        return _RAW_SIMPLEX_STRINGS[model.solver_status][2]
     elseif model.method == EXACT
-        return RAW_EXACT_STRINGS[model.solver_status][2]
+        return _RAW_EXACT_STRINGS[model.solver_status][2]
     else
         @assert model.method == INTERIOR
-        return RAW_INTERIOR_STRINGS[model.solver_status][2]
+        return _RAW_INTERIOR_STRINGS[model.solver_status][2]
     end
 end
 
@@ -1510,7 +1510,7 @@ function _get_status(model::Optimizer)
         @assert model.method == INTERIOR
         glp_ipt_status(model.inner)
     end
-    return RAW_SOLUTION_STATUS[status_code]
+    return _RAW_SOLUTION_STATUS[status_code]
 end
 
 """
@@ -1531,14 +1531,14 @@ function MOI.get(model::Optimizer, attr::MOI.TerminationStatus)
     elseif model.solver_status != Int32(0)
         # The solver did not exit successfully for some reason.
         if model.last_solved_by_mip
-            return RAW_INTOPT_STRINGS[model.solver_status][1]
+            return _RAW_INTOPT_STRINGS[model.solver_status][1]
         elseif model.method == SIMPLEX
-            return RAW_SIMPLEX_STRINGS[model.solver_status][1]
+            return _RAW_SIMPLEX_STRINGS[model.solver_status][1]
         elseif model.method == INTERIOR
-            return RAW_INTERIOR_STRINGS[model.solver_status][1]
+            return _RAW_INTERIOR_STRINGS[model.solver_status][1]
         else
             @assert model.method == EXACT
-            return RAW_EXACT_STRINGS[model.solver_status][1]
+            return _RAW_EXACT_STRINGS[model.solver_status][1]
         end
     else
         (status, _) = _get_status(model)
@@ -1938,7 +1938,7 @@ end
 function MOI.set(
     model::Optimizer,
     ::MOI.ConstraintFunction,
-    c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64}, <:SCALAR_SETS},
+    c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64}, <:_SCALAR_SETS},
     f::MOI.ScalarAffineFunction{Float64}
 )
     if !iszero(f.constant)
@@ -1955,7 +1955,7 @@ end
 function MOI.get(
     model::Optimizer,
     attr::MOI.ConstraintBasisStatus,
-    c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64}, <:SCALAR_SETS},
+    c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64}, <:_SCALAR_SETS},
 )
     _throw_if_optimize_in_progress(model, attr)
     row = _info(model, c).row
@@ -1973,7 +1973,7 @@ function MOI.get(
     model::Optimizer,
     attr::MOI.ConstraintBasisStatus,
     c::MOI.ConstraintIndex{MOI.SingleVariable, S},
-) where {S <: SCALAR_SETS}
+) where {S <: _SCALAR_SETS}
     _throw_if_optimize_in_progress(model, attr)
     column = _info(model, c).column
     vbasis = glp_get_col_stat(model.inner, column)
