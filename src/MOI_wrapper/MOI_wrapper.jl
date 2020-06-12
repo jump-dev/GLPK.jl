@@ -3,20 +3,6 @@ import MathOptInterface
 const MOI = MathOptInterface
 const CleverDicts = MOI.Utilities.CleverDicts
 
-"""
-    offset(x::Vector)
-
-GLPK uses 1-based indexing for its arrays. But since C has 0-based indexing, all
-1-based vectors passed to GLPK need to be padded with a "0'th" element that will
-never be accessed. To avoid doing this padding in Julia, we convert the vector
-to a reference, and use the optional second argument to ensure the reference
-points to the "0'th" element of the array. This is safe to do, provided C never
-accesses `x[0]`.
-
-See the GLPK manual for more details.
-"""
-offset(x::Vector) = Ref(x, 0)
-
 @enum(TypeEnum, CONTINUOUS, BINARY, INTEGER)
 @enum(BoundEnum, NONE, LESS_THAN, GREATER_THAN, LESS_AND_GREATER_THAN, INTERVAL, EQUAL_TO)
 @enum(ObjectiveEnum, SINGLE_VARIABLE, SCALAR_AFFINE)

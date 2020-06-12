@@ -17,6 +17,20 @@ include("gen/ctypes.jl")
 include("gen/libglpk_common.jl")
 include("gen/libglpk_api.jl")
 
+"""
+    offset(x::Vector)
+
+GLPK uses 1-based indexing for its arrays. But since C has 0-based indexing, all
+1-based vectors passed to GLPK need to be padded with a "0'th" element that will
+never be accessed. To avoid doing this padding in Julia, we convert the vector
+to a reference, and use the optional second argument to ensure the reference
+points to the "0'th" element of the array. This is safe to do, provided C never
+accesses `x[0]`.
+
+See the GLPK manual for more details.
+"""
+offset(x::Vector) = Ref(x, 0)
+
 const _GLPK_VERSION = VersionNumber("$GLP_MAJOR_VERSION.$GLP_MINOR_VERSION.0")
 
 if !(v"4.64.0" <= _GLPK_VERSION <= v"4.64.0")
@@ -30,25 +44,17 @@ end
 
 include("MOI_wrapper/MOI_wrapper.jl")
 include("MOI_wrapper/MOI_callbacks.jl")
+include("MOI_wrapper/deprecated_constants.jl")
 
-# GLPK exports everything except internal symbols, which are defined as those
-# whose name starts with an underscore. If you don't want all of these symbols
-# in your environment, then use `import GLPK` instead of `using GLPK`.
-
-# Do not add GLPK-defined symbols to this exclude list. Instead, rename them
-# with an underscore.
-const _EXCLUDE_SYMBOLS = [Symbol(@__MODULE__), :eval, :include]
+# GLPK exports all `GLP_XXX` and `glp_xxx` symbols. If you don't want all of
+# these symbols in your environment, then use `import GLPK` instead of
+# `using GLPK`.
 
 for sym in names(@__MODULE__, all=true)
     sym_string = string(sym)
-    if sym in _EXCLUDE_SYMBOLS || startswith(sym_string, "_")
-        continue
+    if startswith(sym_string, "GLP_") || startswith(sym_string, "glp_")
+        @eval export $sym
     end
-    if !(Base.isidentifier(sym) || (startswith(sym_string, "@") &&
-         Base.isidentifier(sym_string[2:end])))
-       continue
-    end
-    @eval export $sym
 end
 
 end

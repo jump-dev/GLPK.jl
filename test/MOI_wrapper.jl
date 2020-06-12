@@ -457,3 +457,10 @@ end
     MOI.set(model, MOI.ConstraintName(), c, "ω")
     @test MOI.get(model, MOI.ConstraintName(), c) == "ω"
 end
+
+
+@testset "Deprecated constants" begin
+    model = GLPK.Optimizer()
+    MOI.set(model, MOI.RawParameter("msg_lev"), GLPK.MSG_OFF)
+    @test MOI.get(model, MOI.RawParameter("msg_lev")) == GLPK.GLP_MSG_OFF
+end
