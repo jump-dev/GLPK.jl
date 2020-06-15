@@ -13,8 +13,6 @@ It has two components:
 The C API can be accessed via `GLPK.glp_XXX` functions, where the names and
 arguments are identical to the C API. See the `/tests` folder for inspiration.
 
-This package is part of [the JuliaOpt project](http://www.juliaopt.org/).
-
 ## Installation
 
 The package is registered in the [General registry](https://github.com/JuliaRegistries/General/)
@@ -28,7 +26,8 @@ julia> Pkg.add("GLPK")
 
 In addition to installing the GLPK.jl package, this will also download and
 install the GLPK binaries. (You do not need to install GLPK separately.) If you
-require a custom build of GLPK, see the instructions below.
+require a custom build of GLPK, see the "Custom Installation" instructions
+below.
 
 ## Custom Installation
 
@@ -36,7 +35,7 @@ To install custom built GLPK binaries set the environmental variable
 `JULIA_GLPK_LIBRARY_PATH` and call `import Pkg; Pkg.build("GLPK")`. For example,
 if the libraries are installed in `/opt/lib` just call:
 ```julia
-ENV["JULIA_GLPK_LIBRARY_PATH"]="/opt/lib"
+ENV["JULIA_GLPK_LIBRARY_PATH"] = "/opt/lib"
 Pkg.build("GLPK")
 ```
 
@@ -67,8 +66,6 @@ model = Model(GLPK.Optimizer)
 set_optimizer_attribute(model, "tm_lim", 60 * 1_000)
 set_optimizer_attribute(model, "msg_lev", GLPK.GLP_MSG_OFF)
 ```
-
-**Note: previous versions of `GLPK.jl` required you to choose either `GLPKSolverLP` or `GLPKSolverMIP`. This is no longer needed; just use `GLPK.Optimizer`.**
 
 [travis-img]: https://api.travis-ci.org/JuliaOpt/GLPK.jl.svg?branch=master
 [travis-url]: https://travis-ci.org/JuliaOpt/GLPK.jl
