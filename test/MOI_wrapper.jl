@@ -129,11 +129,11 @@ end
     end
 
     @testset "set_lower_bound_twice" begin
-        MOIT.set_lower_bound_twice(OPTIMIZER, Float64)
+        MOIT.set_lower_bound_twice(GLPK.Optimizer(), Float64)
     end
 
     @testset "set_upper_bound_twice" begin
-        MOIT.set_upper_bound_twice(OPTIMIZER, Float64)
+        MOIT.set_upper_bound_twice(GLPK.Optimizer(), Float64)
     end
 end
 
