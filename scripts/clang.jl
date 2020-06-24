@@ -42,8 +42,9 @@ function manual_corrections()
         return """
         $(s)
 
-        function Base.cconvert(::Type{Ptr{$(name)}}, x::$(name))
-            return pointer_from_objref(x)
+        Base.cconvert(::Type{Ptr{$(name)}}, x::$(name)) = x
+        function Base.unsafe_convert(::Type{Ptr{$(name)}}, x::$(name))
+            return convert(Ptr{$(name)}, pointer_from_objref(x))
         end"""
     end
     for (s_type, constr) in [

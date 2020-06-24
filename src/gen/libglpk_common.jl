@@ -140,8 +140,9 @@ mutable struct glp_bfcp
     foo_bar::NTuple{38, Cdouble}
 end
 
-function Base.cconvert(::Type{Ptr{glp_bfcp}}, x::glp_bfcp)
-    return pointer_from_objref(x)
+Base.cconvert(::Type{Ptr{glp_bfcp}}, x::glp_bfcp) = x
+function Base.unsafe_convert(::Type{Ptr{glp_bfcp}}, x::glp_bfcp)
+    return convert(Ptr{glp_bfcp}, pointer_from_objref(x))
 end
 
 mutable struct glp_smcp
@@ -166,8 +167,9 @@ mutable struct glp_smcp
     glp_smcp() = new()
 end
 
-function Base.cconvert(::Type{Ptr{glp_smcp}}, x::glp_smcp)
-    return pointer_from_objref(x)
+Base.cconvert(::Type{Ptr{glp_smcp}}, x::glp_smcp) = x
+function Base.unsafe_convert(::Type{Ptr{glp_smcp}}, x::glp_smcp)
+    return convert(Ptr{glp_smcp}, pointer_from_objref(x))
 end
 
 mutable struct glp_iptcp
@@ -177,8 +179,9 @@ mutable struct glp_iptcp
     glp_iptcp() = new()
 end
 
-function Base.cconvert(::Type{Ptr{glp_iptcp}}, x::glp_iptcp)
-    return pointer_from_objref(x)
+Base.cconvert(::Type{Ptr{glp_iptcp}}, x::glp_iptcp) = x
+function Base.unsafe_convert(::Type{Ptr{glp_iptcp}}, x::glp_iptcp)
+    return convert(Ptr{glp_iptcp}, pointer_from_objref(x))
 end
 
 const glp_tree = Cvoid
@@ -215,8 +218,9 @@ mutable struct glp_iocp
     glp_iocp() = new()
 end
 
-function Base.cconvert(::Type{Ptr{glp_iocp}}, x::glp_iocp)
-    return pointer_from_objref(x)
+Base.cconvert(::Type{Ptr{glp_iocp}}, x::glp_iocp) = x
+function Base.unsafe_convert(::Type{Ptr{glp_iocp}}, x::glp_iocp)
+    return convert(Ptr{glp_iocp}, pointer_from_objref(x))
 end
 
 mutable struct glp_attr
@@ -226,8 +230,9 @@ mutable struct glp_attr
     foo_bar::NTuple{7, Cdouble}
 end
 
-function Base.cconvert(::Type{Ptr{glp_attr}}, x::glp_attr)
-    return pointer_from_objref(x)
+Base.cconvert(::Type{Ptr{glp_attr}}, x::glp_attr) = x
+function Base.unsafe_convert(::Type{Ptr{glp_attr}}, x::glp_attr)
+    return convert(Ptr{glp_attr}, pointer_from_objref(x))
 end
 
 mutable struct glp_mpscp
@@ -238,8 +243,9 @@ mutable struct glp_mpscp
     glp_mpscp() = new()
 end
 
-function Base.cconvert(::Type{Ptr{glp_mpscp}}, x::glp_mpscp)
-    return pointer_from_objref(x)
+Base.cconvert(::Type{Ptr{glp_mpscp}}, x::glp_mpscp) = x
+function Base.unsafe_convert(::Type{Ptr{glp_mpscp}}, x::glp_mpscp)
+    return convert(Ptr{glp_mpscp}, pointer_from_objref(x))
 end
 
 mutable struct glp_cpxcp
@@ -247,8 +253,9 @@ mutable struct glp_cpxcp
     glp_cpxcp() = new()
 end
 
-function Base.cconvert(::Type{Ptr{glp_cpxcp}}, x::glp_cpxcp)
-    return pointer_from_objref(x)
+Base.cconvert(::Type{Ptr{glp_cpxcp}}, x::glp_cpxcp) = x
+function Base.unsafe_convert(::Type{Ptr{glp_cpxcp}}, x::glp_cpxcp)
+    return convert(Ptr{glp_cpxcp}, pointer_from_objref(x))
 end
 
 const glp_tran = Cvoid
@@ -265,8 +272,9 @@ mutable struct glp_arc
     h_next::Ptr{glp_arc}
 end
 
-function Base.cconvert(::Type{Ptr{glp_arc}}, x::glp_arc)
-    return pointer_from_objref(x)
+Base.cconvert(::Type{Ptr{glp_arc}}, x::glp_arc) = x
+function Base.unsafe_convert(::Type{Ptr{glp_arc}}, x::glp_arc)
+    return convert(Ptr{glp_arc}, pointer_from_objref(x))
 end
 
 mutable struct glp_vertex
@@ -279,8 +287,9 @@ mutable struct glp_vertex
     out::Ptr{glp_arc}
 end
 
-function Base.cconvert(::Type{Ptr{glp_vertex}}, x::glp_vertex)
-    return pointer_from_objref(x)
+Base.cconvert(::Type{Ptr{glp_vertex}}, x::glp_vertex) = x
+function Base.unsafe_convert(::Type{Ptr{glp_vertex}}, x::glp_vertex)
+    return convert(Ptr{glp_vertex}, pointer_from_objref(x))
 end
 
 mutable struct glp_graph
@@ -295,6 +304,7 @@ mutable struct glp_graph
     a_size::Cint
 end
 
-function Base.cconvert(::Type{Ptr{glp_graph}}, x::glp_graph)
-    return pointer_from_objref(x)
+Base.cconvert(::Type{Ptr{glp_graph}}, x::glp_graph) = x
+function Base.unsafe_convert(::Type{Ptr{glp_graph}}, x::glp_graph)
+    return convert(Ptr{glp_graph}, pointer_from_objref(x))
 end
