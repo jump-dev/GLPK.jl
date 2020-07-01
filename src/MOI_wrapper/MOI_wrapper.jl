@@ -47,10 +47,10 @@ function _internal_callback(tree::Ptr{Cvoid}, info::Ptr{Cvoid})
     callback_data = unsafe_pointer_to_objref(info)::CallbackData
     model = callback_data.model
     callback_data.tree = tree
-    node = GLPK.ios_best_node(tree)
+    node = glp_ios_best_node(tree)
     if node != 0
-        model.objective_bound = GLPK.ios_node_bound(tree, node)
-        model.relative_gap = GLPK.ios_mip_gap(tree)
+        model.objective_bound = glp_ios_node_bound(tree, node)
+        model.relative_gap = glp_ios_mip_gap(tree)
     end
     model.callback_function(callback_data)
     return nothing
@@ -58,14 +58,14 @@ end
 
 mutable struct Optimizer <: MOI.AbstractOptimizer
     # The low-level GLPK problem.
-    inner::GLPK.Prob
+    inner::Ptr{glp_prob}
     presolve::Bool
     method::MethodEnum
 
-    interior_param::GLPK.InteriorParam
-    intopt_param::GLPK.IntoptParam
-    simplex_param::GLPK.SimplexParam
-    solver_status::Int32
+    interior_param::glp_iptcp
+    intopt_param::glp_iocp
+    simplex_param::glp_smcp
+    solver_status::Cint
     last_solved_by_mip::Bool
     num_binaries::Int
     num_integers::Int
@@ -79,10 +79,7 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
     # parameter.
     silent::Bool
 
-    # An enum to remember what objective is currently stored in the model.
-    objective_type::ObjectiveEnum
-
-    # A flag to keep track of MOI.FEASIBILITY_SENSE, since Gurobi only stores
+    # A flag to keep track of MOI.FEASIBILITY_SENSE, since GLPK only stores
     # MIN_SENSE or MAX_SENSE. This allows us to differentiate between MIN_SENSE
     # and FEASIBILITY_SENSE.
     is_feasibility::Bool
@@ -122,17 +119,20 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
     """
     function Optimizer(; presolve = false, method = SIMPLEX, kwargs...)
         model = new()
-        model.inner = GLPK.Prob()
+        model.inner = glp_create_prob()
         model.presolve = presolve
         model.method = method
 
-        model.interior_param = GLPK.InteriorParam()
-        model.intopt_param = GLPK.IntoptParam()
-        model.simplex_param = GLPK.SimplexParam()
+        model.interior_param = glp_iptcp()
+        glp_init_iptcp(model.interior_param)
+        model.intopt_param = glp_iocp()
+        glp_init_iocp(model.intopt_param)
+        model.simplex_param = glp_smcp()
+        glp_init_smcp(model.simplex_param)
 
-        MOI.set(model, MOI.RawParameter("msg_lev"), GLPK.MSG_ERR)
+        MOI.set(model, MOI.RawParameter("msg_lev"), GLP_MSG_ERR)
         if model.presolve
-            MOI.set(model, MOI.RawParameter("presolve"), GLPK.ON)
+            MOI.set(model, MOI.RawParameter("presolve"), GLP_ON)
         end
         for (key, val) in kwargs
             MOI.set(model, MOI.RawParameter(String(key)), val)
@@ -143,9 +143,15 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
 
         MOI.empty!(model)
 
+        finalizer(model) do m
+            glp_delete_prob(m)
+        end
         return model
     end
 end
+
+Base.cconvert(::Type{Ptr{glp_prob}}, m::Optimizer) = m
+Base.unsafe_convert(::Type{Ptr{glp_prob}}, m::Optimizer) = m.inner
 
 mutable struct CallbackData
     c_callback::Base.CFunction
@@ -168,19 +174,19 @@ end
 # and then re-throw it once we have gracefully exited from the callback.
 #
 # See also: the note in `_solve_mip_problem`.
-function set_callback(model::Optimizer, callback_function::Function)
+function _set_callback(model::Optimizer, callback_function::Function)
     internal_callback = (tree::Ptr{Cvoid}, info::Ptr{Cvoid}) -> begin
         cb_data = unsafe_pointer_to_objref(info)::CallbackData
-        node = GLPK.ios_best_node(tree)
+        node = glp_ios_best_node(tree)
         if node != 0
-            model.objective_bound = GLPK.ios_node_bound(tree, node)
-            model.relative_gap = GLPK.ios_mip_gap(tree)
+            model.objective_bound = glp_ios_node_bound(tree, node)
+            model.relative_gap = glp_ios_mip_gap(tree)
         end
         try
             cb_data.tree = tree
             callback_function(cb_data)
         catch ex
-            GLPK.ios_terminate(tree)
+            glp_ios_terminate(tree)
             cb_data.exception = ex
         end
         return Cint(0)
@@ -197,15 +203,14 @@ end
 Base.show(io::IO, model::Optimizer) = print(io, "A GLPK model")
 
 function MOI.empty!(model::Optimizer)
-    GLPK.erase_prob(model.inner)
-    model.solver_status = GLPK.UNDEF
+    glp_erase_prob(model)
+    model.solver_status = GLP_UNDEF
     model.last_solved_by_mip = false
     model.num_binaries = 0
     model.num_integers = 0
     model.objective_bound = NaN
     model.relative_gap = NaN
     model.solve_time = NaN
-    model.objective_type = SCALAR_AFFINE
     model.is_feasibility = true
     model.optimize_not_called = true
     empty!(model.variable_info)
@@ -219,12 +224,11 @@ function MOI.empty!(model::Optimizer)
     model.lazy_callback = nothing
     model.user_cut_callback = nothing
     model.heuristic_callback = nothing
-    set_callback(model, cb_data -> nothing)
+    _set_callback(model, cb_data -> nothing)
     return
 end
 
 function MOI.is_empty(model::Optimizer)
-    model.objective_type != SCALAR_AFFINE && return false
     model.is_feasibility == false && return false
     !isempty(model.variable_info) && return false
     !isempty(model.affine_constraint_info) && return false
@@ -243,20 +247,20 @@ end
 MOI.get(::Optimizer, ::MOI.SolverName) = "GLPK"
 
 function MOI.supports(
-    ::Optimizer,
-    ::MOI.ObjectiveFunction{F}
-) where {F <: Union{
-    MOI.SingleVariable,
-    MOI.ScalarAffineFunction{Float64}
-}}
+    ::Optimizer, ::MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}
+)
     return true
 end
 
 function MOI.supports_constraint(
     ::Optimizer, ::Type{MOI.SingleVariable}, ::Type{F}
 ) where {F <: Union{
-    MOI.EqualTo{Float64}, MOI.LessThan{Float64}, MOI.GreaterThan{Float64},
-    MOI.Interval{Float64}, MOI.ZeroOne, MOI.Integer
+    MOI.EqualTo{Float64},
+    MOI.LessThan{Float64},
+    MOI.GreaterThan{Float64},
+    MOI.Interval{Float64},
+    MOI.ZeroOne,
+    MOI.Integer,
 }}
     return true
 end
@@ -269,9 +273,11 @@ function MOI.supports_constraint(
     return true
 end
 
-const SCALAR_SETS = Union{
-    MOI.GreaterThan{Float64}, MOI.LessThan{Float64},
-    MOI.EqualTo{Float64}, MOI.Interval{Float64}
+const _SCALAR_SETS = Union{
+    MOI.GreaterThan{Float64},
+    MOI.LessThan{Float64},
+    MOI.EqualTo{Float64},
+    MOI.Interval{Float64},
 }
 
 MOI.supports(::Optimizer, ::MOI.VariableName, ::Type{MOI.VariableIndex}) = true
@@ -284,14 +290,14 @@ MOI.supports(::Optimizer, ::MOI.ObjectiveSense) = true
 MOI.supports(::Optimizer, ::MOI.RawParameter) = true
 
 """
-    set_parameter(param_store, key::Symbol, value)::Bool
+    _set_parameter(param_store, key::Symbol, value)::Bool
 
 Set the field name `key` in a `param_store` type (that is one of `InteriorParam`,
 `IntoptParam`, or `SimplexParam`) to `value`.
 
 Returns a `Bool` indicating if the parameter was set.
 """
-function set_parameter(param_store, key::Symbol, value)
+function _set_parameter(param_store, key::Symbol, value)
     if key == :cb_func || key == :cb_info
         error("Invalid option: $(string(key)). Use the MOI attribute " *
               "`GLPK.CallbackFunction` instead.")
@@ -308,9 +314,9 @@ function MOI.set(model::Optimizer, param::MOI.RawParameter, value)
         error("GLPK.jl requires strings as arguments to `RawParameter`.")
     end
     key = Symbol(param.name)
-    set_interior = set_parameter(model.interior_param, key, value)
-    set_intopt = set_parameter(model.intopt_param, key, value)
-    set_simplex = set_parameter(model.simplex_param, key, value)
+    set_interior = _set_parameter(model.interior_param, key, value)
+    set_intopt = _set_parameter(model.intopt_param, key, value)
+    set_simplex = _set_parameter(model.simplex_param, key, value)
     if !set_interior && !set_intopt && !set_simplex
         throw(MOI.UnsupportedAttribute(param))
     end
@@ -322,11 +328,11 @@ function MOI.get(model::Optimizer, param::MOI.RawParameter)
         error("GLPK.jl requires strings as arguments to `RawParameter`.")
     end
     name = Symbol(param.name)
-    if (model.method == SIMPLEX || model.method == EXACT) && name in fieldnames(GLPK.SimplexParam)
+    if (model.method == SIMPLEX || model.method == EXACT) && name in fieldnames(glp_smcp)
         return getfield(model.simplex_param, name)
-    elseif model.method == INTERIOR && name in fieldnames(GLPK.InteriorParam)
+    elseif model.method == INTERIOR && name in fieldnames(glp_iptcp)
         return getfield(model.interior_param, name)
-    elseif name in fieldnames(GLPK.IntoptParam)
+    elseif name in fieldnames(glp_iocp)
         return getfield(model.intopt_param, name)
     end
     throw(MOI.UnsupportedAttribute(param))
@@ -336,7 +342,7 @@ function MOI.set(model::Optimizer, ::MOI.TimeLimitSec, limit::Union{Nothing,Real
     if limit === nothing
         MOI.set(model, MOI.RawParameter("tm_lim"), typemax(Int32))
     else
-        limit_ms = ceil(Int32, limit * 1000)
+        limit_ms = ceil(Int32, limit * 1_000)
         MOI.set(model, MOI.RawParameter("tm_lim"), limit_ms)
     end
     return
@@ -344,7 +350,7 @@ end
 
 function MOI.get(model::Optimizer, ::MOI.TimeLimitSec)
     # convert internal ms to sec
-    return MOI.get(model, MOI.RawParameter("tm_lim")) / 1000
+    return MOI.get(model, MOI.RawParameter("tm_lim")) / 1_000
 end
 
 MOI.Utilities.supports_default_copy_to(::Optimizer, ::Bool) = true
@@ -374,12 +380,14 @@ function MOI.get(model::Optimizer, ::MOI.ListOfConstraintAttributesSet)
 end
 
 function _indices_and_coefficients(
-    indices::AbstractVector{Int}, coefficients::AbstractVector{Float64},
-    model::Optimizer, f::MOI.ScalarAffineFunction{Float64}
+    indices::Vector{Cint},
+    coefficients::Vector{Float64},
+    model::Optimizer,
+    f::MOI.ScalarAffineFunction{Float64},
 )
     i = 1
     for term in f.terms
-        indices[i] = _info(model, term.variable_index).column
+        indices[i] = Cint(_info(model, term.variable_index).column)
         coefficients[i] = term.coefficient
         i += 1
     end
@@ -391,8 +399,7 @@ function _indices_and_coefficients(
 )
     f_canon = MOI.Utilities.canonical(f)
     nnz = length(f_canon.terms)
-    indices = Vector{Int}(undef, nnz)
-    coefficients = Vector{Float64}(undef, nnz)
+    indices, coefficients = zeros(Cint, nnz), zeros(Cdouble, nnz)
     _indices_and_coefficients(indices, coefficients, model, f_canon)
     return indices, coefficients
 end
@@ -423,15 +430,15 @@ function MOI.add_variable(model::Optimizer)
     # Now, set `.index` and `.column`.
     info.index = index
     info.column = length(model.variable_info)
-    GLPK.add_cols(model.inner, 1)
-    GLPK.set_col_bnds(model.inner, info.column, GLPK.FR, 0.0, 0.0)
+    glp_add_cols(model, 1)
+    glp_set_col_bnds(model, info.column, GLP_FR, 0.0, 0.0)
     return index
 end
 
 function MOI.add_variables(model::Optimizer, N::Int)
     indices = Vector{MOI.VariableIndex}(undef, N)
     num_variables = length(model.variable_info)
-    GLPK.add_cols(model.inner, N)
+    glp_add_cols(model, N)
     for i in 1:N
         # Initialize `VariableInfo` with a dummy `VariableIndex` and a column,
         # because we need `add_item` to tell us what the `VariableIndex` is.
@@ -442,7 +449,7 @@ function MOI.add_variables(model::Optimizer, N::Int)
         # Now, set `.index` and `.column`.
         info.index = index
         info.column = num_variables + i
-        GLPK.set_col_bnds(model.inner, info.column, GLPK.FR, 0.0, 0.0)
+        glp_set_col_bnds(model, info.column, GLP_FR, 0.0, 0.0)
         indices[i] = index
     end
     return indices
@@ -454,8 +461,9 @@ end
 
 function MOI.delete(model::Optimizer, v::MOI.VariableIndex)
     info = _info(model, v)
-    GLPK.std_basis(model.inner)
-    GLPK.del_cols(model.inner, 1, [info.column])
+    glp_std_basis(model)
+    c = Cint[info.column]
+    glp_del_cols(model, 1, offset(c))
     delete!(model.variable_info, v)
     for other_info in values(model.variable_info)
         if other_info.column > info.column
@@ -507,7 +515,7 @@ function MOI.set(
     info.name = name
     if !isempty(name) && isascii(name)
         # Note: GLPK errors if we try to set non-ascii column names.
-        GLPK.set_col_name(model.inner, info.column, name)
+        glp_set_col_name(model, info.column, name)
     end
     model.name_to_variable = nothing
     return
@@ -521,44 +529,35 @@ function MOI.set(
     model::Optimizer, ::MOI.ObjectiveSense, sense::MOI.OptimizationSense
 )
     if sense == MOI.MIN_SENSE
-        GLPK.set_obj_dir(model.inner, GLPK.MIN)
+        glp_set_obj_dir(model, GLP_MIN)
         model.is_feasibility = false
     elseif sense == MOI.MAX_SENSE
-        GLPK.set_obj_dir(model.inner, GLPK.MAX)
+        glp_set_obj_dir(model, GLP_MAX)
         model.is_feasibility = false
     else
         @assert sense == MOI.FEASIBILITY_SENSE
-        GLPK.set_obj_dir(model.inner, GLPK.MIN)
+        glp_set_obj_dir(model, GLP_MIN)
         model.is_feasibility = true
     end
     return
 end
 
 function MOI.get(model::Optimizer, ::MOI.ObjectiveSense)
-    sense = GLPK.get_obj_dir(model.inner)
+    sense = glp_get_obj_dir(model)
     if model.is_feasibility
         return MOI.FEASIBILITY_SENSE
-    elseif sense == GLPK.MAX
+    elseif sense == GLP_MAX
         return MOI.MAX_SENSE
     else
-        @assert sense == GLPK.MIN
+        @assert sense == GLP_MIN
         return MOI.MIN_SENSE
     end
 end
 
-function MOI.set(
-    model::Optimizer, ::MOI.ObjectiveFunction{F}, f::F
-) where {F <: MOI.SingleVariable}
-    MOI.set(
-        model, MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}(),
-        convert(MOI.ScalarAffineFunction{Float64}, f)
-    )
-    model.objective_type = SINGLE_VARIABLE
-    return
-end
-
 function MOI.get(model::Optimizer, ::MOI.ObjectiveFunction{F}) where {F}
-    obj = MOI.get(model, MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}())
+    obj = MOI.get(
+        model, MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}()
+    )
     return convert(F, obj)
 end
 
@@ -572,10 +571,10 @@ function MOI.set(
         obj[column] += term.coefficient
     end
     for (col, coef) in enumerate(obj)
-        GLPK.set_obj_coef(model.inner, col, coef)
+        glp_set_obj_coef(model, col, coef)
     end
-    GLPK.set_obj_coef(model.inner, 0, f.constant)
-    model.objective_type = SCALAR_AFFINE
+    glp_set_obj_coef(model, 0, f.constant)
+    return
 end
 
 function MOI.get(
@@ -583,7 +582,7 @@ function MOI.get(
 )
     dest = zeros(length(model.variable_info))
     for col in 1:length(dest)
-        dest[col] = GLPK.get_obj_coef(model.inner, col)
+        dest[col] = glp_get_obj_coef(model, col)
     end
     terms = MOI.ScalarAffineTerm{Float64}[]
     for (index, info) in model.variable_info
@@ -591,7 +590,7 @@ function MOI.get(
         iszero(coefficient) && continue
         push!(terms, MOI.ScalarAffineTerm(coefficient, index))
     end
-    constant = GLPK.get_obj_coef(model.inner, 0)
+    constant = glp_get_obj_coef(model, 0)
     return MOI.ScalarAffineFunction(terms, constant)
 end
 
@@ -600,7 +599,7 @@ function MOI.modify(
     ::MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}},
     chg::MOI.ScalarConstantChange{Float64}
 )
-    GLPK.set_obj_coef(model.inner, 0, chg.new_constant)
+    glp_set_obj_coef(model, 0, chg.new_constant)
     return
 end
 
@@ -693,8 +692,10 @@ _bounds(s::MOI.EqualTo{Float64}) = (s.value, s.value)
 _bounds(s::MOI.Interval{Float64}) = (s.lower, s.upper)
 
 function _throw_if_existing_lower(
-    bound::BoundEnum, var_type::TypeEnum, new_set::Type{<:MOI.AbstractSet},
-    variable::MOI.VariableIndex
+    bound::BoundEnum,
+    ::TypeEnum,
+    new_set::Type{<:MOI.AbstractSet},
+    variable::MOI.VariableIndex,
 )
     existing_set = if bound == LESS_AND_GREATER_THAN || bound == GREATER_THAN
         MOI.GreaterThan{Float64}
@@ -711,8 +712,10 @@ function _throw_if_existing_lower(
 end
 
 function _throw_if_existing_upper(
-    bound::BoundEnum, var_type::TypeEnum, new_set::Type{<:MOI.AbstractSet},
-    variable::MOI.VariableIndex
+    bound::BoundEnum,
+    ::TypeEnum,
+    new_set::Type{<:MOI.AbstractSet},
+    variable::MOI.VariableIndex,
 )
     existing_set = if bound == LESS_AND_GREATER_THAN || bound == LESS_THAN
         MOI.LessThan{Float64}
@@ -730,7 +733,7 @@ end
 
 function MOI.add_constraint(
     model::Optimizer, f::MOI.SingleVariable, s::S
-) where {S <: SCALAR_SETS}
+) where {S <: _SCALAR_SETS}
     info = _info(model, f.variable)
     if S <: MOI.LessThan{Float64}
         _throw_if_existing_upper(info.bound, info.type, S, f.variable)
@@ -753,40 +756,38 @@ function MOI.add_constraint(
     return index
 end
 
+const GLP_DBL_MAX = prevfloat(Inf)
+
 function _set_variable_bound(
-    model::Optimizer, column::Int, lower::Union{Nothing, Float64},
-    upper::Union{Nothing, Float64}
+    model::Optimizer,
+    column::Int,
+    lower::Union{Nothing, Float64},
+    upper::Union{Nothing, Float64},
 )
     if lower === nothing
-        lower = GLPK.get_col_lb(model.inner, column)
+        lower = glp_get_col_lb(model, column)
     end
     if upper === nothing
-        upper = GLPK.get_col_ub(model.inner, column)
+        upper = glp_get_col_ub(model, column)
     end
     bound_type = if lower == upper
-        GLPK.FX
-    elseif lower <= -GLPK.DBL_MAX
-        upper >= GLPK.DBL_MAX ? GLPK.FR : GLPK.UP
+        GLP_FX
+    elseif lower <= -GLP_DBL_MAX
+        upper >= GLP_DBL_MAX ? GLP_FR : GLP_UP
     else
-        upper >= GLPK.DBL_MAX ? GLPK.LO : GLPK.DB
+        upper >= GLP_DBL_MAX ? GLP_LO : GLP_DB
     end
     if upper < lower
-        # Here, we disable GLPK's pre-emptive checks, because otherwise GLPK
-        # will through an error complaining about invalid bounds when `upper <
-        # lower`. This let's us throw `INFEASIBLE` instead of erroring.
-        prev_preemptive = GLPK.jl_get_preemptive_check()
-        GLPK.jl_set_preemptive_check(false)
-        GLPK.set_col_bnds(model.inner, column, bound_type, lower, upper)
-        GLPK.jl_set_preemptive_check(prev_preemptive)
+        glp_set_col_bnds(model, column, bound_type, lower, upper)
     else
-        GLPK.set_col_bnds(model.inner, column, bound_type, lower, upper)
+        glp_set_col_bnds(model, column, bound_type, lower, upper)
     end
     return
 end
 
 function MOI.delete(
     model::Optimizer,
-    c::MOI.ConstraintIndex{MOI.SingleVariable, MOI.LessThan{Float64}}
+    c::MOI.ConstraintIndex{MOI.SingleVariable, MOI.LessThan{Float64}},
 )
     MOI.throw_if_not_valid(model, c)
     info = _info(model, c)
@@ -803,7 +804,7 @@ end
 
 function MOI.delete(
     model::Optimizer,
-    c::MOI.ConstraintIndex{MOI.SingleVariable, MOI.GreaterThan{Float64}}
+    c::MOI.ConstraintIndex{MOI.SingleVariable, MOI.GreaterThan{Float64}},
 )
     MOI.throw_if_not_valid(model, c)
     info = _info(model, c)
@@ -816,7 +817,7 @@ end
 
 function MOI.delete(
     model::Optimizer,
-    c::MOI.ConstraintIndex{MOI.SingleVariable, MOI.Interval{Float64}}
+    c::MOI.ConstraintIndex{MOI.SingleVariable, MOI.Interval{Float64}},
 )
     MOI.throw_if_not_valid(model, c)
     info = _info(model, c)
@@ -829,7 +830,7 @@ end
 
 function MOI.delete(
     model::Optimizer,
-    c::MOI.ConstraintIndex{MOI.SingleVariable, MOI.EqualTo{Float64}}
+    c::MOI.ConstraintIndex{MOI.SingleVariable, MOI.EqualTo{Float64}},
 )
     MOI.throw_if_not_valid(model, c)
     info = _info(model, c)
@@ -841,47 +842,53 @@ function MOI.delete(
 end
 
 function MOI.get(
-    model::Optimizer, ::MOI.ConstraintSet,
-    c::MOI.ConstraintIndex{MOI.SingleVariable, MOI.GreaterThan{Float64}}
+    model::Optimizer,
+    ::MOI.ConstraintSet,
+    c::MOI.ConstraintIndex{MOI.SingleVariable, MOI.GreaterThan{Float64}},
 )
     MOI.throw_if_not_valid(model, c)
-    lower = GLPK.get_col_lb(model.inner, _info(model, c).column)
+    lower = glp_get_col_lb(model, _info(model, c).column)
     return MOI.GreaterThan(lower)
 end
 
 function MOI.get(
-    model::Optimizer, ::MOI.ConstraintSet,
-    c::MOI.ConstraintIndex{MOI.SingleVariable, MOI.LessThan{Float64}}
+    model::Optimizer,
+    ::MOI.ConstraintSet,
+    c::MOI.ConstraintIndex{MOI.SingleVariable, MOI.LessThan{Float64}},
 )
     MOI.throw_if_not_valid(model, c)
-    upper = GLPK.get_col_ub(model.inner, _info(model, c).column)
+    upper = glp_get_col_ub(model, _info(model, c).column)
     return MOI.LessThan(upper)
 end
 
 function MOI.get(
-    model::Optimizer, ::MOI.ConstraintSet,
-    c::MOI.ConstraintIndex{MOI.SingleVariable, MOI.EqualTo{Float64}}
+    model::Optimizer,
+    ::MOI.ConstraintSet,
+    c::MOI.ConstraintIndex{MOI.SingleVariable, MOI.EqualTo{Float64}},
 )
     MOI.throw_if_not_valid(model, c)
-    lower = GLPK.get_col_lb(model.inner, _info(model, c).column)
+    lower = glp_get_col_lb(model, _info(model, c).column)
     return MOI.EqualTo(lower)
 end
 
 function MOI.get(
-    model::Optimizer, ::MOI.ConstraintSet,
-    c::MOI.ConstraintIndex{MOI.SingleVariable, MOI.Interval{Float64}}
+    model::Optimizer,
+    ::MOI.ConstraintSet,
+    c::MOI.ConstraintIndex{MOI.SingleVariable, MOI.Interval{Float64}},
 )
     MOI.throw_if_not_valid(model, c)
     info = _info(model, c)
-    lower = GLPK.get_col_lb(model.inner, info.column)
-    upper = GLPK.get_col_ub(model.inner, info.column)
+    lower = glp_get_col_lb(model, info.column)
+    upper = glp_get_col_ub(model, info.column)
     return MOI.Interval(lower, upper)
 end
 
 function MOI.set(
-    model::Optimizer, ::MOI.ConstraintSet,
-    c::MOI.ConstraintIndex{MOI.SingleVariable, S}, s::S
-) where {S<:SCALAR_SETS}
+    model::Optimizer,
+    ::MOI.ConstraintSet,
+    c::MOI.ConstraintIndex{MOI.SingleVariable, S},
+    s::S,
+) where {S<:_SCALAR_SETS}
     MOI.throw_if_not_valid(model, c)
     lower, upper = _bounds(s)
     info = _info(model, c)
@@ -897,7 +904,7 @@ function MOI.add_constraint(
     # for why this is necesary. GLPK interacts weirdly with binary variables and
     # bound modification. So let's set binary variables as "Integer" with [0,1]
     # bounds that we enforce just before solve.
-    GLPK.set_col_kind(model.inner, info.column, GLPK.IV)
+    glp_set_col_kind(model, info.column, GLP_IV)
     info.type = BINARY
     model.num_binaries += 1
     return MOI.ConstraintIndex{MOI.SingleVariable, MOI.ZeroOne}(f.variable.value)
@@ -908,7 +915,7 @@ function MOI.delete(
 )
     MOI.throw_if_not_valid(model, c)
     info = _info(model, c)
-    GLPK.set_col_kind(model.inner, info.column, GLPK.CV)
+    glp_set_col_kind(model, info.column, GLP_CV)
     info.type = CONTINUOUS
     model.num_binaries -= 1
     model.name_to_constraint_index = nothing
@@ -916,8 +923,9 @@ function MOI.delete(
 end
 
 function MOI.get(
-    model::Optimizer, ::MOI.ConstraintSet,
-    c::MOI.ConstraintIndex{MOI.SingleVariable, MOI.ZeroOne}
+    model::Optimizer,
+    ::MOI.ConstraintSet,
+    c::MOI.ConstraintIndex{MOI.SingleVariable, MOI.ZeroOne},
 )
     MOI.throw_if_not_valid(model, c)
     return MOI.ZeroOne()
@@ -927,7 +935,7 @@ function MOI.add_constraint(
     model::Optimizer, f::MOI.SingleVariable, ::MOI.Integer
 )
     info = _info(model, f.variable)
-    GLPK.set_col_kind(model.inner, info.column, GLPK.IV)
+    glp_set_col_kind(model, info.column, GLP_IV)
     info.type = INTEGER
     model.num_integers += 1
     return MOI.ConstraintIndex{MOI.SingleVariable, MOI.Integer}(f.variable.value)
@@ -938,7 +946,7 @@ function MOI.delete(
 )
     MOI.throw_if_not_valid(model, c)
     info = _info(model, c)
-    GLPK.set_col_kind(model.inner, info.column, GLPK.CV)
+    glp_set_col_kind(model, info.column, GLP_CV)
     info.type = CONTINUOUS
     model.num_integers -= 1
     model.name_to_constraint_index = nothing
@@ -946,16 +954,18 @@ function MOI.delete(
 end
 
 function MOI.get(
-    model::Optimizer, ::MOI.ConstraintSet,
-    c::MOI.ConstraintIndex{MOI.SingleVariable, MOI.Integer}
+    model::Optimizer,
+    ::MOI.ConstraintSet,
+    c::MOI.ConstraintIndex{MOI.SingleVariable, MOI.Integer},
 )
     MOI.throw_if_not_valid(model, c)
     return MOI.Integer()
 end
 
 function MOI.get(
-    model::Optimizer, ::MOI.ConstraintName,
-    c::MOI.ConstraintIndex{MOI.SingleVariable, S}
+    model::Optimizer,
+    ::MOI.ConstraintName,
+    c::MOI.ConstraintIndex{MOI.SingleVariable, S},
 ) where {S}
     MOI.throw_if_not_valid(model, c)
     info = _info(model, c)
@@ -970,8 +980,10 @@ function MOI.get(
 end
 
 function MOI.set(
-    model::Optimizer, ::MOI.ConstraintName,
-    c::MOI.ConstraintIndex{MOI.SingleVariable, S}, name::String
+    model::Optimizer,
+    ::MOI.ConstraintName,
+    c::MOI.ConstraintIndex{MOI.SingleVariable, S},
+    name::String,
 ) where {S}
     MOI.throw_if_not_valid(model, c)
     info = _info(model, c)
@@ -1020,36 +1032,45 @@ end
 
 """
     _add_affine_constraint(
-        problem::GLPK.Prob, columns::Vector{Int}, coefficients::Vector{Float64},
-        sense::Cchar, rhs::Float64
+        problem::Union{Optimizer, Ptr{glp_prob}},
+        columns::Vector{Cint},
+        coefficients::Vector{Float64},
+        sense::Cchar,
+        rhs::Float64,
     )
 
 Helper function to add a row to the problem. Sense must be one of `'E'`
 (ax == b), `'G'` (ax >= b), `'L'` (ax <= b).
 """
 function _add_affine_constraint(
-    problem::GLPK.Prob, columns::Vector{Int}, coefficients::Vector{Float64},
-    sense::Cchar, rhs::Float64
+    problem::Union{Optimizer, Ptr{glp_prob}},
+    indices::Vector{Cint},
+    coefficients::Vector{Float64},
+    sense::Cchar,
+    rhs::Float64,
 )
-    if length(columns) != length(coefficients)
+    if length(indices) != length(coefficients)
         error("columns and coefficients have different lengths.")
     end
-    GLPK.add_rows(problem, 1)
-    num_rows = GLPK.get_num_rows(problem)
-    GLPK.set_mat_row(problem, num_rows, columns, coefficients)
+    glp_add_rows(problem, 1)
+    row = glp_get_num_rows(problem)
+    glp_set_mat_row(
+        problem, row, length(indices), offset(indices), offset(coefficients)
+    )
     # According to http://most.ccib.rutgers.edu/glpk.pdf page 22, the `lb`
-    # argument is ignored for constraint types with no lower bound (GLPK.UP) and
+    # argument is ignored for constraint types with no lower bound (GLP_UP) and
     # the `ub` argument is ignored for constraint types with no upper bound
-    # (GLPK.LO). We pass ±DBL_MAX for those unused bounds since (a) we have to
-    # pass something, and (b) it is consistent with the other usages of ±DBL_MAX
-    # to represent infinite bounds in the rest of the GLPK interface.
+    # (GLP_LO). We pass ±GLP_DBL_MAX for those unused bounds since (a) we have
+    # to pass something, and (b) it is consistent with the other usages of
+    # ±GLP_DBL_MAX to represent infinite bounds in the rest of the GLPK
+    # interface.
     if sense == Cchar('E')
-        GLPK.set_row_bnds(problem, num_rows, GLPK.FX, rhs, rhs)
+        glp_set_row_bnds(problem, row, GLP_FX, rhs, rhs)
     elseif sense == Cchar('G')
-        GLPK.set_row_bnds(problem, num_rows, GLPK.LO, rhs, GLPK.DBL_MAX)
+        glp_set_row_bnds(problem, row, GLP_LO, rhs, GLP_DBL_MAX)
     else
         @assert sense == Cchar('L')
-        GLPK.set_row_bnds(problem, num_rows, GLPK.UP, -GLPK.DBL_MAX, rhs)
+        glp_set_row_bnds(problem, row, GLP_UP, -GLP_DBL_MAX, rhs)
     end
     return
 end
@@ -1065,7 +1086,7 @@ function MOI.add_constraint(
     model.affine_constraint_info[key].row = length(model.affine_constraint_info)
     indices, coefficients = _indices_and_coefficients(model, f)
     sense, rhs = _sense_and_rhs(s)
-    _add_affine_constraint(model.inner, indices, coefficients, sense, rhs)
+    _add_affine_constraint(model, indices, coefficients, sense, rhs)
     return MOI.ConstraintIndex{typeof(f), typeof(s)}(key.value)
 end
 
@@ -1074,8 +1095,9 @@ function MOI.delete(
     c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64}, <:Any}
 )
     row = _info(model, c).row
-    GLPK.std_basis(model.inner)
-    GLPK.del_rows(model.inner, 1, [row])
+    glp_std_basis(model)
+    x = Cint[row]
+    glp_del_rows(model, 1, offset(x))
     for info in values(model.affine_constraint_info)
         if info.row > row
             info.row -= 1
@@ -1088,47 +1110,55 @@ function MOI.delete(
 end
 
 function MOI.get(
-    model::Optimizer, ::MOI.ConstraintSet,
-    c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64}, S}
+    model::Optimizer,
+    ::MOI.ConstraintSet,
+    c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64}, S},
 ) where {S}
     row = _info(model, c).row
-    sense = GLPK.get_row_type(model.inner, row)
-    if sense == GLPK.LO || sense == GLPK.FX || sense == GLPK.DB
-        return S(GLPK.get_row_lb(model.inner, row))
+    sense = glp_get_row_type(model, row)
+    if sense == GLP_LO || sense == GLP_FX || sense == GLP_DB
+        return S(glp_get_row_lb(model, row))
     else
-        return S(GLPK.get_row_ub(model.inner, row))
+        return S(glp_get_row_ub(model, row))
     end
 end
 
 function MOI.set(
-    model::Optimizer, ::MOI.ConstraintSet,
-    c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64}, S}, s::S
+    model::Optimizer,
+    ::MOI.ConstraintSet,
+    c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64}, S},
+    s::S,
 ) where {S <: Union{MOI.LessThan, MOI.GreaterThan, MOI.EqualTo}}
     row = _info(model, c).row
     if S <: MOI.LessThan
-        GLPK.set_row_bnds(model.inner, row, GLPK.UP, -GLPK.DBL_MAX, s.upper)
+        glp_set_row_bnds(model, row, GLP_UP, -GLP_DBL_MAX, s.upper)
     elseif S <: MOI.GreaterThan
-        GLPK.set_row_bnds(model.inner, row, GLPK.LO, s.lower, GLPK.DBL_MAX)
+        glp_set_row_bnds(model, row, GLP_LO, s.lower, GLP_DBL_MAX)
     else
         @assert S <: MOI.EqualTo
-        GLPK.set_row_bnds(model.inner, row, GLPK.FX, s.value, s.value)
+        glp_set_row_bnds(model, row, GLP_FX, s.value, s.value)
     end
     return
 end
 
 function MOI.get(
-    model::Optimizer, ::MOI.ConstraintFunction,
-    c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64}, S}
-) where {S}
-    indices, values = GLPK.get_mat_row(model.inner, _info(model, c).row)
+    model::Optimizer,
+    ::MOI.ConstraintFunction,
+    c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64}, <:Any},
+)
+    row = Cint(_info(model, c).row)
+    nnz = glp_get_mat_row(model, row, C_NULL, C_NULL)
+    indices, coefficients = zeros(Cint, nnz), zeros(Cdouble, nnz)
+    glp_get_mat_row(model, row, offset(indices), offset(coefficients))
     terms = MOI.ScalarAffineTerm{Float64}[]
-    for (col, val) in zip(indices, values)
-        iszero(val) && continue
+    for (col, val) in zip(indices, coefficients)
+        if iszero(val)
+            continue
+        end
         push!(
             terms,
             MOI.ScalarAffineTerm(
-                val,
-                model.variable_info[CleverDicts.LinearIndex(col)].index
+                val, model.variable_info[CleverDicts.LinearIndex(col)].index
             )
         )
     end
@@ -1136,14 +1166,16 @@ function MOI.get(
 end
 
 function MOI.get(
-    model::Optimizer, ::MOI.ConstraintName,
-    c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64}, <:Any}
+    model::Optimizer,
+    ::MOI.ConstraintName,
+    c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64}, <:Any},
 )
     return _info(model, c).name
 end
 
 function MOI.set(
-    model::Optimizer, ::MOI.ConstraintName,
+    model::Optimizer,
+    ::MOI.ConstraintName,
     c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64}, <:Any},
     name::String
 )
@@ -1152,7 +1184,7 @@ function MOI.set(
     info.name = name
     if !isempty(name) && isascii(name)
         # Note: GLPK errors if we try to set non-ascii row names.
-        GLPK.set_row_name(model.inner, info.row, name)
+        glp_set_row_name(model, info.row, name)
     end
     model.name_to_constraint_index = nothing
     return
@@ -1252,12 +1284,12 @@ end
 function _solve_linear_problem(model::Optimizer)
     model.last_solved_by_mip = false
     if model.method == SIMPLEX
-        model.solver_status = GLPK.simplex(model.inner, model.simplex_param)
+        model.solver_status = glp_simplex(model, model.simplex_param)
     elseif model.method == EXACT
-        model.solver_status = GLPK.exact(model.inner, model.simplex_param)
+        model.solver_status = glp_exact(model, model.simplex_param)
     else
         @assert model.method == INTERIOR
-        model.solver_status = GLPK.interior(model.inner, model.interior_param)
+        model.solver_status = glp_interior(model, model.interior_param)
     end
     return
 end
@@ -1275,8 +1307,8 @@ function _round_bounds_to_integer(model::Optimizer)
     bounds_to_reset = Tuple{Int, Float64, Float64}[]
     for (key, info) in model.variable_info
         if info.type == BINARY || info.type == INTEGER
-            lb = GLPK.get_col_lb(model.inner, info.column)
-            ub = GLPK.get_col_ub(model.inner, info.column)
+            lb = glp_get_col_lb(model, info.column)
+            ub = glp_get_col_ub(model, info.column)
             new_lb = ceil(lb)
             new_ub = floor(ub)
             if info.type == BINARY
@@ -1298,20 +1330,20 @@ function _solve_mip_problem(model::Optimizer)
     # original setting so that it can be reset.
     presolve_cache = model.intopt_param.presolve
     try
-        # GLPK.intopt requires a starting basis for the LP relaxation. There are
-        # two ways to get this. If presolve=GLPK.ON, then the presolve will find
-        # a basis. If presolve=GLPK.OFF, then we should solve the problem via
-        # GLPK.simplex first.
-        if model.intopt_param.presolve == GLPK.OFF
-            GLPK.simplex(model.inner, model.simplex_param)
-            if GLPK.get_status(model.inner) != GLPK.OPT
+        # glp_intopt requires a starting basis for the LP relaxation. There are
+        # two ways to get this. If presolve=GLP_ON, then the presolve will find
+        # a basis. If presolve=GLP_OFF, then we should solve the problem via
+        # glp_simplex first.
+        if model.intopt_param.presolve == GLP_OFF
+            glp_simplex(model, model.simplex_param)
+            if glp_get_status(model) != GLP_OPT
                 # We didn't find an optimal solution to the LP relaxation, so
                 # let's turn presolve on and let intopt figure out what the
                 # problem is.
-                model.intopt_param.presolve = GLPK.ON
+                model.intopt_param.presolve = GLP_ON
             end
         end
-        model.solver_status = GLPK.intopt(model.inner, model.intopt_param)
+        model.solver_status = glp_intopt(model, model.intopt_param)
         model.last_solved_by_mip = true
 
         # !!! Very Important Note
@@ -1333,13 +1365,16 @@ end
 
 include("infeasibility_certificates.jl")
 
-function check_moi_callback_validity(model::Optimizer)
+function _check_moi_callback_validity(model::Optimizer)
     has_moi_callback =
         model.lazy_callback !== nothing ||
         model.user_cut_callback !== nothing ||
         model.heuristic_callback !== nothing
     if has_moi_callback && model.has_generic_callback
-        error("Cannot use `GLPK.CallbackFunction` as well as `MOI.AbstractCallbackFunction`.")
+        error(
+            "Cannot use `GLPK.CallbackFunction` as well as " *
+            "`MOI.AbstractCallbackFunction`."
+        )
     end
     return has_moi_callback
 end
@@ -1351,8 +1386,8 @@ function MOI.optimize!(model::Optimizer)
     model.unbounded_ray = nothing
 
     # Initialize callbacks if necessary.
-    if check_moi_callback_validity(model)
-        MOI.set(model, CallbackFunction(), default_moi_callback(model))
+    if _check_moi_callback_validity(model)
+        MOI.set(model, CallbackFunction(), _default_moi_callback(model))
         model.has_generic_callback = false
     end
 
@@ -1363,12 +1398,12 @@ function MOI.optimize!(model::Optimizer)
     end
     if MOI.get(model, MOI.ResultCount()) > 0
         if MOI.get(model, MOI.PrimalStatus()) == MOI.INFEASIBILITY_CERTIFICATE
-            model.unbounded_ray = fill(NaN, GLPK.get_num_cols(model.inner))
-            get_unbounded_ray(model, model.unbounded_ray)
+            model.unbounded_ray = fill(NaN, glp_get_num_cols(model))
+            _get_unbounded_ray(model, model.unbounded_ray)
         end
         if MOI.get(model, MOI.DualStatus()) == MOI.INFEASIBILITY_CERTIFICATE
-            model.infeasibility_cert = fill(NaN, GLPK.get_num_rows(model.inner))
-            get_infeasibility_ray(model, model.infeasibility_cert)
+            model.infeasibility_cert = fill(NaN, glp_get_num_rows(model))
+            _get_infeasibility_ray(model, model.infeasibility_cert)
         end
     end
     model.solve_time = time() - start_time
@@ -1389,53 +1424,53 @@ end
 # because it doesn't imply anything about the solution. If `solver_status` is
 # `Int32(0)`, then a solution-specific status can be queried with `_get_status`.
 
-const RAW_SIMPLEX_STRINGS = Dict{Int32, Tuple{MOI.TerminationStatusCode, String}}(
-    GLPK.EBADB  => (MOI.INVALID_MODEL,   "Unable to start the search, because the initial basis specified in the problem object is invalid—the number of basic (auxiliary and structural) variables is not the same as the number of rows in the problem object."),
-    GLPK.ESING  => (MOI.NUMERICAL_ERROR, "Unable to start the search, because the basis matrix corresponding to the initial basis is singular within the working precision."),
-    GLPK.ECOND  => (MOI.NUMERICAL_ERROR, "Unable to start the search, because the basis matrix corresponding to the initial basis is ill-conditioned, i.e. its condition number is too large."),
-    GLPK.EBOUND => (MOI.INVALID_MODEL,   "Unable to start the search, because some double-bounded (auxiliary or structural) variables have incorrect bounds."),
-    GLPK.EFAIL  => (MOI.NUMERICAL_ERROR, "The search was prematurely terminated due to the solver failure."),
-    GLPK.EOBJLL => (MOI.OBJECTIVE_LIMIT, "The search was prematurely terminated, because the objective function being maximized has reached its lower limit and continues decreasing (the dual simplex only)."),
-    GLPK.EOBJUL => (MOI.OBJECTIVE_LIMIT, "The search was prematurely terminated, because the objective function being minimized has reached its upper limit and continues increasing (the dual simplex only)."),
-    GLPK.EITLIM => (MOI.ITERATION_LIMIT, "The search was prematurely terminated, because the simplex iteration limit has been exceeded."),
-    GLPK.ETMLIM => (MOI.TIME_LIMIT,      "The search was prematurely terminated, because the time limit has been exceeded."),
-    GLPK.ENOPFS => (MOI.INFEASIBLE,      "The LP problem instance has no primal feasible solution (only if the LP presolver is used)."),
-    GLPK.ENODFS => (MOI.DUAL_INFEASIBLE, "The LP problem instance has no dual feasible solution (only if the LP presolver is used).")
+const _RAW_SIMPLEX_STRINGS = Dict{Int32, Tuple{MOI.TerminationStatusCode, String}}(
+    GLP_EBADB  => (MOI.INVALID_MODEL,   "Unable to start the search, because the initial basis specified in the problem object is invalid—the number of basic (auxiliary and structural) variables is not the same as the number of rows in the problem object."),
+    GLP_ESING  => (MOI.NUMERICAL_ERROR, "Unable to start the search, because the basis matrix corresponding to the initial basis is singular within the working precision."),
+    GLP_ECOND  => (MOI.NUMERICAL_ERROR, "Unable to start the search, because the basis matrix corresponding to the initial basis is ill-conditioned, i.e. its condition number is too large."),
+    GLP_EBOUND => (MOI.INVALID_MODEL,   "Unable to start the search, because some double-bounded (auxiliary or structural) variables have incorrect bounds."),
+    GLP_EFAIL  => (MOI.NUMERICAL_ERROR, "The search was prematurely terminated due to the solver failure."),
+    GLP_EOBJLL => (MOI.OBJECTIVE_LIMIT, "The search was prematurely terminated, because the objective function being maximized has reached its lower limit and continues decreasing (the dual simplex only)."),
+    GLP_EOBJUL => (MOI.OBJECTIVE_LIMIT, "The search was prematurely terminated, because the objective function being minimized has reached its upper limit and continues increasing (the dual simplex only)."),
+    GLP_EITLIM => (MOI.ITERATION_LIMIT, "The search was prematurely terminated, because the simplex iteration limit has been exceeded."),
+    GLP_ETMLIM => (MOI.TIME_LIMIT,      "The search was prematurely terminated, because the time limit has been exceeded."),
+    GLP_ENOPFS => (MOI.INFEASIBLE,      "The LP problem instance has no primal feasible solution (only if the LP presolver is used)."),
+    GLP_ENODFS => (MOI.DUAL_INFEASIBLE, "The LP problem instance has no dual feasible solution (only if the LP presolver is used).")
 )
 
-const RAW_EXACT_STRINGS = Dict{Int32, Tuple{MOI.TerminationStatusCode, String}}(
-    GLPK.EBADB  => (MOI.INVALID_MODEL,   "Unable to start the search, because the initial basis specified in the problem object is invalid—the number of basic (auxiliary and structural) variables is not the same as the number of rows in the problem object."),
-    GLPK.ESING  => (MOI.NUMERICAL_ERROR, "Unable to start the search, because the basis matrix corresponding to the initial basis is exactly singular."),
-    GLPK.EBOUND => (MOI.INVALID_MODEL,   "Unable to start the search, because some double-bounded (auxiliary or structural) variables have incorrect bounds."),
-    GLPK.EFAIL  => (MOI.INVALID_MODEL,   "The problem instance has no rows/columns."),
-    GLPK.EITLIM => (MOI.ITERATION_LIMIT, "The search was prematurely terminated, because the simplex iteration limit has been exceeded."),
-    GLPK.ETMLIM => (MOI.TIME_LIMIT,      "The search was prematurely terminated, because the time limit has been exceeded.")
+const _RAW_EXACT_STRINGS = Dict{Int32, Tuple{MOI.TerminationStatusCode, String}}(
+    GLP_EBADB  => (MOI.INVALID_MODEL,   "Unable to start the search, because the initial basis specified in the problem object is invalid—the number of basic (auxiliary and structural) variables is not the same as the number of rows in the problem object."),
+    GLP_ESING  => (MOI.NUMERICAL_ERROR, "Unable to start the search, because the basis matrix corresponding to the initial basis is exactly singular."),
+    GLP_EBOUND => (MOI.INVALID_MODEL,   "Unable to start the search, because some double-bounded (auxiliary or structural) variables have incorrect bounds."),
+    GLP_EFAIL  => (MOI.INVALID_MODEL,   "The problem instance has no rows/columns."),
+    GLP_EITLIM => (MOI.ITERATION_LIMIT, "The search was prematurely terminated, because the simplex iteration limit has been exceeded."),
+    GLP_ETMLIM => (MOI.TIME_LIMIT,      "The search was prematurely terminated, because the time limit has been exceeded.")
 )
 
-const RAW_INTERIOR_STRINGS = Dict{Int32, Tuple{MOI.TerminationStatusCode, String}}(
-    GLPK.EFAIL   => (MOI.INVALID_MODEL,   "The problem instance has no rows/columns."),
-    GLPK.ENOCVG  => (MOI.SLOW_PROGRESS,   "Very slow convergence or divergence."),
-    GLPK.EITLIM  => (MOI.ITERATION_LIMIT, "Iteration limit exceeded."),
-    GLPK.EINSTAB => (MOI.NUMERICAL_ERROR, "Numerical instability on solving Newtonian system.")
+const _RAW_INTERIOR_STRINGS = Dict{Int32, Tuple{MOI.TerminationStatusCode, String}}(
+    GLP_EFAIL   => (MOI.INVALID_MODEL,   "The problem instance has no rows/columns."),
+    GLP_ENOCVG  => (MOI.SLOW_PROGRESS,   "Very slow convergence or divergence."),
+    GLP_EITLIM  => (MOI.ITERATION_LIMIT, "Iteration limit exceeded."),
+    GLP_EINSTAB => (MOI.NUMERICAL_ERROR, "Numerical instability on solving Newtonian system.")
 )
 
-const RAW_INTOPT_STRINGS = Dict{Int32, Tuple{MOI.TerminationStatusCode, String}}(
-    GLPK.EBOUND  => (MOI.INVALID_MODEL,   "Unable to start the search, because some double-bounded (auxiliary or structural) variables have incorrect bounds."),
-    GLPK.ENOPFS  => (MOI.INFEASIBLE,      "Unable to start the search, because LP relaxation of the MIP problem instance has no primal feasible solution. (This code may appear only if the presolver is enabled.)"),
-    GLPK.ENODFS  => (MOI.DUAL_INFEASIBLE, "Unable to start the search, because LP relaxation of the MIP problem instance has no dual feasible solution. In other word, this code means that if the LP relaxation has at least one primal feasible solution, its optimal solution is unbounded, so if the MIP problem has at least one integer feasible solution, its (integer) optimal solution is also unbounded. (This code may appear only if the presolver is enabled.)"),
-    GLPK.EFAIL   => (MOI.INVALID_MODEL,   "The search was prematurely terminated due to the solver failure."),
-    GLPK.EMIPGAP => (MOI.OPTIMAL,         "The search was prematurely terminated, because the relative mip gap tolerance has been reached."),
-    GLPK.ETMLIM  => (MOI.TIME_LIMIT,      "The search was prematurely terminated, because the time limit has been exceeded."),
-    GLPK.ESTOP   => (MOI.INTERRUPTED,     "The search was prematurely terminated by application. (This code may appear only if the advanced solver interface is used.)")
+const _RAW_INTOPT_STRINGS = Dict{Int32, Tuple{MOI.TerminationStatusCode, String}}(
+    GLP_EBOUND  => (MOI.INVALID_MODEL,   "Unable to start the search, because some double-bounded (auxiliary or structural) variables have incorrect bounds."),
+    GLP_ENOPFS  => (MOI.INFEASIBLE,      "Unable to start the search, because LP relaxation of the MIP problem instance has no primal feasible solution. (This code may appear only if the presolver is enabled.)"),
+    GLP_ENODFS  => (MOI.DUAL_INFEASIBLE, "Unable to start the search, because LP relaxation of the MIP problem instance has no dual feasible solution. In other word, this code means that if the LP relaxation has at least one primal feasible solution, its optimal solution is unbounded, so if the MIP problem has at least one integer feasible solution, its (integer) optimal solution is also unbounded. (This code may appear only if the presolver is enabled.)"),
+    GLP_EFAIL   => (MOI.INVALID_MODEL,   "The search was prematurely terminated due to the solver failure."),
+    GLP_EMIPGAP => (MOI.OPTIMAL,         "The search was prematurely terminated, because the relative mip gap tolerance has been reached."),
+    GLP_ETMLIM  => (MOI.TIME_LIMIT,      "The search was prematurely terminated, because the time limit has been exceeded."),
+    GLP_ESTOP   => (MOI.INTERRUPTED,     "The search was prematurely terminated by application. (This code may appear only if the advanced solver interface is used.)")
 )
 
-const RAW_SOLUTION_STATUS = Dict{Int32, Tuple{MOI.TerminationStatusCode, String}}(
-    GLPK.OPT    => (MOI.OPTIMAL,            "Solution is optimal"),
-    GLPK.FEAS   => (MOI.LOCALLY_SOLVED,     "Solution is feasible"),
-    GLPK.INFEAS => (MOI.LOCALLY_INFEASIBLE, "Solution is infeasible"),
-    GLPK.NOFEAS => (MOI.INFEASIBLE,         "No feasible primal-dual solution exists."),
-    GLPK.UNBND  => (MOI.DUAL_INFEASIBLE,    "Problem has unbounded solution"),
-    GLPK.UNDEF  => (MOI.OTHER_ERROR,        "Solution is undefined")
+const _RAW_SOLUTION_STATUS = Dict{Int32, Tuple{MOI.TerminationStatusCode, String}}(
+    GLP_OPT    => (MOI.OPTIMAL,            "Solution is optimal"),
+    GLP_FEAS   => (MOI.LOCALLY_SOLVED,     "Solution is feasible"),
+    GLP_INFEAS => (MOI.LOCALLY_INFEASIBLE, "Solution is infeasible"),
+    GLP_NOFEAS => (MOI.INFEASIBLE,         "No feasible primal-dual solution exists."),
+    GLP_UNBND  => (MOI.DUAL_INFEASIBLE,    "Problem has unbounded solution"),
+    GLP_UNDEF  => (MOI.OTHER_ERROR,        "Solution is undefined")
 )
 
 function MOI.get(model::Optimizer, attr::MOI.RawStatusString)
@@ -1444,27 +1479,27 @@ function MOI.get(model::Optimizer, attr::MOI.RawStatusString)
         (_, msg) = _get_status(model)
         return msg
     elseif model.last_solved_by_mip
-        return RAW_INTOPT_STRINGS[model.solver_status][2]
+        return _RAW_INTOPT_STRINGS[model.solver_status][2]
     elseif model.method == SIMPLEX
-        return RAW_SIMPLEX_STRINGS[model.solver_status][2]
+        return _RAW_SIMPLEX_STRINGS[model.solver_status][2]
     elseif model.method == EXACT
-        return RAW_EXACT_STRINGS[model.solver_status][2]
+        return _RAW_EXACT_STRINGS[model.solver_status][2]
     else
         @assert model.method == INTERIOR
-        return RAW_INTERIOR_STRINGS[model.solver_status][2]
+        return _RAW_INTERIOR_STRINGS[model.solver_status][2]
     end
 end
 
 function _get_status(model::Optimizer)
     status_code = if model.last_solved_by_mip
-        GLPK.mip_status(model.inner)
+        glp_mip_status(model)
     elseif model.method == SIMPLEX || model.method == EXACT
-        GLPK.get_status(model.inner)
+        glp_get_status(model)
     else
         @assert model.method == INTERIOR
-        GLPK.ipt_status(model.inner)
+        glp_ipt_status(model)
     end
-    return RAW_SOLUTION_STATUS[status_code]
+    return _RAW_SOLUTION_STATUS[status_code]
 end
 
 """
@@ -1485,14 +1520,14 @@ function MOI.get(model::Optimizer, attr::MOI.TerminationStatus)
     elseif model.solver_status != Int32(0)
         # The solver did not exit successfully for some reason.
         if model.last_solved_by_mip
-            return RAW_INTOPT_STRINGS[model.solver_status][1]
+            return _RAW_INTOPT_STRINGS[model.solver_status][1]
         elseif model.method == SIMPLEX
-            return RAW_SIMPLEX_STRINGS[model.solver_status][1]
+            return _RAW_SIMPLEX_STRINGS[model.solver_status][1]
         elseif model.method == INTERIOR
-            return RAW_INTERIOR_STRINGS[model.solver_status][1]
+            return _RAW_INTERIOR_STRINGS[model.solver_status][1]
         else
             @assert model.method == EXACT
-            return RAW_EXACT_STRINGS[model.solver_status][1]
+            return _RAW_EXACT_STRINGS[model.solver_status][1]
         end
     else
         (status, _) = _get_status(model)
@@ -1539,32 +1574,32 @@ end
 function _get_col_dual(model::Optimizer, column::Int)
     @assert !model.last_solved_by_mip
     if model.method == SIMPLEX || model.method == EXACT
-        return _dual_multiplier(model) * GLPK.get_col_dual(model.inner, column)
+        return _dual_multiplier(model) * glp_get_col_dual(model, column)
     else
         @assert model.method == INTERIOR
-        return _dual_multiplier(model) * GLPK.ipt_col_dual(model.inner, column)
+        return _dual_multiplier(model) * glp_ipt_col_dual(model, column)
     end
 end
 
 function _get_col_primal(model::Optimizer, column::Int)
     if model.last_solved_by_mip
-        return GLPK.mip_col_val(model.inner, column)
+        return glp_mip_col_val(model, column)
     elseif model.method == SIMPLEX || model.method == EXACT
-        return GLPK.get_col_prim(model.inner, column)
+        return glp_get_col_prim(model, column)
     else
         @assert model.method == INTERIOR
-        return GLPK.ipt_col_prim(model.inner, column)
+        return glp_ipt_col_prim(model, column)
     end
 end
 
 function _get_row_primal(model::Optimizer, row::Int)
     if model.last_solved_by_mip
-        return GLPK.mip_row_val(model.inner, row)
+        return glp_mip_row_val(model, row)
     elseif model.method == SIMPLEX || model.method == EXACT
-        return GLPK.get_row_prim(model.inner, row)
+        return glp_get_row_prim(model, row)
     else
         @assert model.method == INTERIOR
-        return GLPK.ipt_row_prim(model.inner, row)
+        return glp_ipt_row_prim(model, row)
     end
 end
 
@@ -1608,10 +1643,10 @@ function MOI.get(
     MOI.check_result_index_bounds(model, attr)
     column = _info(model, c).column
     reduced_cost = if model.method == SIMPLEX || model.method == EXACT
-        GLPK.get_col_dual(model.inner, column)
+        glp_get_col_dual(model, column)
     else
         @assert model.method == INTERIOR
-        GLPK.ipt_col_dual(model.inner, column)
+        glp_ipt_col_dual(model, column)
     end
     sense = MOI.get(model, MOI.ObjectiveSense())
     # The following is a heuristic for determining whether the reduced cost
@@ -1640,10 +1675,10 @@ function MOI.get(
     MOI.check_result_index_bounds(model, attr)
     column = _info(model, c).column
     reduced_cost = if model.method == SIMPLEX || model.method == EXACT
-        GLPK.get_col_dual(model.inner, column)
+        glp_get_col_dual(model, column)
     else
         @assert model.method == INTERIOR
-        GLPK.ipt_col_dual(model.inner, column)
+        glp_ipt_col_dual(model, column)
     end
     sense = MOI.get(model, MOI.ObjectiveSense())
     # The following is a heuristic for determining whether the reduced cost
@@ -1685,10 +1720,10 @@ function MOI.get(
     else
         @assert !model.last_solved_by_mip
         if model.method == SIMPLEX || model.method == EXACT
-            return _dual_multiplier(model) * GLPK.get_row_dual(model.inner, row)
+            return _dual_multiplier(model) * glp_get_row_dual(model, row)
         else
             @assert model.method == INTERIOR
-            return _dual_multiplier(model) * GLPK.ipt_row_dual(model.inner, row)
+            return _dual_multiplier(model) * glp_ipt_row_dual(model, row)
         end
     end
 end
@@ -1697,12 +1732,12 @@ function MOI.get(model::Optimizer, attr::MOI.ObjectiveValue)
     _throw_if_optimize_in_progress(model, attr)
     MOI.check_result_index_bounds(model, attr)
     if model.last_solved_by_mip
-        return GLPK.mip_obj_val(model.inner)
+        return glp_mip_obj_val(model)
     elseif model.method == SIMPLEX || model.method == EXACT
-        return GLPK.get_obj_val(model.inner)
+        return glp_get_obj_val(model)
     else
         @assert model.method == INTERIOR
-        return GLPK.ipt_obj_val(model.inner)
+        return glp_ipt_obj_val(model)
     end
 end
 
@@ -1714,8 +1749,8 @@ function MOI.get(model::Optimizer, attr::MOI.ObjectiveBound)
     # @mlubin and @ccoey observed some cases where mip_status == OPT and objval
     # and objbound didn't match. In that case, they return mip_obj_val, but
     # objbound may still be incorrect in cases where GLPK terminates early.
-    if GLPK.mip_status(model.inner) == GLPK.OPT
-        return GLPK.mip_obj_val(model.inner)
+    if glp_mip_status(model) == GLP_OPT
+        return glp_mip_obj_val(model)
     end
     return model.objective_bound
 end
@@ -1758,17 +1793,18 @@ end
 
 function MOI.set(model::Optimizer, ::MOI.Silent, flag::Bool)
     model.silent = flag
-    output_flag = flag ? GLPK.OFF : MOI.get(model, MOI.RawParameter("msg_lev"))
+    output_flag = flag ? GLP_OFF : MOI.get(model, MOI.RawParameter("msg_lev"))
     MOI.set(model, MOI.RawParameter("msg_lev"), output_flag)
     return
 end
 
 function MOI.get(model::Optimizer, ::MOI.Name)
-    return GLPK.get_prob_name(model.inner)
+    name = glp_get_prob_name(model)
+    return name == C_NULL ? "" : unsafe_string(name)
 end
 
 function MOI.set(model::Optimizer, ::MOI.Name, name::String)
-    GLPK.set_prob_name(model.inner, name)
+    glp_set_prob_name(model, name)
     return
 end
 
@@ -1777,7 +1813,7 @@ function MOI.get(model::Optimizer, ::MOI.ListOfVariableIndices)
     return sort!(collect(keys(model.variable_info)), by = x -> x.value)
 end
 
-MOI.get(model::Optimizer, ::MOI.RawSolver) = model.inner
+MOI.get(model::Optimizer, ::MOI.RawSolver) = model
 
 function MOI.get(model::Optimizer, ::MOI.NumberOfConstraints{F, S}) where {F, S}
     # TODO: this could be more efficient.
@@ -1849,12 +1885,7 @@ function MOI.get(model::Optimizer, ::MOI.ListOfConstraints)
 end
 
 function MOI.get(model::Optimizer, ::MOI.ObjectiveFunctionType)
-    if model.objective_type == SINGLE_VARIABLE
-        return MOI.SingleVariable
-    else
-        @assert model.objective_type == SCALAR_AFFINE
-        return MOI.ScalarAffineFunction{Float64}
-    end
+    return MOI.ScalarAffineFunction{Float64}
 end
 
 # TODO(odow): is there a way to modify a single element, rather than the whole
@@ -1864,17 +1895,21 @@ function MOI.modify(
     c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64}, <:Any},
     chg::MOI.ScalarCoefficientChange{Float64}
 )
-    row = _info(model, c).row
+    row = Cint(_info(model, c).row)
     col = _info(model, chg.variable).column
-    columns, coefficients = GLPK.get_mat_row(model.inner, row)
-    index = something(findfirst(isequal(col), columns), 0)
+    nnz = glp_get_mat_row(model, row, C_NULL, C_NULL)
+    indices, coefficients = zeros(Cint, nnz), zeros(Cdouble, nnz)
+    glp_get_mat_row(model, row, offset(indices), offset(coefficients))
+    index = something(findfirst(isequal(col), indices), 0)
     if index > 0
         coefficients[index] = chg.new_coefficient
     else
-        push!(columns, col)
+        push!(indices, col)
         push!(coefficients, chg.new_coefficient)
     end
-    GLPK.set_mat_row(model.inner, row, columns, coefficients)
+    glp_set_mat_row(
+        model, row, length(indices), offset(indices), offset(coefficients)
+    )
     return
 end
 
@@ -1883,36 +1918,40 @@ function MOI.modify(
     c::MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}},
     chg::MOI.ScalarCoefficientChange{Float64}
 )
-    GLPK.set_obj_coef(
-        model.inner, _info(model, chg.variable).column, chg.new_coefficient
+    glp_set_obj_coef(
+        model, _info(model, chg.variable).column, chg.new_coefficient
     )
     return
 end
 
 function MOI.set(
-    model::Optimizer, ::MOI.ConstraintFunction,
-    c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64}, <:SCALAR_SETS},
+    model::Optimizer,
+    ::MOI.ConstraintFunction,
+    c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64}, <:_SCALAR_SETS},
     f::MOI.ScalarAffineFunction{Float64}
 )
     if !iszero(f.constant)
         throw(MOI.ScalarFunctionConstantNotZero(f.constant))
     end
-    row = _info(model, c).row
+    row = Cint(_info(model, c).row)
     indices, coefficients = _indices_and_coefficients(model, f)
-    GLPK.set_mat_row(model.inner, row, indices, coefficients)
+    glp_set_mat_row(
+        model, row, length(indices), offset(indices), offset(coefficients)
+    )
     return
 end
 
 function MOI.get(
-    model::Optimizer, attr::MOI.ConstraintBasisStatus,
-    c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64}, S}
-) where {S <: SCALAR_SETS}
+    model::Optimizer,
+    attr::MOI.ConstraintBasisStatus,
+    c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64}, <:_SCALAR_SETS},
+)
     _throw_if_optimize_in_progress(model, attr)
     row = _info(model, c).row
-    cbasis = GLPK.get_row_stat(model.inner, row)
-    if cbasis == GLPK.BS
+    cbasis = glp_get_row_stat(model, row)
+    if cbasis == GLP_BS
         return MOI.BASIC
-    elseif cbasis == GLPK.NL || cbasis == GLPK.NU || cbasis == GLPK.NF || cbasis == GLPK.NS
+    elseif cbasis == GLP_NL || cbasis == GLP_NU || cbasis == GLP_NF || cbasis == GLP_NS
         return MOI.NONBASIC
     else
         error("CBasis value of $(cbasis) isn't defined.")
@@ -1920,15 +1959,16 @@ function MOI.get(
 end
 
 function MOI.get(
-    model::Optimizer, attr::MOI.ConstraintBasisStatus,
-    c::MOI.ConstraintIndex{MOI.SingleVariable, S}
-) where {S <: SCALAR_SETS}
+    model::Optimizer,
+    attr::MOI.ConstraintBasisStatus,
+    c::MOI.ConstraintIndex{MOI.SingleVariable, S},
+) where {S <: _SCALAR_SETS}
     _throw_if_optimize_in_progress(model, attr)
     column = _info(model, c).column
-    vbasis = GLPK.get_col_stat(model.inner, column)
-    if vbasis == GLPK.BS
+    vbasis = glp_get_col_stat(model, column)
+    if vbasis == GLP_BS
         return MOI.BASIC
-    elseif vbasis == GLPK.NL
+    elseif vbasis == GLP_NL
         if S <: MOI.LessThan
             return MOI.BASIC
         elseif !(S <: MOI.Interval)
@@ -1936,7 +1976,7 @@ function MOI.get(
         else
             return MOI.NONBASIC_AT_LOWER
         end
-    elseif vbasis == GLPK.NU
+    elseif vbasis == GLP_NU
         MOI.NONBASIC_AT_UPPER
         if S <: MOI.GreaterThan
             return MOI.BASIC
@@ -1945,9 +1985,9 @@ function MOI.get(
         else
             return MOI.NONBASIC_AT_UPPER
         end
-    elseif vbasis == GLPK.NF
+    elseif vbasis == GLP_NF
         return MOI.NONBASIC
-    elseif vbasis == GLPK.NS
+    elseif vbasis == GLP_NS
         return MOI.NONBASIC
     else
         error("VBasis value of $(vbasis) isn't defined.")

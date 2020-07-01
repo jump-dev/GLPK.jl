@@ -179,15 +179,15 @@ end
     s = MOI.LessThan(2.0)
     c = MOI.add_constraint(model, f, s)
     row = GLPK._info(model, c).row
-    @test GLPK.get_row_type(model.inner, row) == GLPK.UP
-    @test GLPK.get_row_lb(model.inner, row) == -GLPK.DBL_MAX
-    @test GLPK.get_row_ub(model.inner, row) == 2.0
+    @test GLPK.glp_get_row_type(model.inner, row) == GLPK.GLP_UP
+    @test GLPK.glp_get_row_lb(model.inner, row) == -GLPK.GLP_DBL_MAX
+    @test GLPK.glp_get_row_ub(model.inner, row) == 2.0
     # Modify the constraint set and verify that the internal constraint
     # has the correct bounds afterwards
     MOI.set(model, MOI.ConstraintSet(), c, MOI.LessThan(1.0))
-    @test GLPK.get_row_type(model.inner, row) == GLPK.UP
-    @test GLPK.get_row_lb(model.inner, row) == -GLPK.DBL_MAX
-    @test GLPK.get_row_ub(model.inner, row) == 1.0
+    @test GLPK.glp_get_row_type(model.inner, row) == GLPK.GLP_UP
+    @test GLPK.glp_get_row_lb(model.inner, row) == -GLPK.GLP_DBL_MAX
+    @test GLPK.glp_get_row_ub(model.inner, row) == 1.0
 end
 
 @testset "Infeasible bounds" begin
@@ -351,11 +351,11 @@ end
 
 @testset "Default parameters" begin
     model = GLPK.Optimizer()
-    @test MOI.get(model, MOI.RawParameter("msg_lev")) == GLPK.MSG_ERR
-    @test MOI.get(model, MOI.RawParameter("presolve")) == GLPK.OFF
-    model = GLPK.Optimizer(msg_lev = GLPK.MSG_ALL, presolve = true)
-    @test MOI.get(model, MOI.RawParameter("msg_lev")) == GLPK.MSG_ALL
-    @test MOI.get(model, MOI.RawParameter("presolve")) == GLPK.ON
+    @test MOI.get(model, MOI.RawParameter("msg_lev")) == GLPK.GLP_MSG_ERR
+    @test MOI.get(model, MOI.RawParameter("presolve")) == GLPK.GLP_OFF
+    model = GLPK.Optimizer(msg_lev = GLPK.GLP_MSG_ALL, presolve = true)
+    @test MOI.get(model, MOI.RawParameter("msg_lev")) == GLPK.GLP_MSG_ALL
+    @test MOI.get(model, MOI.RawParameter("presolve")) == GLPK.GLP_ON
 end
 
 @testset "Duplicate names" begin
@@ -425,7 +425,11 @@ end
     xl = MOI.add_constraint(model, MOI.SingleVariable(x), MOI.GreaterThan(1.0))
     xu = MOI.add_constraint(model, MOI.SingleVariable(x), MOI.LessThan(1.0))
     MOI.set(model, MOI.ObjectiveSense(), MOI.MIN_SENSE)
-    MOI.set(model, MOI.ObjectiveFunction{MOI.SingleVariable}(), MOI.SingleVariable(x))
+    MOI.set(
+        model,
+        MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}(),
+        MOI.ScalarAffineFunction([MOI.ScalarAffineTerm(1.0, x)], 0.0)
+    )
     MOI.optimize!(model)
     @test MOI.get(model, MOI.ConstraintDual(), xl) == 1.0
     @test MOI.get(model, MOI.ConstraintDual(), xu) == 0.0
@@ -452,4 +456,11 @@ end
     )
     MOI.set(model, MOI.ConstraintName(), c, "ω")
     @test MOI.get(model, MOI.ConstraintName(), c) == "ω"
+end
+
+
+@testset "Deprecated constants" begin
+    model = GLPK.Optimizer()
+    MOI.set(model, MOI.RawParameter("msg_lev"), GLPK.MSG_OFF)
+    @test MOI.get(model, MOI.RawParameter("msg_lev")) == GLPK.GLP_MSG_OFF
 end

@@ -6,7 +6,7 @@ function callback_simple_model()
     model = GLPK.Optimizer()
     MOI.Utilities.loadfromstring!(model, """
         variables: x, y
-        maxobjective: y
+        maxobjective: 1.0 * y
         c1: x in Integer()
         c2: y in Integer()
         c3: x in Interval(0.0, 2.5)
@@ -289,9 +289,9 @@ end
             model, x, y = callback_simple_model()
             cb_calls = Int32[]
             function callback_function(cb_data)
-                reason = GLPK.ios_reason(cb_data.tree)
+                reason = GLPK.glp_ios_reason(cb_data.tree)
                 push!(cb_calls, reason)
-                if reason != GLPK.IROWGEN
+                if reason != GLPK.GLP_IROWGEN
                     return
                 end
                 x_val = MOI.get(model, MOI.CallbackVariablePrimal(cb_data), x)
@@ -319,20 +319,20 @@ end
             @test MOI.get(model, MOI.VariablePrimal(), x) == 1
             @test MOI.get(model, MOI.VariablePrimal(), y) == 2
             @test length(cb_calls) > 0
-            @test GLPK.ISELECT in cb_calls
-            @test GLPK.IPREPRO in cb_calls
-            @test GLPK.IROWGEN in cb_calls
-            @test GLPK.IBINGO in cb_calls
-            @test !(GLPK.IHEUR in cb_calls)
+            @test GLPK.GLP_ISELECT in cb_calls
+            @test GLPK.GLP_IPREPRO in cb_calls
+            @test GLPK.GLP_IROWGEN in cb_calls
+            @test GLPK.GLP_IBINGO in cb_calls
+            @test !(GLPK.GLP_IHEUR in cb_calls)
         end
         @testset "UserCut" begin
             model, x, item_weights = callback_knapsack_model()
             user_cut_submitted = false
             cb_calls = Int32[]
             MOI.set(model, GLPK.CallbackFunction(), (cb_data) -> begin
-                reason = GLPK.ios_reason(cb_data.tree)
+                reason = GLPK.glp_ios_reason(cb_data.tree)
                 push!(cb_calls, reason)
-                if reason != GLPK.ICUTGEN
+                if reason != GLPK.GLP_ICUTGEN
                     return
                 end
                 terms = MOI.ScalarAffineTerm{Float64}[]
@@ -355,7 +355,7 @@ end
             end)
             MOI.optimize!(model)
             @test user_cut_submitted
-            @test GLPK.ICUTGEN in cb_calls
+            @test GLPK.GLP_ICUTGEN in cb_calls
         end
         @testset "HeuristicSolution" begin
             model, x, item_weights = callback_knapsack_model()
@@ -363,9 +363,9 @@ end
             solution_rejected = false
             cb_calls = Int32[]
             MOI.set(model, GLPK.CallbackFunction(), (cb_data) -> begin
-                reason = GLPK.ios_reason(cb_data.tree)
+                reason = GLPK.glp_ios_reason(cb_data.tree)
                 push!(cb_calls, reason)
-                if reason != GLPK.IHEUR
+                if reason != GLPK.GLP_IHEUR
                     return
                 end
                 x_vals = MOI.get.(model, MOI.CallbackVariablePrimal(cb_data), x)
@@ -389,7 +389,7 @@ end
             MOI.optimize!(model)
             @test solution_accepted
             @test solution_rejected
-            @test GLPK.IHEUR in cb_calls
+            @test GLPK.GLP_IHEUR in cb_calls
         end
     end
 end
