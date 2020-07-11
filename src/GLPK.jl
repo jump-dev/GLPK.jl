@@ -38,7 +38,7 @@ if !(v"4.64.0" <= _GLPK_VERSION <= v"4.64.0")
         "You have installed version $_GLPK_VERSION of GLPK, which is not " *
         "supported by GLPK.jl. If the version change was breaking, changes " *
         "will need to be made to the Julia code. Please open an issue at " *
-        "https://github.com/JuliaOpt/GLPK.jl."
+        "https://github.com/jump-dev/GLPK.jl."
     )
 end
 

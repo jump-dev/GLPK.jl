@@ -62,7 +62,7 @@ end
 @testset "Integer Linear tests" begin
     MOIT.intlineartest(OPTIMIZER, CONFIG, [
         "int2", "indicator1", "indicator2", "indicator3", "indicator4",
-        # TODO reenable when https://github.com/JuliaOpt/MathOptInterface.jl/issues/897 is resolved
+        # TODO reenable when https://github.com/jump-dev/MathOptInterface.jl/issues/897 is resolved
         "semiconttest", "semiinttest"
     ])
 end
