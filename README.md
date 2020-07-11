@@ -4,7 +4,7 @@
 |:---------------------------------------------------------------------------------------------------:|
 | [![][travis-img]][travis-url] [![][appveyor-img]][appveyor-url] [![][coveralls-img]][coveralls-url] |
 
-GLPK.jl is a wrapper for the [GNU Linear Programming Kit library](http://www.gnu.org/software/glpk).
+GLPK.jl is a wrapper for the [GNU Linear Programming Kit library](https://www.gnu.org/software/glpk).
 
 It has two components:
  - a thin wrapper around the complete C API
