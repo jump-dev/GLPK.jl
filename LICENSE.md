@@ -13,7 +13,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 The file COPYING contains a copy of the GNU General Public License,
-also available at [http://www.gnu.org.licences/].
+also available at [https://www.gnu.org/licenses/].
 
 Many functions in MOIWrapper.jl are adapted from GLPKMathProgInterface.jl.
 > Copyright (c) 2013: Carlo Baldassi

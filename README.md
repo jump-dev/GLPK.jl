@@ -4,7 +4,7 @@
 |:---------------------------------------------------------------------------------------------------:|
 | [![][travis-img]][travis-url] [![][appveyor-img]][appveyor-url] [![][coveralls-img]][coveralls-url] |
 
-GLPK.jl is a wrapper for the [GNU Linear Programming Kit library](http://www.gnu.org/software/glpk).
+GLPK.jl is a wrapper for the [GNU Linear Programming Kit library](https://www.gnu.org/software/glpk).
 
 It has two components:
  - a thin wrapper around the complete C API
@@ -67,11 +67,11 @@ set_optimizer_attribute(model, "tm_lim", 60 * 1_000)
 set_optimizer_attribute(model, "msg_lev", GLPK.GLP_MSG_OFF)
 ```
 
-[travis-img]: https://api.travis-ci.org/JuliaOpt/GLPK.jl.svg?branch=master
-[travis-url]: https://travis-ci.org/JuliaOpt/GLPK.jl
+[travis-img]: https://api.travis-ci.org/jump-dev/GLPK.jl.svg?branch=master
+[travis-url]: https://travis-ci.org/jump-dev/GLPK.jl
 
 [appveyor-img]: https://ci.appveyor.com/api/projects/status/4t5e2dir3gp7fb6h?svg=true
 [appveyor-url]: https://ci.appveyor.com/project/JuliaOpt/glpk-jl
 
-[coveralls-img]: https://img.shields.io/coveralls/JuliaOpt/GLPK.jl.svg
-[coveralls-url]: https://coveralls.io/r/JuliaOpt/GLPK.jl
+[coveralls-img]: https://img.shields.io/coveralls/jump-dev/GLPK.jl.svg
+[coveralls-url]: https://coveralls.io/r/jump-dev/GLPK.jl
