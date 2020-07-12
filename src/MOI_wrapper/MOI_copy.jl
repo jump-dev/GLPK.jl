@@ -5,6 +5,62 @@
 struct ContiguousIndex
     index_map
 end
+mutable struct DoubleDict
+    dict::Dict{Tuple{DataType,DataType}, Dict{Int,Int}}
+    DoubleDict() = new(Dict{Tuple{DataType,DataType}, Dict{Int,Int}}())
+end
+mutable struct IndexMap2
+    varmap::Dict{MOI.VariableIndex, MOI.VariableIndex}
+    conmap::DoubleDict
+    IndexMap2() = new(Dict{MOI.VariableIndex, MOI.VariableIndex}(), DoubleDict())
+end
+
+Base.sizehint!(d::DoubleDict, n) = nothing#error("Not possible to use sizehint")
+function Base.sizehint!(d::DoubleDict, ::Type{F}, ::Type{S}, n) where {F,S}
+    inner = lazy_get(d, F, S)::Dict{Int,Int}
+    sizehint!(inner, n)
+end
+const CI{F,S} = MOI.ConstraintIndex{F,S}
+function Base.length(d::DoubleDict)
+    len = 0
+    for inner in d.dict
+        len += length(inner)
+    end
+    return len
+end
+function Base.haskey(dict::DoubleDict, key::CI{F,S}) where {F,S}
+    inner = get(dict.dict, (F,S), nothing)
+    if inner !== nothing
+        inner = dict.dict[(F,S)]
+        return haskey(inner, key.value)
+    else
+        return false
+    end
+end
+function Base.getindex(dict::DoubleDict, key::CI{F,S}) where {F,S}
+    inner = dict.dict[(F,S)]
+    k_value = key.value::Int
+    return CI{F,S}(inner[k_value])
+end
+function lazy_get(dict::DoubleDict, ::Type{F}, ::Type{S}) where {F,S}
+    inner = get(dict.dict, (F,S), nothing) ::Union{Nothing, Dict{Int,Int}}
+    if inner === nothing
+        return dict.dict[(F,S)] = Dict{Int,Int}()
+    end
+    return inner
+end
+function Base.setindex!(dict::DoubleDict, value::CI{F,S}, key::CI{F,S}) where {F,S}
+    v_value = value.value::Int
+    k_value = key.value::Int
+    inner = lazy_get(dict, F, S)::Dict{Int,Int}
+    inner[k_value] = v_value
+    return dict
+end
+# function Base.setindex!(dict::DoubleDict, ::Type{F}, ::Type{S}, value::Int, key::Int) where {F,S}
+#     inner = lazy_get(dict, F, S)::Dict{Int,Int}
+#     inner[key] = value
+#     return dict
+# end
 
 _add_bounds(::Vector{Float64}, ub, i, s::MOI.LessThan{Float64}) = ub[i] = s.upper
 _add_bounds(lb, ::Vector{Float64}, i, s::MOI.GreaterThan{Float64}) = lb[i] = s.lower
@@ -97,11 +153,13 @@ function _extract_row_data(src, _mapping, lb, ub, I, J, V, ::Type{S}) where S
     )
     add_sizehint!(lb, length(list))
     add_sizehint!(ub, length(list))
-    add_sizehint!(mapping.conmap, length(list))
+    sizehint!(mapping.conmap, MOI.ScalarAffineFunction{Float64}, S, length(list)+length(list))
+
     n_terms = 0
     fs = Array{MOI.ScalarAffineFunction{Float64}}(undef, length(list))
     for (i,c_index) in enumerate(list)
-        f = MOIU.canonical(MOI.get(src, MOI.ConstraintFunction(), c_index))
+        # f = MOIU.canonical(MOI.get(src, MOI.ConstraintFunction(), c_index))
+        f = MOIU.canonicalize!(MOI.get(src, MOI.ConstraintFunction(), c_index))
         # f = MOI.get(src, MOI.ConstraintFunction(), c_index)
         fs[i] = f
         l, u = _bounds2(MOI.get(src, MOI.ConstraintSet(), c_index))
@@ -133,6 +191,8 @@ function _extract_row_data(src, _mapping, lb, ub, I, J, V, ::Type{S}) where S
         mapping.conmap[c_index] = MOI.ConstraintIndex{
             MOI.ScalarAffineFunction{Float64}, S
         }(row)
+        # setindex!(mapping.conmap, MOI.ScalarAffineFunction{Float64}, S,
+        # row, c_index.value)
     end
     return
 end
@@ -210,7 +270,8 @@ function MOI.copy_to(
     @assert MOI.is_empty(dest)
     test_data(src, dest)
 
-    _mapping = MOI.Utilities.IndexMap()
+    # _mapping = MOI.Utilities.IndexMap()
+    _mapping = IndexMap2()
     N, is_contiguous = _copy_to_columns(dest, src, _mapping) # not getting obj
     mapping = if is_contiguous
         ContiguousIndex(_mapping)
@@ -248,12 +309,12 @@ function MOI.copy_to(
 
     # Copy model attributes
     # obj function and sense are passet here
-    MOIU.pass_attributes(dest, src, copy_names, _mapping)
-
-    variables = MOI.get(src, MOI.ListOfVariableIndices())
-    MOIU.pass_attributes(dest, src, copy_names, _mapping, variables)
-
-    pass_constraint_attributes(dest, src, copy_names, _mapping)
+    if false
+        MOIU.pass_attributes(dest, src, copy_names, _mapping)
+        variables = MOI.get(src, MOI.ListOfVariableIndices())
+        MOIU.pass_attributes(dest, src, copy_names, _mapping, variables)
+        pass_constraint_attributes(dest, src, copy_names, _mapping)
+    end
     return _mapping
 end
 
