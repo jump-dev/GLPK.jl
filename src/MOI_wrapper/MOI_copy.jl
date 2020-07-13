@@ -2,60 +2,62 @@
 #   `copy_to` function
 # =======================
 
+const DoubleDicts = MathOptInterface.Utilities.DoubleDicts
+
 struct ContiguousIndex
     index_map
 end
-mutable struct DoubleDict
-    dict::Dict{Tuple{DataType,DataType}, Dict{Int,Int}}
-    DoubleDict() = new(Dict{Tuple{DataType,DataType}, Dict{Int,Int}}())
-end
-mutable struct IndexMap2
-    varmap::Dict{MOI.VariableIndex, MOI.VariableIndex}
-    conmap::DoubleDict
-    IndexMap2() = new(Dict{MOI.VariableIndex, MOI.VariableIndex}(), DoubleDict())
-end
+# mutable struct DoubleDict
+#     dict::Dict{Tuple{DataType,DataType}, Dict{Int,Int}}
+#     DoubleDict() = new(Dict{Tuple{DataType,DataType}, Dict{Int,Int}}())
+# end
+# mutable struct IndexMap2
+#     varmap::Dict{MOI.VariableIndex, MOI.VariableIndex}
+#     conmap::DoubleDict
+#     IndexMap2() = new(Dict{MOI.VariableIndex, MOI.VariableIndex}(), DoubleDict())
+# end
 
-Base.sizehint!(d::DoubleDict, n) = nothing#error("Not possible to use sizehint")
-function Base.sizehint!(d::DoubleDict, ::Type{F}, ::Type{S}, n) where {F,S}
-    inner = lazy_get(d, F, S)::Dict{Int,Int}
-    sizehint!(inner, n)
-end
-const CI{F,S} = MOI.ConstraintIndex{F,S}
-function Base.length(d::DoubleDict)
-    len = 0
-    for inner in d.dict
-        len += length(inner)
-    end
-    return len
-end
-function Base.haskey(dict::DoubleDict, key::CI{F,S}) where {F,S}
-    inner = get(dict.dict, (F,S), nothing)
-    if inner !== nothing
-        inner = dict.dict[(F,S)]
-        return haskey(inner, key.value)
-    else
-        return false
-    end
-end
-function Base.getindex(dict::DoubleDict, key::CI{F,S}) where {F,S}
-    inner = dict.dict[(F,S)]
-    k_value = key.value::Int
-    return CI{F,S}(inner[k_value])
-end
-function lazy_get(dict::DoubleDict, ::Type{F}, ::Type{S}) where {F,S}
-    inner = get(dict.dict, (F,S), nothing) ::Union{Nothing, Dict{Int,Int}}
-    if inner === nothing
-        return dict.dict[(F,S)] = Dict{Int,Int}()
-    end
-    return inner
-end
-function Base.setindex!(dict::DoubleDict, value::CI{F,S}, key::CI{F,S}) where {F,S}
-    v_value = value.value::Int
-    k_value = key.value::Int
-    inner = lazy_get(dict, F, S)::Dict{Int,Int}
-    inner[k_value] = v_value
-    return dict
-end
+# Base.sizehint!(d::DoubleDict, n) = nothing#error("Not possible to use sizehint")
+# function Base.sizehint!(d::DoubleDict, ::Type{F}, ::Type{S}, n) where {F,S}
+#     inner = lazy_get(d, F, S)::Dict{Int,Int}
+#     sizehint!(inner, n)
+# end
+# const CI{F,S} = MOI.ConstraintIndex{F,S}
+# function Base.length(d::DoubleDict)
+#     len = 0
+#     for inner in d.dict
+#         len += length(inner)
+#     end
+#     return len
+# end
+# function Base.haskey(dict::DoubleDict, key::CI{F,S}) where {F,S}
+#     inner = get(dict.dict, (F,S), nothing)
+#     if inner !== nothing
+#         inner = dict.dict[(F,S)]
+#         return haskey(inner, key.value)
+#     else
+#         return false
+#     end
+# end
+# function Base.getindex(dict::DoubleDict, key::CI{F,S}) where {F,S}
+#     inner = dict.dict[(F,S)]
+#     k_value = key.value::Int
+#     return CI{F,S}(inner[k_value])
+# end
+# function lazy_get(dict::DoubleDict, ::Type{F}, ::Type{S}) where {F,S}
+#     inner = get(dict.dict, (F,S), nothing) ::Union{Nothing, Dict{Int,Int}}
+#     if inner === nothing
+#         return dict.dict[(F,S)] = Dict{Int,Int}()
+#     end
+#     return inner
+# end
+# function Base.setindex!(dict::DoubleDict, value::CI{F,S}, key::CI{F,S}) where {F,S}
+#     v_value = value.value::Int
+#     k_value = key.value::Int
+#     inner = lazy_get(dict, F, S)::Dict{Int,Int}
+#     inner[k_value] = v_value
+#     return dict
+# end
 # function Base.setindex!(dict::DoubleDict, ::Type{F}, ::Type{S}, value::Int, key::Int) where {F,S}
 #     inner = lazy_get(dict, F, S)::Dict{Int,Int}
 #     inner[key] = value
@@ -73,12 +75,14 @@ _bound_type(::Type{S}) where S = NONE
 
 get_var(mapping, variable) = mapping.varmap[variable].value
 get_var(mapping::ContiguousIndex, variable) = variable.value
+get_conmap(map) = map.conmap
+get_conmap(map::ContiguousIndex) = map.index_map.conmap
 
 function _extract_bound_data(src, _mapping, lb, ub, bound_type, s::Type{S}) where S
-    mapping = _mapping.index_map
+    dict = DoubleDicts.with_type(get_conmap(_mapping), MOI.SingleVariable, S)
     type = _bound_type(s)
     list = MOI.get(src, MOI.ListOfConstraintIndices{MOI.SingleVariable, S}())
-    add_sizehint!(mapping.conmap, length(list))
+    add_sizehint!(dict, length(list))
     for con_index in list
         f = MOI.get(src, MOI.ConstraintFunction(), con_index)
         s = MOI.get(src, MOI.ConstraintSet(), con_index)
@@ -86,7 +90,7 @@ function _extract_bound_data(src, _mapping, lb, ub, bound_type, s::Type{S}) wher
         column = get_var(_mapping, f.variable)
         _add_bounds(lb, ub, column, s)
         bound_type[column] = type
-        mapping.conmap[con_index] = MOI.ConstraintIndex{MOI.SingleVariable, S}(column)
+        dict[con_index] = MOI.ConstraintIndex{MOI.SingleVariable, S}(column)
     end
 end
 
@@ -94,15 +98,15 @@ _add_type(type, i, ::MOI.Integer) = type[i] = INTEGER
 _add_type(type, i, ::MOI.ZeroOne) = type[i] = BINARY
 
 function _extract_type_data(src, _mapping, var_type, ::Type{S}) where S
-    mapping = _mapping.index_map
+    dict = DoubleDicts.with_type(get_conmap(_mapping), MOI.SingleVariable, S)
     list = MOI.get(src, MOI.ListOfConstraintIndices{MOI.SingleVariable, S}())
-    add_sizehint!(mapping.conmap, length(list))
+    add_sizehint!(dict, length(list))
     for con_index in list
         f = MOI.get(src, MOI.ConstraintFunction(), con_index)
         # column = mapping.varmap[f.variable].value
         column = get_var(_mapping, f.variable)
         _add_type(var_type, column, S())
-        mapping.conmap[con_index] = MOI.ConstraintIndex{MOI.SingleVariable, S}(column)
+        dict[con_index] = MOI.ConstraintIndex{MOI.SingleVariable, S}(column)
     end
 end
 
@@ -146,20 +150,27 @@ function add_sizehint!(vec, n)
 end
 
 function _extract_row_data(src, _mapping, lb, ub, I, J, V, ::Type{S}) where S
-    mapping = _mapping.index_map
+    dict = DoubleDicts.with_type(get_conmap(_mapping), MOI.ScalarAffineFunction{Float64}, S)
+
     row = length(I) == 0 ? 1 : I[end] + 1
     list = MOI.get(
         src, MOI.ListOfConstraintIndices{MOI.ScalarAffineFunction{Float64}, S}()
     )
     add_sizehint!(lb, length(list))
     add_sizehint!(ub, length(list))
-    sizehint!(mapping.conmap, MOI.ScalarAffineFunction{Float64}, S, length(list)+length(list))
+    sizehint!(dict, length(list)+length(list))
 
     n_terms = 0
     fs = Array{MOI.ScalarAffineFunction{Float64}}(undef, length(list))
     for (i,c_index) in enumerate(list)
         # f = MOIU.canonical(MOI.get(src, MOI.ConstraintFunction(), c_index))
-        f = MOIU.canonicalize!(MOI.get(src, MOI.ConstraintFunction(), c_index))
+        # MOIU.canonicalize!(MOI.get(src, MOI.ConstraintFunction(), c_index))
+        pre_f = MOI.get(src, MOI.ConstraintFunction(), c_index)
+        f = if MOIU.is_canonical(pre_f)
+            pre_f
+        else
+            MOIU.canonical(pre_f)
+        end
         # f = MOI.get(src, MOI.ConstraintFunction(), c_index)
         fs[i] = f
         l, u = _bounds2(MOI.get(src, MOI.ConstraintSet(), c_index))
@@ -188,7 +199,7 @@ function _extract_row_data(src, _mapping, lb, ub, I, J, V, ::Type{S}) where S
             V[c] = term.coefficient
         end
         row += 1
-        mapping.conmap[c_index] = MOI.ConstraintIndex{
+        dict[c_index] = MOI.ConstraintIndex{
             MOI.ScalarAffineFunction{Float64}, S
         }(row)
         # setindex!(mapping.conmap, MOI.ScalarAffineFunction{Float64}, S,
@@ -212,7 +223,7 @@ end
 function _add_all_variables(model::Optimizer, N, lower, upper, bound_type,
     var_type)
     glp_add_cols(model, N)
-    sizehint!(model.variable_info.vector, N)
+    sizehint!(model.variable_info, N)
 
     for i in 1:N
         bound = get_moi_bound_type(lower[i], upper[i], bound_type)
@@ -240,9 +251,10 @@ function _add_all_constraints(dest::Optimizer, rl, ru, I, J, V)
     # @show I, J, V
     glp_load_matrix(dest, length(I), offset(I), offset(J), offset(V))
 
-    sizehint!(dest.affine_constraint_info.vector, n_constraints)
+    sizehint!(dest.affine_constraint_info, n_constraints)
     for i in 1:n_constraints
         # assume ordered indexing
+        # assume no range constraints
         if rl[i] == ru[i]
             glp_set_row_bnds(dest, i, GLP_FX, rl[i], ru[i])
             CleverDicts.add_item(dest.affine_constraint_info,
@@ -270,8 +282,8 @@ function MOI.copy_to(
     @assert MOI.is_empty(dest)
     test_data(src, dest)
 
-    # _mapping = MOI.Utilities.IndexMap()
-    _mapping = IndexMap2()
+    _mapping = MOI.Utilities.IndexMap()
+    # _mapping = IndexMap2()
     N, is_contiguous = _copy_to_columns(dest, src, _mapping) # not getting obj
     mapping = if is_contiguous
         ContiguousIndex(_mapping)
@@ -309,12 +321,10 @@ function MOI.copy_to(
 
     # Copy model attributes
     # obj function and sense are passet here
-    if false
-        MOIU.pass_attributes(dest, src, copy_names, _mapping)
-        variables = MOI.get(src, MOI.ListOfVariableIndices())
-        MOIU.pass_attributes(dest, src, copy_names, _mapping, variables)
-        pass_constraint_attributes(dest, src, copy_names, _mapping)
-    end
+    MOIU.pass_attributes(dest, src, copy_names, _mapping)
+    variables = MOI.get(src, MOI.ListOfVariableIndices())
+    MOIU.pass_attributes(dest, src, copy_names, _mapping, variables)
+    pass_constraint_attributes(dest, src, copy_names, _mapping)
     return _mapping
 end
 
