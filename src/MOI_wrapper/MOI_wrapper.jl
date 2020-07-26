@@ -1582,7 +1582,7 @@ function MOI.get(model::Optimizer, attr::MOI.DualStatus)
     (status, _) = _get_status(model)
     if status == MOI.OPTIMAL
         return MOI.FEASIBLE_POINT
-    elseif status == MOI.INFEASIBLE || status == MOI.LOCALLY_INFEASIBLE
+    elseif status == MOI.INFEASIBLE
         if _certificates_potentially_available(model)
             return MOI.INFEASIBILITY_CERTIFICATE
         end
