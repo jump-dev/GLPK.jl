@@ -68,8 +68,8 @@ function _init_index_map(src)
         end
     end
     mapping = is_contiguous ? MOIU.IndexMap(N) : MOIU.IndexMap()
-    for i = 1:N
-        mapping[x_src[i]] = MOI.VariableIndex(i)
+    for (i, x) in enumerate(x_src)
+        mapping[x] = MOI.VariableIndex(i)
     end
     return N, mapping
 end
@@ -202,7 +202,7 @@ function _add_all_constraints(dest::Optimizer, rl, ru, I, J, V)
 end
 
 function MOI.copy_to(
-    dest::Optimizer, src::MOI.ModelLike; copy_names::Bool = false
+    dest::Optimizer, src::MOI.ModelLike; copy_names::Bool = false, kwargs...
 )
     @assert MOI.is_empty(dest)
     test_data(src, dest)
@@ -229,7 +229,8 @@ function MOI.copy_to(
     MOIU.pass_attributes(dest, src, copy_names, mapping)
     variables = MOI.get(src, MOI.ListOfVariableIndices())
     MOIU.pass_attributes(dest, src, copy_names, mapping, variables)
-    pass_constraint_attributes(dest, src, copy_names, mapping)
+    # TODO(odow): fix copy_names = false.
+    pass_constraint_attributes(dest, src, false, mapping)
     return mapping
 end
 

@@ -361,10 +361,6 @@ end
 
 MOI.Utilities.supports_default_copy_to(::Optimizer, ::Bool) = true
 
-# function MOI.copy_to(dest::Optimizer, src::MOI.ModelLike; kwargs...)
-#     return MOI.Utilities.automatic_copy_to(dest, src; kwargs...)
-# end
-
 function MOI.get(model::Optimizer, ::MOI.ListOfVariableAttributesSet)
     return MOI.AbstractVariableAttribute[MOI.VariableName()]
 end
