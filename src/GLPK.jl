@@ -43,6 +43,7 @@ if !(v"4.64.0" <= _GLPK_VERSION <= v"4.64.0")
 end
 
 include("MOI_wrapper/MOI_wrapper.jl")
+include("MOI_wrapper/MOI_copy.jl")
 include("MOI_wrapper/MOI_callbacks.jl")
 include("MOI_wrapper/deprecated_constants.jl")
 

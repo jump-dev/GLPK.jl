@@ -1,6 +1,7 @@
 import MathOptInterface
 
 const MOI = MathOptInterface
+const MOIU = MOI.Utilities
 const CleverDicts = MOI.Utilities.CleverDicts
 
 @enum(TypeEnum, CONTINUOUS, BINARY, INTEGER)
@@ -26,6 +27,10 @@ mutable struct VariableInfo
     function VariableInfo(index::MOI.VariableIndex, column::Int)
         return new(index, column, NONE, CONTINUOUS, "", "", "", "")
     end
+    function VariableInfo(index::MOI.VariableIndex, column::Int, bound::BoundEnum,
+        type::TypeEnum)
+        return new(index, column, bound, type, "", "", "", "")
+    end
 end
 
 struct ConstraintKey
@@ -39,6 +44,7 @@ mutable struct ConstraintInfo
     set::MOI.AbstractSet
     name::String
     ConstraintInfo(set) = new(0, set, "")
+    ConstraintInfo(row, set) = new(row, set, "")
 end
 
 # Dummy callback function for internal use only. Responsible for updating the
@@ -354,10 +360,6 @@ function MOI.get(model::Optimizer, ::MOI.TimeLimitSec)
 end
 
 MOI.Utilities.supports_default_copy_to(::Optimizer, ::Bool) = true
-
-function MOI.copy_to(dest::Optimizer, src::MOI.ModelLike; kwargs...)
-    return MOI.Utilities.automatic_copy_to(dest, src; kwargs...)
-end
 
 function MOI.get(model::Optimizer, ::MOI.ListOfVariableAttributesSet)
     return MOI.AbstractVariableAttribute[MOI.VariableName()]
@@ -758,6 +760,29 @@ end
 
 const GLP_DBL_MAX = prevfloat(Inf)
 
+function get_glp_bound_type(lower, upper)
+    if lower == upper
+        GLP_FX
+    elseif lower <= -GLP_DBL_MAX
+        upper >= GLP_DBL_MAX ? GLP_FR : GLP_UP
+    else
+        upper >= GLP_DBL_MAX ? GLP_LO : GLP_DB
+    end
+end
+function get_moi_bound_type(lower, upper, type)
+    if type == INTERVAL
+        INTERVAL
+    elseif type == EQUAL_TO
+        EQUAL_TO
+    elseif lower == upper
+        LESS_AND_GREATER_THAN
+    elseif lower <= -GLP_DBL_MAX
+        upper >= GLP_DBL_MAX ? NONE : LESS_THAN
+    else
+        upper >= GLP_DBL_MAX ? GREATER_THAN : LESS_AND_GREATER_THAN
+    end
+end
+
 function _set_variable_bound(
     model::Optimizer,
     column::Int,
@@ -770,18 +795,8 @@ function _set_variable_bound(
     if upper === nothing
         upper = glp_get_col_ub(model, column)
     end
-    bound_type = if lower == upper
-        GLP_FX
-    elseif lower <= -GLP_DBL_MAX
-        upper >= GLP_DBL_MAX ? GLP_FR : GLP_UP
-    else
-        upper >= GLP_DBL_MAX ? GLP_LO : GLP_DB
-    end
-    if upper < lower
-        glp_set_col_bnds(model, column, bound_type, lower, upper)
-    else
-        glp_set_col_bnds(model, column, bound_type, lower, upper)
-    end
+    bound_type = get_glp_bound_type(lower, upper)
+    glp_set_col_bnds(model, column, bound_type, lower, upper)
     return
 end
 
@@ -1563,7 +1578,7 @@ function MOI.get(model::Optimizer, attr::MOI.DualStatus)
     (status, _) = _get_status(model)
     if status == MOI.OPTIMAL
         return MOI.FEASIBLE_POINT
-    elseif status == MOI.INFEASIBLE || status == MOI.LOCALLY_INFEASIBLE
+    elseif status == MOI.INFEASIBLE
         if _certificates_potentially_available(model)
             return MOI.INFEASIBILITY_CERTIFICATE
         end

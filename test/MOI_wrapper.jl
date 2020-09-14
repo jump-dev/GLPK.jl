@@ -42,7 +42,7 @@ const CONFIG = MOIT.TestConfig()
 end
 
 @testset "Linear tests" begin
-@testset "Default Solver"  begin
+    @testset "Default Solver"  begin
         MOIT.contlineartest(OPTIMIZER, MOIT.TestConfig(basis = true), [
             # This requires an infeasiblity certificate for a variable bound.
             "linear12",
@@ -461,4 +461,27 @@ end
     model = GLPK.Optimizer()
     MOI.set(model, MOI.RawParameter("msg_lev"), GLPK.MSG_OFF)
     @test MOI.get(model, MOI.RawParameter("msg_lev")) == GLPK.GLP_MSG_OFF
+end
+
+@testset "MOI.copy" begin
+    dest = GLPK.Optimizer()
+    src = MOI.Utilities.Model{Float64}()
+    MOI.Utilities.loadfromstring!(src, """
+        variables: a, b, c, d
+        minobjective: a + b + c + d
+        c1: a >= 1.0
+        c2: b <= 2.0
+        c3: c == 3.0
+        c4: d in Interval(-4.0, 4.0)
+        c5: a in Integer()
+        c6: b in ZeroOne()
+        c7: a + b >= -1.1
+        c8: a + b <= 2.2
+        c8: c + d == 2.2
+    """)
+    MOI.copy_to(dest, src; copy_names = true)
+    v = MOI.get(dest, MOI.ListOfVariableIndices())
+    @test length(v) == 4
+    names = MOI.get.(dest, MOI.VariableName(), v)
+    @test names == ["a", "b", "c", "d"]
 end
