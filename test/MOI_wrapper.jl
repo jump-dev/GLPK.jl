@@ -8,6 +8,14 @@ const OPTIMIZER = MOI.Bridges.full_bridge_optimizer(
 )
 const CONFIG = MOIT.TestConfig()
 
+const COPY_OPTIMIZER = MOI.Bridges.full_bridge_optimizer(
+    MOI.Utilities.CachingOptimizer(
+        MOI.Utilities.UniversalFallback(MOI.Utilities.Model{Float64}()),
+        GLPK.Optimizer()
+    ),
+    Float64,
+)
+
 @testset "Unit Tests" begin
     MOIT.basic_constraint_tests(OPTIMIZER, CONFIG)
     MOIT.unittest(OPTIMIZER, CONFIG, [
@@ -42,8 +50,16 @@ const CONFIG = MOIT.TestConfig()
 end
 
 @testset "Linear tests" begin
-@testset "Default Solver"  begin
+    @testset "Default Solver"  begin
         MOIT.contlineartest(OPTIMIZER, MOIT.TestConfig(basis = true), [
+            # This requires an infeasiblity certificate for a variable bound.
+            "linear12",
+            # VariablePrimalStart not supported.
+            "partial_start"
+        ])
+    end
+    @testset "Copy Solver"  begin
+        MOIT.contlineartest(COPY_OPTIMIZER, MOIT.TestConfig(basis = true), [
             # This requires an infeasiblity certificate for a variable bound.
             "linear12",
             # VariablePrimalStart not supported.
