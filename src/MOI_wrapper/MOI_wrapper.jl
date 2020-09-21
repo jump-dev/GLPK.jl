@@ -34,7 +34,7 @@ mutable struct VariableInfo
 end
 
 struct ConstraintKey
-    value::Int
+    value::Int64
 end
 CleverDicts.key_to_index(k::ConstraintKey) = k.value
 CleverDicts.index_to_key(::Type{ConstraintKey}, index) = ConstraintKey(index)
