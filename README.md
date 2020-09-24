@@ -19,20 +19,19 @@ The package is registered in the [General registry](https://github.com/JuliaRegi
 and so can be installed with `Pkg.add`.
 
 ```julia
-julia> import Pkg
-
-julia> Pkg.add("GLPK")
+import Pkg
+Pkg.add("GLPK")
 ```
 
 In addition to installing the GLPK.jl package, this will also download and
 install the GLPK binaries. (You do not need to install GLPK separately.) If you
-require a custom build of GLPK, see the "Custom Installation" instructions
+require a custom build of GLPK, see the **Custom Installation** instructions
 below.
 
 ## Custom Installation
 
 To install custom built GLPK binaries, use the environmental variable
-`JULIA_GLPK_LIBRARY_PATH`to point to the path at which you installed GLPK (the
+`JULIA_GLPK_LIBRARY_PATH` to point to the path at which you installed GLPK (the
 folder containing `libglpk`). For example, on Mac, after installing GLPK with
 `brew install glpk`, use:
 ```julia
@@ -56,11 +55,11 @@ Pkg.build("GLPK")
 
 ## Use with JuMP
 
-We highly recommend that you use the *GLPK.jl* package with higher level
-packages such as [JuMP.jl](https://github.com/jump-dev/JuMP.jl).
+We highly recommend that you use GLPK.jl with higher level packages such as
+[JuMP.jl](https://github.com/jump-dev/JuMP.jl).
 
-This can be done using the `GLPK.Optimizer` object. Here is how to create a
-*JuMP* model that uses GLPK as the solver.
+This can be done using the `GLPK.Optimizer` object. Here is how to create a JuMP
+model that uses GLPK as the solver.
 
 ```julia
 using JuMP, GLPK
@@ -71,7 +70,6 @@ set_optimizer_attribute(model, "msg_lev", GLPK.GLP_MSG_OFF)
 ```
 
 ## Callbacks
-
 
 Here is an example using GLPK's solver-specific callbacks.
 
