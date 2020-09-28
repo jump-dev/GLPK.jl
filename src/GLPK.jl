@@ -31,15 +31,26 @@ See the GLPK manual for more details.
 """
 offset(x::Vector) = Ref(x, 0)
 
-const _GLPK_VERSION = VersionNumber("$GLP_MAJOR_VERSION.$GLP_MINOR_VERSION.0")
+const _GLPK_VERSION = let
+    p = glp_version()
+    VersionNumber(parse.(Int, split(unsafe_string(p), "."))...)
+end
 
 if !(v"4.64.0" <= _GLPK_VERSION <= v"4.64.0")
-    error(
-        "You have installed version $_GLPK_VERSION of GLPK, which is not " *
-        "supported by GLPK.jl. If the version change was breaking, changes " *
-        "will need to be made to the Julia code. Please open an issue at " *
-        "https://github.com/jump-dev/GLPK.jl."
-    )
+    error("""
+    You have installed version $_GLPK_VERSION of GLPK, which is not supported
+    by GLPK.jl. We require GLPK version 4.64.
+
+    After installing GLPK 4.64, run:
+
+        import Pkg
+        Pkg.rm("GLPK")
+        Pkg.add("GLPK")
+
+    If you have a newer version of GLPK installed, changes may need to be made
+    to the Julia code. Please open an issue at
+    https://github.com/jump-dev/GLPK.jl.
+    """)
 end
 
 include("MOI_wrapper/MOI_wrapper.jl")
