@@ -389,7 +389,7 @@ function _indices_and_coefficients(
 )
     i = 1
     for term in f.terms
-        indices[i] = Cint(_info(model, term.variable_index).column)
+        indices[i] = Cint(column(model, term.variable_index))
         coefficients[i] = term.coefficient
         i += 1
     end
@@ -421,6 +421,8 @@ function _info(model::Optimizer, key::MOI.VariableIndex)
     end
     throw(MOI.InvalidIndex(key))
 end
+
+column(model, x::MOI.VariableIndex) = _info(model, x).column
 
 function MOI.add_variable(model::Optimizer)
     # Initialize `VariableInfo` with a dummy `VariableIndex` and a column,
@@ -569,8 +571,8 @@ function MOI.set(
     num_vars = length(model.variable_info)
     obj = zeros(Float64, num_vars)
     for term in f.terms
-        column = _info(model, term.variable_index).column
-        obj[column] += term.coefficient
+        col = column(model, term.variable_index)
+        obj[col] += term.coefficient
     end
     for (col, coef) in enumerate(obj)
         glp_set_obj_coef(model, col, coef)
@@ -617,6 +619,10 @@ function _info(
         return _info(model, var_index)
     end
     return throw(MOI.InvalidIndex(c))
+end
+
+function column(model, c::MOI.ConstraintIndex{MOI.SingleVariable, <:Any})
+    return _info(model, c).column
 end
 
 function MOI.is_valid(
@@ -862,7 +868,7 @@ function MOI.get(
     c::MOI.ConstraintIndex{MOI.SingleVariable, MOI.GreaterThan{Float64}},
 )
     MOI.throw_if_not_valid(model, c)
-    lower = glp_get_col_lb(model, _info(model, c).column)
+    lower = glp_get_col_lb(model, column(model, c))
     return MOI.GreaterThan(lower)
 end
 
@@ -872,7 +878,7 @@ function MOI.get(
     c::MOI.ConstraintIndex{MOI.SingleVariable, MOI.LessThan{Float64}},
 )
     MOI.throw_if_not_valid(model, c)
-    upper = glp_get_col_ub(model, _info(model, c).column)
+    upper = glp_get_col_ub(model, column(model, c))
     return MOI.LessThan(upper)
 end
 
@@ -882,7 +888,7 @@ function MOI.get(
     c::MOI.ConstraintIndex{MOI.SingleVariable, MOI.EqualTo{Float64}},
 )
     MOI.throw_if_not_valid(model, c)
-    lower = glp_get_col_lb(model, _info(model, c).column)
+    lower = glp_get_col_lb(model, column(model, c))
     return MOI.EqualTo(lower)
 end
 
@@ -892,9 +898,9 @@ function MOI.get(
     c::MOI.ConstraintIndex{MOI.SingleVariable, MOI.Interval{Float64}},
 )
     MOI.throw_if_not_valid(model, c)
-    info = _info(model, c)
-    lower = glp_get_col_lb(model, info.column)
-    upper = glp_get_col_ub(model, info.column)
+    col = column(model, c)
+    lower = glp_get_col_lb(model, col)
+    upper = glp_get_col_ub(model, col)
     return MOI.Interval(lower, upper)
 end
 
@@ -906,8 +912,7 @@ function MOI.set(
 ) where {S<:_SCALAR_SETS}
     MOI.throw_if_not_valid(model, c)
     lower, upper = _bounds(s)
-    info = _info(model, c)
-    _set_variable_bound(model, info.column, lower, upper)
+    _set_variable_bound(model, column(model, c), lower, upper)
     return
 end
 
@@ -1411,14 +1416,18 @@ function MOI.optimize!(model::Optimizer)
     else
         _solve_linear_problem(model)
     end
-    if MOI.get(model, MOI.ResultCount()) > 0
-        if MOI.get(model, MOI.PrimalStatus()) == MOI.INFEASIBILITY_CERTIFICATE
-            model.unbounded_ray = fill(NaN, glp_get_num_cols(model))
-            _get_unbounded_ray(model, model.unbounded_ray)
-        end
-        if MOI.get(model, MOI.DualStatus()) == MOI.INFEASIBILITY_CERTIFICATE
-            model.infeasibility_cert = fill(NaN, glp_get_num_rows(model))
-            _get_infeasibility_ray(model, model.infeasibility_cert)
+    if _certificates_potentially_available(model)
+        (status, _) = _get_status(model)
+        if status == MOI.DUAL_INFEASIBLE
+            ray = zeros(glp_get_num_cols(model))
+            if _get_unbounded_ray(model, ray)
+                model.unbounded_ray = ray
+            end
+        elseif status == MOI.INFEASIBLE
+            ray = zeros(glp_get_num_rows(model))
+            if _get_infeasibility_ray(model, ray)
+                model.infeasibility_cert = ray
+            end
         end
     end
     model.solve_time = time() - start_time
@@ -1561,7 +1570,7 @@ function MOI.get(model::Optimizer, attr::MOI.PrimalStatus)
     elseif status == MOI.LOCALLY_INFEASIBLE
         return MOI.INFEASIBLE_POINT
     elseif status == MOI.DUAL_INFEASIBLE
-        if _certificates_potentially_available(model)
+        if model.unbounded_ray !== nothing
             return MOI.INFEASIBILITY_CERTIFICATE
         end
     else
@@ -1579,7 +1588,7 @@ function MOI.get(model::Optimizer, attr::MOI.DualStatus)
     if status == MOI.OPTIMAL
         return MOI.FEASIBLE_POINT
     elseif status == MOI.INFEASIBLE
-        if _certificates_potentially_available(model)
+        if model.infeasibility_cert !== nothing
             return MOI.INFEASIBILITY_CERTIFICATE
         end
     end
@@ -1622,9 +1631,9 @@ function MOI.get(model::Optimizer, attr::MOI.VariablePrimal, x::MOI.VariableInde
     _throw_if_optimize_in_progress(model, attr)
     MOI.check_result_index_bounds(model, attr)
     if model.unbounded_ray !== nothing
-        return model.unbounded_ray[_info(model, x).column]
+        return model.unbounded_ray[column(model, x)]
     else
-        return _get_col_primal(model, _info(model, x).column)
+        return _get_col_primal(model, column(model, x))
     end
 end
 
@@ -1650,18 +1659,33 @@ function _dual_multiplier(model::Optimizer)
     return MOI.get(model, MOI.ObjectiveSense()) == MOI.MIN_SENSE ? 1.0 : -1.0
 end
 
+function _farkas_variable_dual(model::Optimizer, col::Cint)
+    nnz = glp_get_mat_col(model, col, C_NULL, C_NULL)
+    vind = Vector{Cint}(undef, nnz)
+    vval = Vector{Cdouble}(undef, nnz)
+    nnz = glp_get_mat_col(model, col, offset(vind), offset(vval))
+    return sum(
+        model.infeasibility_cert[row] * val for (row, val) in zip(vind, vval)
+    )
+end
+
 function MOI.get(
-    model::Optimizer, attr::MOI.ConstraintDual,
-    c::MOI.ConstraintIndex{MOI.SingleVariable, MOI.LessThan{Float64}}
+    model::Optimizer,
+    attr::MOI.ConstraintDual,
+    c::MOI.ConstraintIndex{MOI.SingleVariable, MOI.LessThan{Float64}},
 )
     _throw_if_optimize_in_progress(model, attr)
     MOI.check_result_index_bounds(model, attr)
-    column = _info(model, c).column
+    if model.infeasibility_cert !== nothing
+        dual = _farkas_variable_dual(model, Cint(column(model, c)))
+        return min(dual, 0.0)
+    end
+    col = column(model, c)
     reduced_cost = if model.method == SIMPLEX || model.method == EXACT
-        glp_get_col_dual(model, column)
+        glp_get_col_dual(model, col)
     else
         @assert model.method == INTERIOR
-        glp_ipt_col_dual(model, column)
+        glp_ipt_col_dual(model, col)
     end
     sense = MOI.get(model, MOI.ObjectiveSense())
     # The following is a heuristic for determining whether the reduced cost
@@ -1683,17 +1707,22 @@ function MOI.get(
 end
 
 function MOI.get(
-    model::Optimizer, attr::MOI.ConstraintDual,
-    c::MOI.ConstraintIndex{MOI.SingleVariable, MOI.GreaterThan{Float64}}
+    model::Optimizer,
+    attr::MOI.ConstraintDual,
+    c::MOI.ConstraintIndex{MOI.SingleVariable, MOI.GreaterThan{Float64}},
 )
     _throw_if_optimize_in_progress(model, attr)
     MOI.check_result_index_bounds(model, attr)
-    column = _info(model, c).column
+    if model.infeasibility_cert !== nothing
+        dual = _farkas_variable_dual(model, Cint(column(model, c)))
+        return max(dual, 0.0)
+    end
+    col = column(model, c)
     reduced_cost = if model.method == SIMPLEX || model.method == EXACT
-        glp_get_col_dual(model, column)
+        glp_get_col_dual(model, col)
     else
         @assert model.method == INTERIOR
-        glp_ipt_col_dual(model, column)
+        glp_ipt_col_dual(model, col)
     end
     sense = MOI.get(model, MOI.ObjectiveSense())
     # The following is a heuristic for determining whether the reduced cost
@@ -1715,23 +1744,28 @@ function MOI.get(
 end
 
 function MOI.get(
-    model::Optimizer, attr::MOI.ConstraintDual,
-    c::MOI.ConstraintIndex{MOI.SingleVariable, S}
+    model::Optimizer,
+    attr::MOI.ConstraintDual,
+    c::MOI.ConstraintIndex{MOI.SingleVariable, S},
 ) where {S <: Union{MOI.EqualTo, MOI.Interval}}
     _throw_if_optimize_in_progress(model, attr)
     MOI.check_result_index_bounds(model, attr)
-    return _get_col_dual(model, _info(model, c).column)
+    if model.infeasibility_cert !== nothing
+        return _farkas_variable_dual(model, Cint(column(model, c)))
+    end
+    return _get_col_dual(model, column(model, c))
 end
 
 function MOI.get(
-    model::Optimizer, attr::MOI.ConstraintDual,
-    c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64}, <:Any}
+    model::Optimizer,
+    attr::MOI.ConstraintDual,
+    c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64}, <:Any},
 )
     _throw_if_optimize_in_progress(model, attr)
     MOI.check_result_index_bounds(model, attr)
     row = _info(model, c).row
     if model.infeasibility_cert !== nothing
-        return model.infeasibility_cert[row]
+        return -model.infeasibility_cert[row]
     else
         @assert !model.last_solved_by_mip
         if model.method == SIMPLEX || model.method == EXACT
@@ -1911,7 +1945,7 @@ function MOI.modify(
     chg::MOI.ScalarCoefficientChange{Float64}
 )
     row = Cint(_info(model, c).row)
-    col = _info(model, chg.variable).column
+    col = column(model, chg.variable)
     nnz = glp_get_mat_row(model, row, C_NULL, C_NULL)
     indices, coefficients = zeros(Cint, nnz), zeros(Cdouble, nnz)
     glp_get_mat_row(model, row, offset(indices), offset(coefficients))
@@ -1933,9 +1967,7 @@ function MOI.modify(
     c::MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}},
     chg::MOI.ScalarCoefficientChange{Float64}
 )
-    glp_set_obj_coef(
-        model, _info(model, chg.variable).column, chg.new_coefficient
-    )
+    glp_set_obj_coef(model, column(model, chg.variable), chg.new_coefficient)
     return
 end
 
@@ -1979,8 +2011,8 @@ function MOI.get(
     c::MOI.ConstraintIndex{MOI.SingleVariable, S},
 ) where {S <: _SCALAR_SETS}
     _throw_if_optimize_in_progress(model, attr)
-    column = _info(model, c).column
-    vbasis = glp_get_col_stat(model, column)
+    col = column(model, c)
+    vbasis = glp_get_col_stat(model, col)
     if vbasis == GLP_BS
         return MOI.BASIC
     elseif vbasis == GLP_NL
