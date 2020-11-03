@@ -1659,11 +1659,11 @@ function _dual_multiplier(model::Optimizer)
     return MOI.get(model, MOI.ObjectiveSense()) == MOI.MIN_SENSE ? 1.0 : -1.0
 end
 
-function _farkas_variable_dual(model::Optimizer, col::Cint)
+function _farkas_variable_dual(model::Optimizer, col::Int)
     nnz = glp_get_mat_col(model, col, C_NULL, C_NULL)
     vind = Vector{Cint}(undef, nnz)
     vval = Vector{Cdouble}(undef, nnz)
-    nnz = glp_get_mat_col(model, col, offset(vind), offset(vval))
+    nnz = glp_get_mat_col(model, Cint(col), offset(vind), offset(vval))
     return sum(
         model.infeasibility_cert[row] * val for (row, val) in zip(vind, vval)
     )
@@ -1676,11 +1676,11 @@ function MOI.get(
 )
     _throw_if_optimize_in_progress(model, attr)
     MOI.check_result_index_bounds(model, attr)
+    col = column(model, c)
     if model.infeasibility_cert !== nothing
-        dual = _farkas_variable_dual(model, Cint(column(model, c)))
+        dual = _farkas_variable_dual(model, col)
         return min(dual, 0.0)
     end
-    col = column(model, c)
     reduced_cost = if model.method == SIMPLEX || model.method == EXACT
         glp_get_col_dual(model, col)
     else
@@ -1713,11 +1713,11 @@ function MOI.get(
 )
     _throw_if_optimize_in_progress(model, attr)
     MOI.check_result_index_bounds(model, attr)
+    col = column(model, c)
     if model.infeasibility_cert !== nothing
-        dual = _farkas_variable_dual(model, Cint(column(model, c)))
+        dual = _farkas_variable_dual(model, col)
         return max(dual, 0.0)
     end
-    col = column(model, c)
     reduced_cost = if model.method == SIMPLEX || model.method == EXACT
         glp_get_col_dual(model, col)
     else
@@ -1750,10 +1750,11 @@ function MOI.get(
 ) where {S <: Union{MOI.EqualTo, MOI.Interval}}
     _throw_if_optimize_in_progress(model, attr)
     MOI.check_result_index_bounds(model, attr)
+    col = column(model, c)
     if model.infeasibility_cert !== nothing
-        return _farkas_variable_dual(model, Cint(column(model, c)))
+        return _farkas_variable_dual(model, col)
     end
-    return _get_col_dual(model, column(model, c))
+    return _get_col_dual(model, col)
 end
 
 function MOI.get(
