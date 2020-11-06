@@ -15,9 +15,9 @@ jobs:
         os: [ubuntu-latest, macOS-latest, windows-latest]
         arch: [x64]
         include:
-          # Also test against Windows 32-bit on LTS.
+          # Also test against 32-bit Linux on LTS.
           - version: '1.0'
-            os: windows-latest
+            os: ubuntu-latest
             arch: x86
     steps:
       - uses: actions/checkout@v2
