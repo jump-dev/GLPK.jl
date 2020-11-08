@@ -1,5 +1,6 @@
-# The functions getinfeasibilityray and getunboundedray are adapted from code
-# taken from the LEMON C++ optimization library. This is the copyright notice:
+# The functions _get_infeasibility_ray and _get_unbounded_ray are adapted from
+# code taken from the LEMON C++ optimization library. This is the copyright
+# notice:
 #
 ### Copyright (C) 2003-2010
 ### Egervary Jeno Kombinatorikus Optimalizalasi Kutatocsoport
@@ -16,112 +17,84 @@
 """
     _get_infeasibility_ray(model::Optimizer, ray::Vector{Float64})
 
-Get the Farkas certificate of primal infeasiblity.
+Compute a Farkas certificate of primal infeasibility (unbounded dual ray) and
+store in `ray`. Returns `true` if successful, and `false` if a ray cannot be
+found.
 
-Can only be called when glp_simplex is used as the solver.
+Assumes `ray` has been initialized to all `0.0`s.
 """
 function _get_infeasibility_ray(model::Optimizer, ray::Vector{Float64})
-    num_rows = glp_get_num_rows(model)
-    @assert length(ray) == num_rows
-    ur = glp_get_unbnd_ray(model)
-    if ur != 0
-        if ur <= num_rows
-            k = ur
-            status      = glp_get_row_stat(model, k)
-            bind        = glp_get_row_bind(model, k)
-            primal      = glp_get_row_prim(model, k)
-            upper_bound = glp_get_row_ub(model, k)
-        else
-            k = ur - num_rows
-            status      = glp_get_col_stat(model, k)
-            bind        = glp_get_col_bind(model, k)
-            primal      = glp_get_col_prim(model, k)
-            upper_bound = glp_get_col_ub(model, k)
-        end
-        if status != GLP_BS
-            error("unbounded ray is primal (use getunboundedray)")
-        end
-        ray[bind] = (primal > upper_bound) ? -1 : 1
-        glp_btran(model, ray)
+    m = glp_get_num_rows(model)
+    n = glp_get_num_cols(model)
+    @assert length(ray) == m
+    # Solve with dual simplex to find unbounded ray.
+    param = glp_smcp()
+    glp_init_smcp(param)
+    param.msg_lev = GLP_MSG_ERR
+    param.meth = GLP_DUAL
+    status = glp_simplex(model, param)
+    if status != 0 || glp_get_status(model) != GLP_NOFEAS
+        return false  # Something went wrong finding an unbounded ray.
+    end
+    unbounded_index = glp_get_unbnd_ray(model)
+    if unbounded_index == 0
+        return false  # Something went wrong finding an unbounded ray.
+    end
+    primal = if unbounded_index <= m
+        glp_get_row_prim(model, unbounded_index)
     else
-        eps = 1e-7
-        # We need to factorize here because sometimes GLPK will prove
-        # infeasibility before it has a factorized basis in memory.
-        glp_factorize(model)
-        for row in 1:num_rows
-            idx = glp_get_bhead(model, row)
-            if idx <= num_rows
-                k = idx
-                primal      = glp_get_row_prim(model, k)
-                upper_bound = glp_get_row_ub(model, k)
-                lower_bound = glp_get_row_lb(model, k)
-            else
-                k = idx - num_rows
-                primal      = glp_get_col_prim(model, k)
-                upper_bound = glp_get_col_ub(model, k)
-                lower_bound = glp_get_col_lb(model, k)
-            end
-            if primal > upper_bound + eps
-                ray[row] = -1
-            elseif primal < lower_bound - eps
-                ray[row] = 1
-            else
-                continue # ray[row] == 0
-            end
-            if idx <= num_rows
-                ray[row] *= glp_get_rii(model, k)
-            else
-                ray[row] /= glp_get_sjj(model, k)
-            end
-        end
-        glp_btran(model, ray)
-        for row in 1:num_rows
-            ray[row] /= glp_get_rii(model, row)
+        glp_get_col_prim(model, unbounded_index - m)
+    end
+    scale = xor(glp_get_obj_dir(model) == GLP_MAX, primal > 0) ? -1 : 1
+    if unbounded_index <= m
+        ray[unbounded_index] = scale
+    end
+    nnz = m + n
+    vind = Vector{Cint}(undef, nnz)
+    vval = Vector{Cdouble}(undef, nnz)
+    len = glp_eval_tab_row(model, unbounded_index, offset(vind), offset(vval))
+    for i = 1:len
+        if vind[i] <= m
+            ray[vind[i]] = -scale * vval[i]
         end
     end
+    return true
 end
 
 """
-    _get_unbounded_ray(model::Optimizer, ray::Vector{Float64})
+    _get_unbounded_ray(model::Optimizer, ray::Vector{Float64})::Bool
 
-Get the certificate of primal unboundedness.
+Compute an unbounded primal ray and store in `ray`. Returns `true` if
+successful, and `false` if a ray cannot be found.
 
-Can only be called when glp_simplex is used as the solver.
+Assumes the primal has been solved with primal simplex and is proven unbounded.
+Assumes `ray` has been initialized to all `0.0`s.
 """
 function _get_unbounded_ray(model::Optimizer, ray::Vector{Float64})
-    num_rows = glp_get_num_rows(model)
+    m = glp_get_num_rows(model)
     n = glp_get_num_cols(model)
     @assert length(ray) == n
-    ur = glp_get_unbnd_ray(model)
-    if ur <= num_rows
-        k = ur
-        status = glp_get_row_stat(model, k)
-        dual = glp_get_row_dual(model, k)
+    unbounded_index = glp_get_unbnd_ray(model)
+    if unbounded_index == 0
+        return false  # Something went wrong finding an unbounded ray.
+    end
+    dual = if unbounded_index <= m
+        glp_get_row_dual(model, unbounded_index)
     else
-        k = ur - num_rows
-        status = glp_get_col_stat(model, k)
-        dual = glp_get_col_dual(model, k)
-        ray[k] = 1
+        glp_get_col_dual(model, unbounded_index - m)
     end
-    if status == GLP_BS
-        error("unbounded ray is dual (use _get_infeasibility_ray)")
+    scale = xor(glp_get_obj_dir(model) == GLP_MAX, dual > 0) ? -1 : 1
+    if unbounded_index > m
+        ray[unbounded_index - m] = scale
     end
-    nnz = n + num_rows
-    indices, coefficients = zeros(Cint, nnz), zeros(Cdouble, nnz)
-    len = glp_eval_tab_col(
-        model,
-        nnz,
-        pointer(indices) - sizeof(Cint),
-        pointer(coefficients) - sizeof(Cdouble),
-    )
-    splice!(indices, (len+1):nnz)
-    splice!(coefficients, (len+1):nnz)
-    for (row, coef) in zip(indices, coefficients)
-        if row > num_rows
-            ray[row - num_rows] = coef
+    nnz = m + n
+    vind = Vector{Cint}(undef, nnz)
+    vval = Vector{Cdouble}(undef, nnz)
+    len = glp_eval_tab_col(model, unbounded_index, offset(vind), offset(vval))
+    for i = 1:len
+        if vind[i] > m
+            ray[vind[i] - m] = scale * vval[i]
         end
     end
-    if xor(glp_get_obj_dir(model) == GLP_MAX, dual > 0)
-        ray *= -1
-    end
+    return true
 end

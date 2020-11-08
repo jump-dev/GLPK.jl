@@ -44,14 +44,9 @@ end
 @testset "Linear tests" begin
     @testset "Default Solver"  begin
         MOIT.contlineartest(OPTIMIZER, MOIT.TestConfig(basis = true), [
-            # This requires an infeasiblity certificate for a variable bound.
-            "linear12",
             # VariablePrimalStart not supported.
-            "partial_start"
+            "partial_start",
         ])
-    end
-    @testset "No certificate" begin
-        MOIT.linear12test(OPTIMIZER, MOIT.TestConfig(infeas_certificates=false))
     end
 end
 
@@ -337,14 +332,23 @@ end
             [MOI.ScalarAffineTerm(1.0, x[1]), MOI.ScalarAffineTerm(1.0, x[2])],
             0.0
         ),
-        MOI.EqualTo(1.0)
+        MOI.LessThan(1.0)
     )
-    MOI.add_constraint(model, MOI.SingleVariable(x[1]), MOI.EqualTo(1.0))
-    MOI.add_constraint(model, MOI.SingleVariable(x[2]), MOI.EqualTo(1.0))
+    c2 = MOI.add_constraint(model, MOI.SingleVariable(x[1]), MOI.EqualTo(1.0))
+    c3 = MOI.add_constraint(model, MOI.SingleVariable(x[2]), MOI.EqualTo(1.0))
+    MOI.set(model, MOI.ObjectiveSense(), MOI.MAX_SENSE)
+    MOI.set(
+        model,
+        MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}(),
+        MOI.ScalarAffineFunction(MOI.ScalarAffineTerm.(1.0, x), 0.0)
+    )
     MOI.optimize!(model)
     @test MOI.get(model, MOI.TerminationStatus()) == MOI.INFEASIBLE
     @test MOI.get(model, MOI.DualStatus()) == MOI.INFEASIBILITY_CERTIFICATE
-    @test MOI.get(model, MOI.ConstraintDual(), c1) == -1
+    cd1 = MOI.get(model, MOI.ConstraintDual(), c1)
+    @test cd1 <= 1e-6
+    @test MOI.get(model, MOI.ConstraintDual(), c2) ≈ -cd1 atol=1e-6
+    @test MOI.get(model, MOI.ConstraintDual(), c3) ≈ -cd1 atol=1e-6
 end
 
 @testset "Default parameters" begin
@@ -484,4 +488,126 @@ end
     @test length(v) == 4
     names = MOI.get.(dest, MOI.VariableName(), v)
     @test names == ["a", "b", "c", "d"]
+end
+
+@testset "dual_farkas" begin
+    @testset "test_farkas_dual_min" begin
+        model = GLPK.Optimizer()
+        x = MOI.add_variables(model, 2)
+        MOI.set(model, MOI.ObjectiveSense(), MOI.MIN_SENSE)
+        MOI.set(
+            model,
+            MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}(),
+            MOI.ScalarAffineFunction(MOI.ScalarAffineTerm.([1.0], [x[1]]), 0.0),
+        )
+        clb = MOI.add_constraint.(
+            model, MOI.SingleVariable.(x), MOI.GreaterThan(0.0)
+        )
+        c = MOI.add_constraint(
+            model,
+            MOI.ScalarAffineFunction(MOI.ScalarAffineTerm.([2.0, 1.0], x), 0.0),
+            MOI.LessThan(-1.0),
+        )
+        MOI.optimize!(model)
+        @test MOI.get(model, MOI.TerminationStatus()) == MOI.INFEASIBLE
+        @test MOI.get(model, MOI.DualStatus()) == MOI.INFEASIBILITY_CERTIFICATE
+        clb_dual = MOI.get.(model, MOI.ConstraintDual(), clb)
+        c_dual = MOI.get(model, MOI.ConstraintDual(), c)
+        @show clb_dual, c_dual
+        @test clb_dual[1] > -1e-6
+        @test clb_dual[2] > -1e-6
+        @test c_dual[1] < 1e-6
+        @test clb_dual[1] ≈ -2 * c_dual atol = 1e-6
+        @test clb_dual[2] ≈ -c_dual atol = 1e-6
+    end
+
+    @testset "test_farkas_dual_max" begin
+        model = GLPK.Optimizer()
+        x = MOI.add_variables(model, 2)
+        MOI.set(model, MOI.ObjectiveSense(), MOI.MAX_SENSE)
+        MOI.set(
+            model,
+            MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}(),
+            MOI.ScalarAffineFunction(MOI.ScalarAffineTerm.([1.0], [x[1]]), 0.0),
+        )
+        clb = MOI.add_constraint.(
+            model, MOI.SingleVariable.(x), MOI.GreaterThan(0.0)
+        )
+        c = MOI.add_constraint(
+            model,
+            MOI.ScalarAffineFunction(MOI.ScalarAffineTerm.([2.0, 1.0], x), 0.0),
+            MOI.LessThan(-1.0),
+        )
+        MOI.optimize!(model)
+        @test MOI.get(model, MOI.TerminationStatus()) == MOI.INFEASIBLE
+        @test MOI.get(model, MOI.DualStatus()) == MOI.INFEASIBILITY_CERTIFICATE
+        clb_dual = MOI.get.(model, MOI.ConstraintDual(), clb)
+        c_dual = MOI.get(model, MOI.ConstraintDual(), c)
+        @show clb_dual, c_dual
+        @test clb_dual[1] > -1e-6
+        @test clb_dual[2] > -1e-6
+        @test c_dual[1] < 1e-6
+        @test clb_dual[1] ≈ -2 * c_dual atol = 1e-6
+        @test clb_dual[2] ≈ -c_dual atol = 1e-6
+    end
+
+    @testset "test_farkas_dual_min_ii" begin
+        model = GLPK.Optimizer()
+        x = MOI.add_variables(model, 2)
+        MOI.set(model, MOI.ObjectiveSense(), MOI.MIN_SENSE)
+        MOI.set(
+            model,
+            MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}(),
+            MOI.ScalarAffineFunction([MOI.ScalarAffineTerm(-1.0, x[1])], 0.0),
+        )
+        clb = MOI.add_constraint.(
+            model, MOI.SingleVariable.(x), MOI.LessThan(0.0)
+        )
+        c = MOI.add_constraint(
+            model,
+            MOI.ScalarAffineFunction(MOI.ScalarAffineTerm.([-2.0, -1.0], x), 0.0),
+            MOI.LessThan(-1.0),
+        )
+        MOI.optimize!(model)
+        @test MOI.get(model, MOI.TerminationStatus()) == MOI.INFEASIBLE
+        @test MOI.get(model, MOI.DualStatus()) == MOI.INFEASIBILITY_CERTIFICATE
+        clb_dual = MOI.get.(model, MOI.ConstraintDual(), clb)
+        c_dual = MOI.get(model, MOI.ConstraintDual(), c)
+        @show clb_dual, c_dual
+        @test clb_dual[1] < 1e-6
+        @test clb_dual[2] < 1e-6
+        @test c_dual[1] < 1e-6
+        @test clb_dual[1] ≈ 2 * c_dual atol = 1e-6
+        @test clb_dual[2] ≈ c_dual atol = 1e-6
+    end
+
+    @testset "test_farkas_dual_max_ii" begin
+        model = GLPK.Optimizer()
+        x = MOI.add_variables(model, 2)
+        MOI.set(model, MOI.ObjectiveSense(), MOI.MAX_SENSE)
+        MOI.set(
+            model,
+            MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}(),
+            MOI.ScalarAffineFunction([MOI.ScalarAffineTerm(-1.0, x[1])], 0.0),
+        )
+        clb = MOI.add_constraint.(
+            model, MOI.SingleVariable.(x), MOI.LessThan(0.0)
+        )
+        c = MOI.add_constraint(
+            model,
+            MOI.ScalarAffineFunction(MOI.ScalarAffineTerm.([-2.0, -1.0], x), 0.0),
+            MOI.LessThan(-1.0),
+        )
+        MOI.optimize!(model)
+        @test MOI.get(model, MOI.TerminationStatus()) == MOI.INFEASIBLE
+        @test MOI.get(model, MOI.DualStatus()) == MOI.INFEASIBILITY_CERTIFICATE
+        clb_dual = MOI.get.(model, MOI.ConstraintDual(), clb)
+        c_dual = MOI.get(model, MOI.ConstraintDual(), c)
+        @show clb_dual, c_dual
+        @test clb_dual[1] < 1e-6
+        @test clb_dual[2] < 1e-6
+        @test c_dual[1] < 1e-6
+        @test clb_dual[1] ≈ 2 * c_dual atol = 1e-6
+        @test clb_dual[2] ≈ c_dual atol = 1e-6
+    end
 end
