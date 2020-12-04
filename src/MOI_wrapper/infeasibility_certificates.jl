@@ -40,12 +40,15 @@ function _get_infeasibility_ray(model::Optimizer, ray::Vector{Float64})
     if unbounded_index == 0
         return false  # Something went wrong finding an unbounded ray.
     end
-    primal = if unbounded_index <= m
-        glp_get_row_prim(model, unbounded_index)
+    # If the primal value exceeds the upper bound, then the unbounded_index
+    # wants to increase. Otherwise, it must want to decrease.
+    scale = if unbounded_index <= m
+        primal = glp_get_row_prim(model, unbounded_index)
+        primal > glp_get_row_ub(model, unbounded_index) ? 1 : -1
     else
-        glp_get_col_prim(model, unbounded_index - m)
+        primal = glp_get_col_prim(model, unbounded_index - m)
+        primal > glp_get_col_ub(model, unbounded_index - m) ? 1 : -1
     end
-    scale = xor(glp_get_obj_dir(model) == GLP_MAX, primal > 0) ? -1 : 1
     if unbounded_index <= m
         ray[unbounded_index] = scale
     end
