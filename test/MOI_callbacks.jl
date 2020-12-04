@@ -48,6 +48,12 @@ end
                 x_val = MOI.get(model, MOI.CallbackVariablePrimal(cb_data), x)
                 y_val = MOI.get(model, MOI.CallbackVariablePrimal(cb_data), y)
                 @test MOI.supports(model, MOI.LazyConstraint(cb_data))
+                status = MOI.get(model, MOI.CallbackNodeStatus(cb_data))
+                if [x_val, y_val] ≈ round.(Int, [x_val, y_val]) atol=1e-7
+                    @test status == MOI.CALLBACK_NODE_STATUS_INTEGER
+                else
+                    @test status == MOI.CALLBACK_NODE_STATUS_FRACTIONAL
+                end
                 if y_val - x_val > 1 + 1e-6
                     MOI.submit(
                         model,
@@ -145,6 +151,8 @@ end
                     end
                 end
                 @test MOI.supports(model, MOI.UserCut(cb_data))
+                status = MOI.get(model, MOI.CallbackNodeStatus(cb_data))
+                @test status == MOI.CALLBACK_NODE_STATUS_FRACTIONAL
                 if accumulated > 10.0
                     MOI.submit(
                         model,
@@ -221,6 +229,8 @@ end
                 ) == MOI.HEURISTIC_SOLUTION_REJECTED
                     solution_rejected = true
                 end
+                status = MOI.get(model, MOI.CallbackNodeStatus(cb_data))
+                @test status == MOI.CALLBACK_NODE_STATUS_FRACTIONAL
             end)
             @test MOI.supports(model, MOI.HeuristicCallback())
             MOI.optimize!(model)
@@ -296,6 +306,12 @@ end
                 end
                 x_val = MOI.get(model, MOI.CallbackVariablePrimal(cb_data), x)
                 y_val = MOI.get(model, MOI.CallbackVariablePrimal(cb_data), y)
+                status = MOI.get(model, MOI.CallbackNodeStatus(cb_data))
+                if [x_val, y_val] ≈ round.(Int, [x_val, y_val]) atol=1e-7
+                    @test status == MOI.CALLBACK_NODE_STATUS_INTEGER
+                else
+                    @test status == MOI.CALLBACK_NODE_STATUS_FRACTIONAL
+                end
                 if y_val - x_val > 1 + 1e-6
                     MOI.submit(model, MOI.LazyConstraint(cb_data),
                         MOI.ScalarAffineFunction{Float64}(
@@ -333,6 +349,8 @@ end
                 reason = GLPK.glp_ios_reason(cb_data.tree)
                 push!(cb_calls, reason)
                 if reason != GLPK.GLP_ICUTGEN
+                    status = MOI.get(model, MOI.CallbackNodeStatus(cb_data))
+                    @test status !== nothing
                     return
                 end
                 terms = MOI.ScalarAffineTerm{Float64}[]
@@ -352,6 +370,8 @@ end
                     )
                     user_cut_submitted = true
                 end
+                status = MOI.get(model, MOI.CallbackNodeStatus(cb_data))
+                @test status == MOI.CALLBACK_NODE_STATUS_FRACTIONAL
             end)
             MOI.optimize!(model)
             @test user_cut_submitted
@@ -385,6 +405,8 @@ end
                 ) == MOI.HEURISTIC_SOLUTION_REJECTED
                     solution_rejected = true
                 end
+                status = MOI.get(model, MOI.CallbackNodeStatus(cb_data))
+                @test status == MOI.CALLBACK_NODE_STATUS_FRACTIONAL
             end)
             MOI.optimize!(model)
             @test solution_accepted

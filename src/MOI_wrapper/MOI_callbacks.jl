@@ -50,6 +50,45 @@ function MOI.get(
     return glp_get_col_prim(subproblem, _info(model, x).column)
 end
 
+function MOI.get(model::Optimizer, attr::MOI.CallbackNodeStatus{CallbackData})
+    reason = glp_ios_reason(attr.callback_data.tree)
+    if reason == GLP_ISELECT
+        return MOI.CALLBACK_NODE_STATUS_UNKNOWN
+    elseif reason == GLP_IPREPRO
+        return MOI.CALLBACK_NODE_STATUS_UNKNOWN
+    elseif reason == GLP_IROWGEN
+        # From the the GLPK documentation:
+        #
+        # The callback routine is called with the reason code GLP_IROWGEN if LP
+        # relaxation of the current subproblem has just been solved to
+        # optimality and its objective value is better than the best known
+        # integer feasible solution.
+        #
+        # This can mean the solution is integer _or_ fractional, so we need to
+        # check.
+        subproblem = glp_ios_get_prob(attr.callback_data.tree)
+        for info in values(model.variable_info)
+            if info.type == CONTINUOUS
+                continue
+            end
+            x = glp_get_col_prim(subproblem, info.column)
+            if abs(x - round(Int, x)) > 1e-7
+                return MOI.CALLBACK_NODE_STATUS_FRACTIONAL
+            end
+        end
+        return MOI.CALLBACK_NODE_STATUS_INTEGER
+    elseif reason == GLP_IHEUR
+        return MOI.CALLBACK_NODE_STATUS_FRACTIONAL
+    elseif reason == GLP_ICUTGEN
+        return MOI.CALLBACK_NODE_STATUS_FRACTIONAL
+    elseif reason == GLP_IBRANCH
+        return MOI.CALLBACK_NODE_STATUS_FRACTIONAL
+    else
+        @assert reason == GLP_IBINGO
+        return MOI.CALLBACK_NODE_STATUS_INTEGER
+    end
+end
+
 # ==============================================================================
 #    MOI.LazyConstraint
 # ==============================================================================
