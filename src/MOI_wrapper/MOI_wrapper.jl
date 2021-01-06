@@ -39,6 +39,10 @@ end
 CleverDicts.key_to_index(k::ConstraintKey) = k.value
 CleverDicts.index_to_key(::Type{ConstraintKey}, index) = ConstraintKey(index)
 
+_HASH(x) = CleverDicts.key_to_index(x)
+_INVERSE_HASH_V(x) = CleverDicts.index_to_key(MOI.VariableIndex, x)
+_INVERSE_HASH_C(x) = CleverDicts.index_to_key(ConstraintKey, x)
+
 mutable struct ConstraintInfo
     row::Int
     set::MOI.AbstractSet
@@ -90,8 +94,18 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
     # and FEASIBILITY_SENSE.
     is_feasibility::Bool
 
-    variable_info::CleverDicts.CleverDict{MOI.VariableIndex, VariableInfo}
-    affine_constraint_info::CleverDicts.CleverDict{ConstraintKey, ConstraintInfo}
+    variable_info::CleverDicts.CleverDict{
+        MOI.VariableIndex,
+        VariableInfo,
+        typeof(_HASH),
+        typeof(_INVERSE_HASH_V),
+    }
+    affine_constraint_info::CleverDicts.CleverDict{
+        ConstraintKey,
+        ConstraintInfo,
+        typeof(_HASH),
+        typeof(_INVERSE_HASH_C),
+    }
 
     # Mappings from variable and constraint names to their indices. These are
     # lazily built on-demand, so most of the time, they are `nothing`.
@@ -144,8 +158,10 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
             MOI.set(model, MOI.RawParameter(String(key)), val)
         end
         model.silent = false
-        model.variable_info = CleverDicts.CleverDict{MOI.VariableIndex, VariableInfo}()
-        model.affine_constraint_info = CleverDicts.CleverDict{ConstraintKey, ConstraintInfo}()
+        model.variable_info =
+            CleverDicts.CleverDict{MOI.VariableIndex, VariableInfo}(_HASH, _INVERSE_HASH_V)
+        model.affine_constraint_info =
+            CleverDicts.CleverDict{ConstraintKey, ConstraintInfo}(_HASH, _INVERSE_HASH_C)
 
         MOI.empty!(model)
 
