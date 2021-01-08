@@ -68,6 +68,12 @@ set_optimizer_attribute(model, "tm_lim", 60 * 1_000)
 set_optimizer_attribute(model, "msg_lev", GLPK.GLP_MSG_OFF)
 ```
 
+If the model is primal or dual infeasible, GLPK will attempt to find a
+certificate of infeasibility. This can be expensive, particularly if you do not
+intend to use the certificate. If this is the case, use:
+```julia
+model = Model() -> GLPK.Optimizer(generate_infeasibility_certificates = false))
+```
 ## Callbacks
 
 Here is an example using GLPK's solver-specific callbacks.

@@ -69,7 +69,6 @@ end
 mutable struct Optimizer <: MOI.AbstractOptimizer
     # The low-level GLPK problem.
     inner::Ptr{glp_prob}
-    presolve::Bool
     method::MethodEnum
 
     interior_param::glp_iptcp
@@ -116,6 +115,7 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
 
     # These two flags allow us to distinguish between FEASIBLE_POINT and
     # INFEASIBILITY_CERTIFICATE when querying VariablePrimal and ConstraintDual.
+    want_infeasibility_certificates::Bool
     unbounded_ray::Union{Vector{Float64}, Nothing}
     infeasibility_cert::Union{Vector{Float64}, Nothing}
 
@@ -127,21 +127,33 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
     heuristic_callback::Union{Nothing, Function}
 
     """
-        Optimizer(;kwargs...)
+    Optimizer(;
+        want_infeasibility_certificates::Bool = true,
+        method::MethodEnum = GLPK.SIMPLEX,
+        )
 
-    Create a new Optimizer object. Common keywords include
+    Create a new Optimizer object.
 
-     - `method::MethodEnum = SIMPLEX` Use the simplex method. Other options are `EXACT` and `INTERIOR`.
-     - `tm_lim::Float64`              Set a time limit
-     - `msg_lev::Int`                 Control the log level
+    ## Arguments
 
-    See the GLPK pdf documentation for a full list of parameters.
+     * `want_infeasibility_certificates::Bool`: flag to control whether to
+       attempt to generate an infeasibility certificate in the case of primal or
+       dual infeasibility. Defaults to `true`. You should set this to `false` if
+       you want GLPK to report primal or dual infeasiblity, but you don't need
+       a certificate.
+
+     * `method::MethodEnum`: Solution method to use. Default is `GLPK.SIMPLEX`.
+       Other options are `GLPK.EXACT` and `GLPK.INTERIOR`.
     """
-    function Optimizer(; presolve = false, method = SIMPLEX, kwargs...)
+    function Optimizer(;
+        want_infeasibility_certificates::Bool = true,
+        method::MethodEnum = SIMPLEX,
+        kwargs...,
+    )
         model = new()
         model.inner = glp_create_prob()
-        model.presolve = presolve
         model.method = method
+        model.want_infeasibility_certificates = want_infeasibility_certificates
 
         model.interior_param = glp_iptcp()
         glp_init_iptcp(model.interior_param)
@@ -151,8 +163,12 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
         glp_init_smcp(model.simplex_param)
 
         MOI.set(model, MOI.RawParameter("msg_lev"), GLP_MSG_ERR)
-        if model.presolve
-            MOI.set(model, MOI.RawParameter("presolve"), GLP_ON)
+        if length(kwargs) > 0
+            @warn(
+                "Passing parameters as keyword arguments is deprecated. Use " *
+                "`JuMP.set_optimizer_attribute` or `MOI.RawParameter(key)` " *
+                "instead."
+            )
         end
         for (key, val) in kwargs
             MOI.set(model, MOI.RawParameter(String(key)), val)
@@ -1550,7 +1566,13 @@ available (i.e., the model has been solved using either the Simplex or Exact
 methods).
 """
 function _certificates_potentially_available(model::Optimizer)
-    return !model.last_solved_by_mip && (model.method == SIMPLEX || model.method == EXACT)
+    if !model.want_infeasibility_certificates
+        return false
+    elseif model.last_solved_by_mip
+        return false
+    else
+        return model.method == SIMPLEX || model.method == EXACT
+    end
 end
 
 function MOI.get(model::Optimizer, attr::MOI.TerminationStatus)
