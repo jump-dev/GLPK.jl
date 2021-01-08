@@ -611,3 +611,17 @@ end
         @test clb_dual[2] ≈ c_dual atol = 1e-6
     end
 end
+
+@testset "want_infeasibility_certificates" begin
+    model = GLPK.Optimizer(want_infeasibility_certificates = false)
+    x = MOI.add_variables(model, 2)
+    MOI.add_constraint.(model, MOI.SingleVariable.(x), MOI.LessThan(0.0))
+    MOI.add_constraint(
+        model,
+        MOI.ScalarAffineFunction(MOI.ScalarAffineTerm.([-2.0, -1.0], x), 0.0),
+        MOI.LessThan(-1.0),
+    )
+    MOI.optimize!(model)
+    @test MOI.get(model, MOI.TerminationStatus()) == MOI.INFEASIBLE
+    @test MOI.get(model, MOI.DualStatus()) == MOI.NO_SOLUTION
+end
