@@ -69,7 +69,6 @@ end
 mutable struct Optimizer <: MOI.AbstractOptimizer
     # The low-level GLPK problem.
     inner::Ptr{glp_prob}
-    presolve::Bool
     method::MethodEnum
 
     interior_param::glp_iptcp
@@ -137,10 +136,9 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
 
     See the GLPK pdf documentation for a full list of parameters.
     """
-    function Optimizer(; presolve = false, method = SIMPLEX, kwargs...)
+    function Optimizer(; method = SIMPLEX, kwargs...)
         model = new()
         model.inner = glp_create_prob()
-        model.presolve = presolve
         model.method = method
 
         model.interior_param = glp_iptcp()
@@ -151,8 +149,12 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
         glp_init_smcp(model.simplex_param)
 
         MOI.set(model, MOI.RawParameter("msg_lev"), GLP_MSG_ERR)
-        if model.presolve
-            MOI.set(model, MOI.RawParameter("presolve"), GLP_ON)
+        if length(kwargs) > 0
+            @warn(
+                "Passing parameters as keyword arguments is deprecated. Use " *
+                "`JuMP.set_optimizer_attribute` or `MOI.RawParameter(key)` " *
+                "instead."
+            )
         end
         for (key, val) in kwargs
             MOI.set(model, MOI.RawParameter(String(key)), val)
