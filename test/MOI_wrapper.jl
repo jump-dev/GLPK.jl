@@ -625,3 +625,9 @@ end
     @test MOI.get(model, MOI.TerminationStatus()) == MOI.INFEASIBLE
     @test MOI.get(model, MOI.DualStatus()) == MOI.NO_SOLUTION
 end
+
+@testset "large_time_limits" begin
+    model = GLPK.Optimizer()
+    MOI.set(model, MOI.TimeLimitSec(), 1e9)
+    @test MOI.get(model, MOI.TimeLimitSec()) == typemax(Cint)
+end
