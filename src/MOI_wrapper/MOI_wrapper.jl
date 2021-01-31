@@ -376,13 +376,10 @@ function MOI.get(model::Optimizer, param::MOI.RawParameter)
     throw(MOI.UnsupportedAttribute(param))
 end
 
+_limit_sec_to_ms(::Nothing) = typemax(Int32)
+_limit_sec_to_ms(x::Real) = convert(Int32, min(typemax(Int32), 1_000 * x))
 function MOI.set(model::Optimizer, ::MOI.TimeLimitSec, limit::Union{Nothing,Real})
-    if limit === nothing
-        MOI.set(model, MOI.RawParameter("tm_lim"), typemax(Int32))
-    else
-        limit_ms = ceil(Int32, limit * 1_000)
-        MOI.set(model, MOI.RawParameter("tm_lim"), limit_ms)
-    end
+    MOI.set(model, MOI.RawParameter("tm_lim"), _limit_sec_to_ms(limit))
     return
 end
 
