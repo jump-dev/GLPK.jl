@@ -631,3 +631,9 @@ end
     MOI.set(model, MOI.TimeLimitSec(), 1e9)
     @test MOI.get(model, MOI.TimeLimitSec()) == typemax(Cint) / 1_000
 end
+
+@testset "fractional_time_limits" begin
+    model = GLPK.Optimizer()
+    MOI.set(model, MOI.TimeLimitSec(), 1.2345)
+    @test MOI.get(model, MOI.TimeLimitSec()) == 1.235
+end
