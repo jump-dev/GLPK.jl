@@ -198,7 +198,7 @@ mutable struct CallbackData
 end
 
 Base.broadcastable(x::CallbackData) = Ref(x)
-                    
+
 # Dummy callback function for internal use only. Responsible for updating the
 # objective bound, saving the mip gap, and calling the user's callback.
 #

@@ -414,4 +414,18 @@ end
             @test GLPK.GLP_IHEUR in cb_calls
         end
     end
+
+    @testset "broadcasting" begin
+        model, x, _ = callback_knapsack_model()
+        f(cb_data, x) = MOI.get(model, MOI.CallbackVariablePrimal(cb_data), x)
+        solutions = Vector{Float64}[]
+        MOI.set(model, GLPK.CallbackFunction(), (cb_data) -> begin
+            if GLPK.glp_ios_reason(cb_data.tree) == GLPK.GLP_IHEUR
+                push!(solutions, f.(cb_data, x))
+            end
+        end)
+        MOI.optimize!(model)
+        @test length(solutions) > 0
+        @test length(solutions[1]) == length(x)
+    end
 end
