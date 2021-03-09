@@ -1,8 +1,8 @@
 # Automatically generated using Clang.jl
 
 
-const GLP_MAJOR_VERSION = 4
-const GLP_MINOR_VERSION = 64
+const GLP_MAJOR_VERSION = 5
+const GLP_MINOR_VERSION = 0
 const GLP_MIN = 1
 const GLP_MAX = 2
 const GLP_CV = 1
@@ -258,6 +258,7 @@ function Base.unsafe_convert(::Type{Ptr{glp_cpxcp}}, x::glp_cpxcp)
     return convert(Ptr{glp_cpxcp}, pointer_from_objref(x))
 end
 
+const glp_prep = Cvoid
 const glp_tran = Cvoid
 const glp_errfunc = Ptr{Cvoid}
 

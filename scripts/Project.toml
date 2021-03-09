@@ -1,2 +1,3 @@
 [deps]
 Clang = "40e3b903-d033-50b4-a0cc-940c62c95e31"
+GLPK_jll = "e8aa6df9-e6ca-548a-97ff-1f85fc5b8b98"

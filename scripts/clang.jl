@@ -1,24 +1,15 @@
-# TODO(odow):
-#
-# This script can be used to build the C interface to GLPK. However, it requires
-# you to manually do the following steps first:
-#
-# 1) Copy glpk.h from GLPK into this /scripts directory
-#
-# It should be possible to build the wrapper using the jll's, but I couldn't
-# figure out how to do that, and I didn't have enough time to spend on it.
-
 import Clang
+import GLPK_jll
 
-LIBCLP_HEADERS = [
-    joinpath(@__DIR__, "glpk.h"),
-]
+GEN_DIR = joinpath(dirname(@__DIR__), "src", "gen")
 
-const COMMON = joinpath(dirname(@__DIR__), "src", "gen", "libglpk_common.jl")
+const COMMON = joinpath(GEN_DIR, "libglpk_common.jl")
 
 wc = Clang.init(
-    headers = LIBCLP_HEADERS,
-    output_file = joinpath(dirname(@__DIR__), "src", "gen", "libglpk_api.jl"),
+    headers = [
+        joinpath(GLPK_jll.artifact_dir, "include", "glpk.h"),
+    ],
+    output_file = joinpath(GEN_DIR, "libglpk_api.jl"),
     common_file = COMMON,
     header_wrapped = (root, current) -> root == current,
     header_library = x -> "libglpk",
@@ -67,4 +58,4 @@ function manual_corrections()
 end
 manual_corrections()
 
-rm(joinpath(dirname(@__DIR__), "src", "gen", "LibTemplate.jl"))
+rm(joinpath(GEN_DIR, "LibTemplate.jl"))

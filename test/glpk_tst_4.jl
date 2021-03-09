@@ -154,7 +154,7 @@ function glpk_tst_4()
     GLPK.glp_init_env()
 
     p = GLPK.glp_alloc(1, 100 * sizeof(Int))
-    count, cpeak, total, tpeak = Ref{Cint}(), Ref{Cint}(), Ref{Csize_t}(), Ref{Csize_t}()
+    count, cpeak, total, tpeak = Ref{Cint}(), Ref{Cint}(), Ref{Cint}(), Ref{Cint}()
     GLPK.glp_mem_usage(count, cpeak, total, tpeak)
     GLPK.glp_free(p)
     mu = GLPK.glp_mem_usage(count, cpeak, total, tpeak)
