@@ -36,12 +36,13 @@ const _GLPK_VERSION = let
     VersionNumber(parse.(Int, split(unsafe_string(p), "."))...)
 end
 
-if !(v"4.64.0" <= _GLPK_VERSION <= v"4.64.0")
+if !(v"4.64.0" <= _GLPK_VERSION <= v"5.0.0")
     error("""
     You have installed version $_GLPK_VERSION of GLPK, which is not supported
-    by GLPK.jl. We require GLPK version 4.64.
+    by GLPK.jl. We prefer GLPK version 5.0, but this may also work on versions
+    4.64 and newer.
 
-    After installing GLPK 4.64, run:
+    After installing GLPK 5.0, run:
 
         import Pkg
         Pkg.rm("GLPK")

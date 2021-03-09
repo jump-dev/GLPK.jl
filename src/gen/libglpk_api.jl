@@ -470,6 +470,34 @@ function glp_analyze_coef(P, k, coef1, var1, value1, coef2, var2, value2)
     ccall((:glp_analyze_coef, libglpk), Cvoid, (Ptr{glp_prob}, Cint, Ptr{Cdouble}, Ptr{Cint}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cint}, Ptr{Cdouble}), P, k, coef1, var1, value1, coef2, var2, value2)
 end
 
+function glp_npp_alloc_wksp()
+    ccall((:glp_npp_alloc_wksp, libglpk), Ptr{glp_prep}, ())
+end
+
+function glp_npp_load_prob(prep, P, sol, names)
+    ccall((:glp_npp_load_prob, libglpk), Cvoid, (Ptr{glp_prep}, Ptr{glp_prob}, Cint, Cint), prep, P, sol, names)
+end
+
+function glp_npp_preprocess1(prep, hard)
+    ccall((:glp_npp_preprocess1, libglpk), Cint, (Ptr{glp_prep}, Cint), prep, hard)
+end
+
+function glp_npp_build_prob(prep, Q)
+    ccall((:glp_npp_build_prob, libglpk), Cvoid, (Ptr{glp_prep}, Ptr{glp_prob}), prep, Q)
+end
+
+function glp_npp_postprocess(prep, Q)
+    ccall((:glp_npp_postprocess, libglpk), Cvoid, (Ptr{glp_prep}, Ptr{glp_prob}), prep, Q)
+end
+
+function glp_npp_obtain_sol(prep, P)
+    ccall((:glp_npp_obtain_sol, libglpk), Cvoid, (Ptr{glp_prep}, Ptr{glp_prob}), prep, P)
+end
+
+function glp_npp_free_wksp(prep)
+    ccall((:glp_npp_free_wksp, libglpk), Cvoid, (Ptr{glp_prep},), prep)
+end
+
 function glp_ios_reason(T)
     ccall((:glp_ios_reason, libglpk), Cint, (Ptr{glp_tree},), T)
 end
@@ -662,6 +690,10 @@ function glp_puts(s)
     ccall((:glp_puts, libglpk), Cvoid, (Cstring,), s)
 end
 
+function glp_vprintf(fmt, arg)
+    ccall((:glp_vprintf, libglpk), Cvoid, (Cstring, Cint), fmt, arg)
+end
+
 function glp_term_out(flag)
     ccall((:glp_term_out, libglpk), Cint, (Cint,), flag)
 end
@@ -711,7 +743,7 @@ function glp_mem_limit(limit)
 end
 
 function glp_mem_usage(count, cpeak, total, tpeak)
-    ccall((:glp_mem_usage, libglpk), Cvoid, (Ptr{Cint}, Ptr{Cint}, Ptr{Csize_t}, Ptr{Csize_t}), count, cpeak, total, tpeak)
+    ccall((:glp_mem_usage, libglpk), Cvoid, (Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}), count, cpeak, total, tpeak)
 end
 
 function glp_time()
