@@ -77,8 +77,9 @@ function cb_callback(tree::Ptr{Cvoid}, info::Ptr{Cvoid})
             0.0,
         )
         @test GLPK.glp_ios_pool_size(tree) == ps + 2
-        GLPK.glp_ios_del_row(tree, 1)
-        @test GLPK.glp_ios_pool_size(tree) == ps + 1
+        # TODO(odow): causes segfault in GLPK 5.0 for some reason
+        # GLPK.glp_ios_del_row(tree, 1)
+        # @test GLPK.glp_ios_pool_size(tree) == ps + 1
         GLPK.glp_ios_clear_pool(tree)
         @test GLPK.glp_ios_pool_size(tree) == 0
     elseif reason == GLPK.GLP_IBRANCH
@@ -95,7 +96,7 @@ function cb_callback(tree::Ptr{Cvoid}, info::Ptr{Cvoid})
 end
 
 function glpk_tst_6()
-    datadir = joinpath(dirname(@__FILE__), "data")
+    datadir = joinpath(@__DIR__, "data")
     @assert isdir(datadir)
 
     prev_term_out = GLPK.glp_term_out(GLPK.GLP_OFF)
