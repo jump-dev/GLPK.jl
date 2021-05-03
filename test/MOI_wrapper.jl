@@ -4,7 +4,7 @@ const MOI = GLPK.MathOptInterface
 const MOIT = MOI.Test
 
 const OPTIMIZER = MOI.Bridges.full_bridge_optimizer(GLPK.Optimizer(), Float64)
-const CONFIG = MOIT.TestConfig()
+const CONFIG = MOIT.Config()
 
 @testset "Unit Tests" begin
     MOIT.basic_constraint_tests(OPTIMIZER, CONFIG)
@@ -33,9 +33,9 @@ const CONFIG = MOIT.TestConfig()
             """
     variables: x
     maxobjective: 2.0x
-    c1: x in ZeroOne()
-    c2: x >= 0.2
-    c3: x <= 0.5
+    x in ZeroOne()
+    x >= 0.2
+    x <= 0.5
 """,
         )
         MOI.optimize!(OPTIMIZER)
@@ -50,7 +50,7 @@ end
     @testset "Default Solver" begin
         MOIT.contlineartest(
             OPTIMIZER,
-            MOIT.TestConfig(basis = true),
+            MOIT.Config(basis = true),
             [
                 # VariablePrimalStart not supported.
                 "partial_start",
@@ -68,7 +68,7 @@ end
                 ),
                 Float64,
             ),
-            MOIT.TestConfig(basis = true),
+            MOIT.Config(basis = true),
             [
                 # VariablePrimalStart not supported.
                 "partial_start",
@@ -222,8 +222,8 @@ end
             """
     variables: x, y
     minobjective: -5.0x + y
-    c1: x in Integer()
-    c2: x in LessThan(1.0)
+    x in Integer()
+    x in LessThan(1.0)
 """,
         )
         MOI.optimize!(model)
@@ -237,8 +237,8 @@ end
             """
     variables: x
     minobjective: -5.0x
-    c1: x in Integer()
-    c2: x in LessThan(1.0)
+    x in Integer()
+    x in LessThan(1.0)
     c3: 1.0x in GreaterThan(2.0)
 """,
         )
@@ -273,21 +273,19 @@ end
     @test MOI.get(model, MOI.TerminationStatus()) == MOI.INVALID_MODEL
 end
 
-@testset "RawParameter" begin
+@testset "RawOptimizerAttribute" begin
     model = GLPK.Optimizer(method = GLPK.SIMPLEX)
     exception = ErrorException(
         "Invalid option: cb_func. Use the MOI attribute `GLPK.CallbackFunction` instead.",
     )
     @test_throws exception MOI.set(
         model,
-        MOI.RawParameter("cb_func"),
+        MOI.RawOptimizerAttribute("cb_func"),
         (cb) -> nothing,
     )
-    MOI.set(model, MOI.RawParameter("tm_lim"), 100)
-    @test MOI.get(model, MOI.RawParameter("tm_lim")) == 100
-    @test_throws ErrorException MOI.get(model, MOI.RawParameter(:tm_lim))
-    @test_throws ErrorException MOI.set(model, MOI.RawParameter(:tm_lim), 120)
-    param = MOI.RawParameter("bad")
+    MOI.set(model, MOI.RawOptimizerAttribute("tm_lim"), 100)
+    @test MOI.get(model, MOI.RawOptimizerAttribute("tm_lim")) == 100
+    param = MOI.RawOptimizerAttribute("bad")
     @test_throws MOI.UnsupportedAttribute(param) MOI.set(model, param, 1)
     @test_throws MOI.UnsupportedAttribute(param) MOI.get(model, param)
 
@@ -297,19 +295,19 @@ end
     )
     @test_throws exception MOI.set(
         model,
-        MOI.RawParameter("cb_func"),
+        MOI.RawOptimizerAttribute("cb_func"),
         (cb) -> nothing,
     )
-    MOI.set(model, MOI.RawParameter("tm_lim"), 100)
-    @test MOI.get(model, MOI.RawParameter("tm_lim")) == 100
+    MOI.set(model, MOI.RawOptimizerAttribute("tm_lim"), 100)
+    @test MOI.get(model, MOI.RawOptimizerAttribute("tm_lim")) == 100
     @test_throws MOI.UnsupportedAttribute(param) MOI.set(
         model,
-        MOI.RawParameter("bad"),
+        MOI.RawOptimizerAttribute("bad"),
         1,
     )
     @test_throws MOI.UnsupportedAttribute(param) MOI.get(
         model,
-        MOI.RawParameter("bad"),
+        MOI.RawOptimizerAttribute("bad"),
     )
 
     model = GLPK.Optimizer(method = GLPK.EXACT)
@@ -318,35 +316,35 @@ end
     )
     @test_throws exception MOI.set(
         model,
-        MOI.RawParameter("cb_func"),
+        MOI.RawOptimizerAttribute("cb_func"),
         (cb) -> nothing,
     )
-    MOI.set(model, MOI.RawParameter("tm_lim"), 100)
-    @test MOI.get(model, MOI.RawParameter("tm_lim")) == 100
+    MOI.set(model, MOI.RawOptimizerAttribute("tm_lim"), 100)
+    @test MOI.get(model, MOI.RawOptimizerAttribute("tm_lim")) == 100
     @test_throws MOI.UnsupportedAttribute(param) MOI.set(
         model,
-        MOI.RawParameter("bad"),
+        MOI.RawOptimizerAttribute("bad"),
         1,
     )
     @test_throws MOI.UnsupportedAttribute(param) MOI.get(
         model,
-        MOI.RawParameter("bad"),
+        MOI.RawOptimizerAttribute("bad"),
     )
 
     model = GLPK.Optimizer()
-    MOI.set(model, MOI.RawParameter("mip_gap"), 0.001)
-    @test MOI.get(model, MOI.RawParameter("mip_gap")) == 0.001
+    MOI.set(model, MOI.RawOptimizerAttribute("mip_gap"), 0.001)
+    @test MOI.get(model, MOI.RawOptimizerAttribute("mip_gap")) == 0.001
 end
 
 @testset "TimeLimitSec issue #110" begin
     model = GLPK.Optimizer(method = GLPK.SIMPLEX)
     MOI.set(model, MOI.TimeLimitSec(), nothing)
-    @test MOI.get(model, MOI.RawParameter("tm_lim")) == typemax(Int32)
+    @test MOI.get(model, MOI.RawOptimizerAttribute("tm_lim")) == typemax(Int32)
     MOI.set(model, MOI.TimeLimitSec(), 100)
-    @test MOI.get(model, MOI.RawParameter("tm_lim")) == 100000
+    @test MOI.get(model, MOI.RawOptimizerAttribute("tm_lim")) == 100000
     @test MOI.get(model, MOI.TimeLimitSec()) == 100
     # conversion between ms and sec
-    MOI.set(model, MOI.RawParameter("tm_lim"), 100)
+    MOI.set(model, MOI.RawOptimizerAttribute("tm_lim"), 100)
     @test isapprox(MOI.get(model, MOI.TimeLimitSec()), 0.1)
 end
 
@@ -357,8 +355,8 @@ end
         """
     variables: x
     minobjective: 1.0x
-    c1: x in Integer()
-    c2: x in GreaterThan(1.5)
+    x in Integer()
+    x in GreaterThan(1.5)
 """,
     )
     MOI.optimize!(model)
@@ -370,7 +368,7 @@ end
         """
     variables: x
     minobjective: 1.0x
-    c1: x in GreaterThan(1.5)
+    x in GreaterThan(1.5)
 """,
     )
     MOI.optimize!(model)
@@ -392,27 +390,6 @@ end
         MOI.set(model, MOI.VariableName(), x[1], "x1")
         @test_throws ErrorException MOI.get(model, MOI.VariableIndex, "x1")
     end
-
-    @testset "Variable bounds" begin
-        MOI.empty!(model)
-        x = MOI.add_variable(model)
-        c1 = MOI.add_constraint(
-            model,
-            MOI.SingleVariable(x),
-            MOI.GreaterThan(0.0),
-        )
-        c2 = MOI.add_constraint(model, MOI.SingleVariable(x), MOI.LessThan(1.0))
-        MOI.set(model, MOI.ConstraintName(), c1, "c1")
-        @test MOI.get(model, MOI.ConstraintIndex, "c1") == c1
-        MOI.set(model, MOI.ConstraintName(), c1, "c2")
-        @test MOI.get(model, MOI.ConstraintIndex, "c1") === nothing
-        @test MOI.get(model, MOI.ConstraintIndex, "c2") == c1
-        MOI.set(model, MOI.ConstraintName(), c2, "c1")
-        @test MOI.get(model, MOI.ConstraintIndex, "c1") == c2
-        MOI.set(model, MOI.ConstraintName(), c1, "c1")
-        @test_throws ErrorException MOI.get(model, MOI.ConstraintIndex, "c1")
-    end
-
     @testset "Affine constraints" begin
         MOI.empty!(model)
         x = MOI.add_variable(model)
@@ -477,11 +454,13 @@ end
 
 @testset "Default parameters" begin
     model = GLPK.Optimizer()
-    @test MOI.get(model, MOI.RawParameter("msg_lev")) == GLPK.GLP_MSG_ERR
-    @test MOI.get(model, MOI.RawParameter("presolve")) == GLPK.GLP_OFF
+    @test MOI.get(model, MOI.RawOptimizerAttribute("msg_lev")) ==
+          GLPK.GLP_MSG_ERR
+    @test MOI.get(model, MOI.RawOptimizerAttribute("presolve")) == GLPK.GLP_OFF
     model = GLPK.Optimizer(msg_lev = GLPK.GLP_MSG_ALL, presolve = true)
-    @test MOI.get(model, MOI.RawParameter("msg_lev")) == GLPK.GLP_MSG_ALL
-    @test MOI.get(model, MOI.RawParameter("presolve")) == GLPK.GLP_ON
+    @test MOI.get(model, MOI.RawOptimizerAttribute("msg_lev")) ==
+          GLPK.GLP_MSG_ALL
+    @test MOI.get(model, MOI.RawOptimizerAttribute("presolve")) == GLPK.GLP_ON
 end
 
 @testset "Duplicate names" begin
@@ -500,31 +479,6 @@ end
         @test_throws ErrorException MOI.get(model, MOI.VariableIndex, "x")
         MOI.delete(model, x)
         @test MOI.get(model, MOI.VariableIndex, "x") == z
-    end
-    @testset "SingleVariable" begin
-        model = GLPK.Optimizer()
-        x = MOI.add_variables(model, 3)
-        c = MOI.add_constraints(
-            model,
-            MOI.SingleVariable.(x),
-            MOI.GreaterThan(0.0),
-        )
-        MOI.set(model, MOI.ConstraintName(), c[1], "x")
-        MOI.set(model, MOI.ConstraintName(), c[2], "x")
-        MOI.set(model, MOI.ConstraintName(), c[3], "z")
-        @test MOI.get(model, MOI.ConstraintIndex, "z") == c[3]
-        @test_throws ErrorException MOI.get(model, MOI.ConstraintIndex, "x")
-        MOI.set(model, MOI.ConstraintName(), c[2], "y")
-        @test MOI.get(model, MOI.ConstraintIndex, "x") == c[1]
-        @test MOI.get(model, MOI.ConstraintIndex, "y") == c[2]
-        MOI.set(model, MOI.ConstraintName(), c[3], "x")
-        @test_throws ErrorException MOI.get(model, MOI.ConstraintIndex, "x")
-        MOI.delete(model, c[1])
-        @test MOI.get(model, MOI.ConstraintIndex, "x") == c[3]
-        MOI.set(model, MOI.ConstraintName(), c[2], "x")
-        @test_throws ErrorException MOI.get(model, MOI.ConstraintIndex, "x")
-        MOI.delete(model, x[3])
-        @test MOI.get(model, MOI.ConstraintIndex, "x") == c[2]
     end
     @testset "ScalarAffineFunction" begin
         model = GLPK.Optimizer()
@@ -599,8 +553,9 @@ end
 
 @testset "Deprecated constants" begin
     model = GLPK.Optimizer()
-    MOI.set(model, MOI.RawParameter("msg_lev"), GLPK.MSG_OFF)
-    @test MOI.get(model, MOI.RawParameter("msg_lev")) == GLPK.GLP_MSG_OFF
+    MOI.set(model, MOI.RawOptimizerAttribute("msg_lev"), GLPK.MSG_OFF)
+    @test MOI.get(model, MOI.RawOptimizerAttribute("msg_lev")) ==
+          GLPK.GLP_MSG_OFF
 end
 
 @testset "MOI.copy" begin
@@ -611,12 +566,12 @@ end
         """
     variables: a, b, c, d
     minobjective: a + b + c + d
-    c1: a >= 1.0
-    c2: b <= 2.0
-    c3: c == 3.0
-    c4: d in Interval(-4.0, 4.0)
-    c5: a in Integer()
-    c6: b in ZeroOne()
+    a >= 1.0
+    b <= 2.0
+    c == 3.0
+    d in Interval(-4.0, 4.0)
+    a in Integer()
+    b in ZeroOne()
     c7: a + b >= -1.1
     c8: a + b <= 2.2
     c8: c + d == 2.2
