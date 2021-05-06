@@ -23,7 +23,7 @@ function cb_callback(tree::Ptr{Cvoid}, info::Ptr{Cvoid})
     GLPK.glp_ios_next_node(tree, fan)
     lan = GLPK.glp_ios_prev_node(tree, 0)
     GLPK.glp_ios_prev_node(tree, lan)
-    for i = 1:t_cnt[]
+    for i in 1:t_cnt[]
         try
             un = GLPK.glp_ios_up_node(tree, i)
             nl = GLPK.glp_ios_node_level(tree, i)
@@ -33,11 +33,11 @@ function cb_callback(tree::Ptr{Cvoid}, info::Ptr{Cvoid})
         end
     end
 
-    for i = 1:GLPK.glp_get_num_rows(prob)
+    for i in 1:GLPK.glp_get_num_rows(prob)
         attr = GLPK.glp_attr(0, 0, 0, tuple(fill(0.0, 7)...))
         GLPK.glp_ios_row_attr(tree, i, attr)
     end
-    for i = 1:GLPK.glp_get_num_cols(prob)
+    for i in 1:GLPK.glp_get_num_cols(prob)
         cb = GLPK.glp_ios_can_branch(tree, i)
     end
 
@@ -83,7 +83,7 @@ function cb_callback(tree::Ptr{Cvoid}, info::Ptr{Cvoid})
         GLPK.glp_ios_clear_pool(tree)
         @test GLPK.glp_ios_pool_size(tree) == 0
     elseif reason == GLPK.GLP_IBRANCH
-        for i = 1:GLPK.glp_get_num_cols(prob)
+        for i in 1:GLPK.glp_get_num_cols(prob)
             if GLPK.glp_ios_can_branch(tree, i) != 0
                 GLPK.glp_ios_branch_upon(tree, i, GLPK.GLP_NO_BRNCH)
                 break
@@ -122,8 +122,7 @@ function glpk_tst_6()
 
     GLPK.glp_term_out(prev_term_out)
     GLPK.glp_mpl_free_wksp(tran)
-    GLPK.glp_delete_prob(mip)
-
+    return GLPK.glp_delete_prob(mip)
 end
 
 glpk_tst_6()

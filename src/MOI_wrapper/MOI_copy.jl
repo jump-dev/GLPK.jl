@@ -24,7 +24,14 @@ _bound_type(::Type{MOI.Interval{Float64}}) = INTERVAL
 _bound_type(::Type{MOI.EqualTo{Float64}}) = EQUAL_TO
 _bound_type(::Type{S}) where {S} = NONE
 
-function _extract_bound_data(src, mapping, lb, ub, bound_type, s::Type{S}) where {S}
+function _extract_bound_data(
+    src,
+    mapping,
+    lb,
+    ub,
+    bound_type,
+    s::Type{S},
+) where {S}
     dict = DoubleDicts.with_type(mapping.conmap, MOI.SingleVariable, S)
     type = _bound_type(s)
     list = MOI.get(src, MOI.ListOfConstraintIndices{MOI.SingleVariable,S}())
@@ -99,7 +106,7 @@ function _extract_row_data(src, mapping, lb, ub, I, J, V, ::Type{S}) where {S}
     # first loop caches functions and counts terms to be added
     n_terms = 0
     function_cache = Array{MOI.ScalarAffineFunction{Float64}}(undef, N)
-    for i = 1:N
+    for i in 1:N
         pre_function = MOI.get(src, MOI.ConstraintFunction(), list[i])
         f = if MOIU.is_canonical(pre_function)
             pre_function
@@ -121,7 +128,7 @@ function _extract_row_data(src, mapping, lb, ub, I, J, V, ::Type{S}) where {S}
     resize!(I, non_zeros + n_terms)
     resize!(J, non_zeros + n_terms)
     resize!(V, non_zeros + n_terms)
-    for i = 1:N
+    for i in 1:N
         f = function_cache[i]
         for term in f.terms
             non_zeros += 1
@@ -153,10 +160,17 @@ function test_data(src, dest)
     return
 end
 
-function _add_all_variables(model::Optimizer, N, lower, upper, bound_type, var_type)
+function _add_all_variables(
+    model::Optimizer,
+    N,
+    lower,
+    upper,
+    bound_type,
+    var_type,
+)
     glp_add_cols(model, N)
     sizehint!(model.variable_info, N)
-    for i = 1:N
+    for i in 1:N
         bound = get_moi_bound_type(lower[i], upper[i], bound_type)
         # We started from empty model.variable_info, hence we assume ordering
         index = CleverDicts.add_item(
@@ -180,7 +194,7 @@ function _add_all_constraints(dest::Optimizer, rl, ru, I, J, V)
     glp_add_rows(dest, n_constraints)
     glp_load_matrix(dest, length(I), offset(I), offset(J), offset(V))
     sizehint!(dest.affine_constraint_info, n_constraints)
-    for i = 1:n_constraints
+    for i in 1:n_constraints
         # assume ordered indexing
         # assume no range constraints
         if rl[i] == ru[i]
@@ -218,7 +232,14 @@ function MOI.copy_to(
     cl, cu = fill(-Inf, N), fill(Inf, N)
     bound_type = fill(NONE, N)
     var_type = fill(CONTINUOUS, N)
-    _extract_bound_data(src, mapping, cl, cu, bound_type, MOI.GreaterThan{Float64})
+    _extract_bound_data(
+        src,
+        mapping,
+        cl,
+        cu,
+        bound_type,
+        MOI.GreaterThan{Float64},
+    )
     _extract_bound_data(src, mapping, cl, cu, bound_type, MOI.LessThan{Float64})
     _extract_bound_data(src, mapping, cl, cu, bound_type, MOI.EqualTo{Float64})
     _extract_bound_data(src, mapping, cl, cu, bound_type, MOI.Interval{Float64})

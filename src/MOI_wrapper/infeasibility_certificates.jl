@@ -56,7 +56,7 @@ function _get_infeasibility_ray(model::Optimizer, ray::Vector{Float64})
     vind = Vector{Cint}(undef, nnz)
     vval = Vector{Cdouble}(undef, nnz)
     len = glp_eval_tab_row(model, unbounded_index, offset(vind), offset(vval))
-    for i = 1:len
+    for i in 1:len
         if vind[i] <= m
             ray[vind[i]] = -scale * vval[i]
         end
@@ -94,7 +94,7 @@ function _get_unbounded_ray(model::Optimizer, ray::Vector{Float64})
     vind = Vector{Cint}(undef, nnz)
     vval = Vector{Cdouble}(undef, nnz)
     len = glp_eval_tab_col(model, unbounded_index, offset(vind), offset(vval))
-    for i = 1:len
+    for i in 1:len
         if vind[i] > m
             ray[vind[i]-m] = scale * vval[i]
         end

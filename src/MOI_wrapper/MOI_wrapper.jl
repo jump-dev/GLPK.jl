@@ -5,7 +5,15 @@ const MOIU = MOI.Utilities
 const CleverDicts = MOI.Utilities.CleverDicts
 
 @enum(TypeEnum, CONTINUOUS, BINARY, INTEGER)
-@enum(BoundEnum, NONE, LESS_THAN, GREATER_THAN, LESS_AND_GREATER_THAN, INTERVAL, EQUAL_TO)
+@enum(
+    BoundEnum,
+    NONE,
+    LESS_THAN,
+    GREATER_THAN,
+    LESS_AND_GREATER_THAN,
+    INTERVAL,
+    EQUAL_TO
+)
 @enum(ObjectiveEnum, SINGLE_VARIABLE, SCALAR_AFFINE)
 @enum(MethodEnum, SIMPLEX, INTERIOR, EXACT)
 @enum(CallbackState, CB_NONE, CB_GENERIC, CB_LAZY, CB_USER_CUT, CB_HEURISTIC)
@@ -112,8 +120,14 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
 
     # Mappings from variable and constraint names to their indices. These are
     # lazily built on-demand, so most of the time, they are `nothing`.
-    name_to_variable::Union{Nothing,Dict{String,Union{Nothing,MOI.VariableIndex}}}
-    name_to_constraint_index::Union{Nothing,Dict{String,Union{Nothing,MOI.ConstraintIndex}}}
+    name_to_variable::Union{
+        Nothing,
+        Dict{String,Union{Nothing,MOI.VariableIndex}},
+    }
+    name_to_constraint_index::Union{
+        Nothing,
+        Dict{String,Union{Nothing,MOI.ConstraintIndex}},
+    }
 
     optimize_not_called::Bool
 
@@ -179,14 +193,20 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
         end
         model.silent = false
         model.variable_info =
-            CleverDicts.CleverDict{MOI.VariableIndex,VariableInfo}(_HASH, _INVERSE_HASH_V)
+            CleverDicts.CleverDict{MOI.VariableIndex,VariableInfo}(
+                _HASH,
+                _INVERSE_HASH_V,
+            )
         model.affine_constraint_info =
-            CleverDicts.CleverDict{ConstraintKey,ConstraintInfo}(_HASH, _INVERSE_HASH_C)
+            CleverDicts.CleverDict{ConstraintKey,ConstraintInfo}(
+                _HASH,
+                _INVERSE_HASH_C,
+            )
 
         MOI.empty!(model)
 
         finalizer(model) do m
-            glp_delete_prob(m)
+            return glp_delete_prob(m)
         end
         return model
     end
@@ -317,7 +337,13 @@ function MOI.supports_constraint(
     ::Optimizer,
     ::Type{MOI.ScalarAffineFunction{Float64}},
     ::Type{F},
-) where {F<:Union{MOI.EqualTo{Float64},MOI.LessThan{Float64},MOI.GreaterThan{Float64}}}
+) where {
+    F<:Union{
+        MOI.EqualTo{Float64},
+        MOI.LessThan{Float64},
+        MOI.GreaterThan{Float64},
+    },
+}
     return true
 end
 
@@ -329,7 +355,13 @@ const _SCALAR_SETS = Union{
 }
 
 MOI.supports(::Optimizer, ::MOI.VariableName, ::Type{MOI.VariableIndex}) = true
-MOI.supports(::Optimizer, ::MOI.ConstraintName, ::Type{<:MOI.ConstraintIndex}) = true
+function MOI.supports(
+    ::Optimizer,
+    ::MOI.ConstraintName,
+    ::Type{<:MOI.ConstraintIndex},
+)
+    return true
+end
 
 MOI.supports(::Optimizer, ::MOI.Name) = true
 MOI.supports(::Optimizer, ::MOI.Silent) = true
@@ -378,19 +410,24 @@ function MOI.get(model::Optimizer, param::MOI.RawParameter)
         error("GLPK.jl requires strings as arguments to `RawParameter`.")
     end
     name = Symbol(param.name)
-    if (model.method == SIMPLEX || model.method == EXACT) && name in fieldnames(glp_smcp)
+    if (model.method == SIMPLEX || model.method == EXACT) &&
+       name in fieldnames(glp_smcp)
         return getfield(model.simplex_param, name)
     elseif model.method == INTERIOR && name in fieldnames(glp_iptcp)
         return getfield(model.interior_param, name)
     elseif name in fieldnames(glp_iocp)
         return getfield(model.intopt_param, name)
     end
-    throw(MOI.UnsupportedAttribute(param))
+    return throw(MOI.UnsupportedAttribute(param))
 end
 
 _limit_sec_to_ms(::Nothing) = typemax(Int32)
 _limit_sec_to_ms(x::Real) = ceil(Int32, min(typemax(Int32), 1_000 * x))
-function MOI.set(model::Optimizer, ::MOI.TimeLimitSec, limit::Union{Nothing,Real})
+function MOI.set(
+    model::Optimizer,
+    ::MOI.TimeLimitSec,
+    limit::Union{Nothing,Real},
+)
     MOI.set(model, MOI.RawParameter("tm_lim"), _limit_sec_to_ms(limit))
     return
 end
@@ -434,7 +471,10 @@ function _indices_and_coefficients(
     return indices, coefficients
 end
 
-function _indices_and_coefficients(model::Optimizer, f::MOI.ScalarAffineFunction{Float64})
+function _indices_and_coefficients(
+    model::Optimizer,
+    f::MOI.ScalarAffineFunction{Float64},
+)
     f_canon = MOI.Utilities.canonical(f)
     nnz = length(f_canon.terms)
     indices, coefficients = zeros(Cint, nnz), zeros(Cdouble, nnz)
@@ -455,7 +495,7 @@ function _info(model::Optimizer, key::MOI.VariableIndex)
     if haskey(model.variable_info, key)
         return model.variable_info[key]
     end
-    throw(MOI.InvalidIndex(key))
+    return throw(MOI.InvalidIndex(key))
 end
 
 column(model, x::MOI.VariableIndex) = _info(model, x).column
@@ -463,7 +503,10 @@ column(model, x::MOI.VariableIndex) = _info(model, x).column
 function MOI.add_variable(model::Optimizer)
     # Initialize `VariableInfo` with a dummy `VariableIndex` and a column,
     # because we need `add_item` to tell us what the `VariableIndex` is.
-    index = CleverDicts.add_item(model.variable_info, VariableInfo(MOI.VariableIndex(0), 0))
+    index = CleverDicts.add_item(
+        model.variable_info,
+        VariableInfo(MOI.VariableIndex(0), 0),
+    )
     info = _info(model, index)
     # Now, set `.index` and `.column`.
     info.index = index
@@ -477,11 +520,13 @@ function MOI.add_variables(model::Optimizer, N::Int)
     indices = Vector{MOI.VariableIndex}(undef, N)
     num_variables = length(model.variable_info)
     glp_add_cols(model, N)
-    for i = 1:N
+    for i in 1:N
         # Initialize `VariableInfo` with a dummy `VariableIndex` and a column,
         # because we need `add_item` to tell us what the `VariableIndex` is.
-        index =
-            CleverDicts.add_item(model.variable_info, VariableInfo(MOI.VariableIndex(0), 0))
+        index = CleverDicts.add_item(
+            model.variable_info,
+            VariableInfo(MOI.VariableIndex(0), 0),
+        )
         info = _info(model, index)
         # Now, set `.index` and `.column`.
         info.index = index
@@ -545,7 +590,12 @@ function MOI.get(model::Optimizer, ::MOI.VariableName, v::MOI.VariableIndex)
     return _info(model, v).name
 end
 
-function MOI.set(model::Optimizer, ::MOI.VariableName, v::MOI.VariableIndex, name::String)
+function MOI.set(
+    model::Optimizer,
+    ::MOI.VariableName,
+    v::MOI.VariableIndex,
+    name::String,
+)
     info = _info(model, v)
     info.name = name
     if !isempty(name) && isascii(name)
@@ -560,7 +610,11 @@ end
 ### Objectives
 ###
 
-function MOI.set(model::Optimizer, ::MOI.ObjectiveSense, sense::MOI.OptimizationSense)
+function MOI.set(
+    model::Optimizer,
+    ::MOI.ObjectiveSense,
+    sense::MOI.OptimizationSense,
+)
     if sense == MOI.MIN_SENSE
         glp_set_obj_dir(model, GLP_MIN)
         model.is_feasibility = false
@@ -588,7 +642,10 @@ function MOI.get(model::Optimizer, ::MOI.ObjectiveSense)
 end
 
 function MOI.get(model::Optimizer, ::MOI.ObjectiveFunction{F}) where {F}
-    obj = MOI.get(model, MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}())
+    obj = MOI.get(
+        model,
+        MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}(),
+    )
     return convert(F, obj)
 end
 
@@ -615,7 +672,7 @@ function MOI.get(
     ::MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}},
 )
     dest = zeros(length(model.variable_info))
-    for col = 1:length(dest)
+    for col in 1:length(dest)
         dest[col] = glp_get_obj_coef(model, col)
     end
     terms = MOI.ScalarAffineTerm{Float64}[]
@@ -641,7 +698,10 @@ end
 ##  SingleVariable-in-Set constraints.
 ##
 
-function _info(model::Optimizer, c::MOI.ConstraintIndex{MOI.SingleVariable,<:Any})
+function _info(
+    model::Optimizer,
+    c::MOI.ConstraintIndex{MOI.SingleVariable,<:Any},
+)
     var_index = MOI.VariableIndex(c.value)
     if haskey(model.variable_info, var_index)
         return _info(model, var_index)
@@ -778,10 +838,12 @@ function MOI.add_constraint(
     info = _info(model, f.variable)
     if S <: MOI.LessThan{Float64}
         _throw_if_existing_upper(info.bound, info.type, S, f.variable)
-        info.bound = info.bound == GREATER_THAN ? LESS_AND_GREATER_THAN : LESS_THAN
+        info.bound =
+            info.bound == GREATER_THAN ? LESS_AND_GREATER_THAN : LESS_THAN
     elseif S <: MOI.GreaterThan{Float64}
         _throw_if_existing_lower(info.bound, info.type, S, f.variable)
-        info.bound = info.bound == LESS_THAN ? LESS_AND_GREATER_THAN : GREATER_THAN
+        info.bound =
+            info.bound == LESS_THAN ? LESS_AND_GREATER_THAN : GREATER_THAN
     elseif S <: MOI.EqualTo{Float64}
         _throw_if_existing_lower(info.bound, info.type, S, f.variable)
         _throw_if_existing_upper(info.bound, info.type, S, f.variable)
@@ -949,7 +1011,11 @@ function MOI.set(
     return
 end
 
-function MOI.add_constraint(model::Optimizer, f::MOI.SingleVariable, ::MOI.ZeroOne)
+function MOI.add_constraint(
+    model::Optimizer,
+    f::MOI.SingleVariable,
+    ::MOI.ZeroOne,
+)
     info = _info(model, f.variable)
     # See https://github.com/JuliaOpt/GLPKMathProgInterface.jl/pull/15
     # for why this is necesary. GLPK interacts weirdly with binary variables and
@@ -983,7 +1049,11 @@ function MOI.get(
     return MOI.ZeroOne()
 end
 
-function MOI.add_constraint(model::Optimizer, f::MOI.SingleVariable, ::MOI.Integer)
+function MOI.add_constraint(
+    model::Optimizer,
+    f::MOI.SingleVariable,
+    ::MOI.Integer,
+)
     info = _info(model, f.variable)
     glp_set_col_kind(model, info.column, GLP_IV)
     info.type = INTEGER
@@ -1057,12 +1127,15 @@ end
 ### ScalarAffineFunction-in-Set
 ###
 
-function _info(model::Optimizer, c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64}})
+function _info(
+    model::Optimizer,
+    c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64}},
+)
     key = ConstraintKey(c.value)
     if haskey(model.affine_constraint_info, key)
         return model.affine_constraint_info[key]
     end
-    throw(MOI.InvalidIndex(c))
+    return throw(MOI.InvalidIndex(c))
 end
 
 function MOI.is_valid(
@@ -1102,7 +1175,13 @@ function _add_affine_constraint(
     end
     glp_add_rows(problem, 1)
     row = glp_get_num_rows(problem)
-    glp_set_mat_row(problem, row, length(indices), offset(indices), offset(coefficients))
+    glp_set_mat_row(
+        problem,
+        row,
+        length(indices),
+        offset(indices),
+        offset(coefficients),
+    )
     # According to http://most.ccib.rutgers.edu/glpk.pdf page 22, the `lb`
     # argument is ignored for constraint types with no lower bound (GLP_UP) and
     # the `ub` argument is ignored for constraint types with no upper bound
@@ -1124,10 +1203,18 @@ end
 function MOI.add_constraint(
     model::Optimizer,
     f::MOI.ScalarAffineFunction{Float64},
-    s::Union{MOI.GreaterThan{Float64},MOI.LessThan{Float64},MOI.EqualTo{Float64}},
+    s::Union{
+        MOI.GreaterThan{Float64},
+        MOI.LessThan{Float64},
+        MOI.EqualTo{Float64},
+    },
 )
     if !iszero(f.constant)
-        throw(MOI.ScalarFunctionConstantNotZero{Float64,typeof(f),typeof(s)}(f.constant))
+        throw(
+            MOI.ScalarFunctionConstantNotZero{Float64,typeof(f),typeof(s)}(
+                f.constant,
+            ),
+        )
     end
     key = CleverDicts.add_item(model.affine_constraint_info, ConstraintInfo(s))
     model.affine_constraint_info[key].row = length(model.affine_constraint_info)
@@ -1265,7 +1352,8 @@ function MOI.get(
 end
 
 function _rebuild_name_to_constraint_index(model::Optimizer)
-    model.name_to_constraint_index = Dict{String,Union{Nothing,MOI.ConstraintIndex}}()
+    model.name_to_constraint_index =
+        Dict{String,Union{Nothing,MOI.ConstraintIndex}}()
     for (key, info) in model.affine_constraint_info
         if isempty(info.name)
             continue
@@ -1273,7 +1361,10 @@ function _rebuild_name_to_constraint_index(model::Optimizer)
         _set_name_to_constraint_index(
             model,
             info.name,
-            MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64},typeof(info.set)}(
+            MOI.ConstraintIndex{
+                MOI.ScalarAffineFunction{Float64},
+                typeof(info.set),
+            }(
                 key.value,
             ),
         )
@@ -1283,18 +1374,22 @@ function _rebuild_name_to_constraint_index(model::Optimizer)
             _set_name_to_constraint_index(
                 model,
                 info.lessthan_name,
-                MOI.ConstraintIndex{MOI.SingleVariable,MOI.LessThan{Float64}}(key.value),
+                MOI.ConstraintIndex{MOI.SingleVariable,MOI.LessThan{Float64}}(
+                    key.value,
+                ),
             )
         end
         if !isempty(info.greaterthan_interval_or_equalto_name)
-            S = if info.bound == GREATER_THAN || info.bound == LESS_AND_GREATER_THAN
-                MOI.GreaterThan{Float64}
-            elseif info.bound == EQUAL_TO
-                MOI.EqualTo{Float64}
-            else
-                @assert info.bound == INTERVAL
-                MOI.Interval{Float64}
-            end
+            S =
+                if info.bound == GREATER_THAN ||
+                   info.bound == LESS_AND_GREATER_THAN
+                    MOI.GreaterThan{Float64}
+                elseif info.bound == EQUAL_TO
+                    MOI.EqualTo{Float64}
+                else
+                    @assert info.bound == INTERVAL
+                    MOI.Interval{Float64}
+                end
             _set_name_to_constraint_index(
                 model,
                 info.greaterthan_interval_or_equalto_name,
@@ -1482,52 +1577,53 @@ end
 # because it doesn't imply anything about the solution. If `solver_status` is
 # `Int32(0)`, then a solution-specific status can be queried with `_get_status`.
 
-const _RAW_SIMPLEX_STRINGS = Dict{Int32,Tuple{MOI.TerminationStatusCode,String}}(
-    GLP_EBADB => (
-        MOI.INVALID_MODEL,
-        "Unable to start the search, because the initial basis specified in the problem object is invalid—the number of basic (auxiliary and structural) variables is not the same as the number of rows in the problem object.",
-    ),
-    GLP_ESING => (
-        MOI.NUMERICAL_ERROR,
-        "Unable to start the search, because the basis matrix corresponding to the initial basis is singular within the working precision.",
-    ),
-    GLP_ECOND => (
-        MOI.NUMERICAL_ERROR,
-        "Unable to start the search, because the basis matrix corresponding to the initial basis is ill-conditioned, i.e. its condition number is too large.",
-    ),
-    GLP_EBOUND => (
-        MOI.INVALID_MODEL,
-        "Unable to start the search, because some double-bounded (auxiliary or structural) variables have incorrect bounds.",
-    ),
-    GLP_EFAIL => (
-        MOI.NUMERICAL_ERROR,
-        "The search was prematurely terminated due to the solver failure.",
-    ),
-    GLP_EOBJLL => (
-        MOI.OBJECTIVE_LIMIT,
-        "The search was prematurely terminated, because the objective function being maximized has reached its lower limit and continues decreasing (the dual simplex only).",
-    ),
-    GLP_EOBJUL => (
-        MOI.OBJECTIVE_LIMIT,
-        "The search was prematurely terminated, because the objective function being minimized has reached its upper limit and continues increasing (the dual simplex only).",
-    ),
-    GLP_EITLIM => (
-        MOI.ITERATION_LIMIT,
-        "The search was prematurely terminated, because the simplex iteration limit has been exceeded.",
-    ),
-    GLP_ETMLIM => (
-        MOI.TIME_LIMIT,
-        "The search was prematurely terminated, because the time limit has been exceeded.",
-    ),
-    GLP_ENOPFS => (
-        MOI.INFEASIBLE,
-        "The LP problem instance has no primal feasible solution (only if the LP presolver is used).",
-    ),
-    GLP_ENODFS => (
-        MOI.DUAL_INFEASIBLE,
-        "The LP problem instance has no dual feasible solution (only if the LP presolver is used).",
-    ),
-)
+const _RAW_SIMPLEX_STRINGS =
+    Dict{Int32,Tuple{MOI.TerminationStatusCode,String}}(
+        GLP_EBADB => (
+            MOI.INVALID_MODEL,
+            "Unable to start the search, because the initial basis specified in the problem object is invalid—the number of basic (auxiliary and structural) variables is not the same as the number of rows in the problem object.",
+        ),
+        GLP_ESING => (
+            MOI.NUMERICAL_ERROR,
+            "Unable to start the search, because the basis matrix corresponding to the initial basis is singular within the working precision.",
+        ),
+        GLP_ECOND => (
+            MOI.NUMERICAL_ERROR,
+            "Unable to start the search, because the basis matrix corresponding to the initial basis is ill-conditioned, i.e. its condition number is too large.",
+        ),
+        GLP_EBOUND => (
+            MOI.INVALID_MODEL,
+            "Unable to start the search, because some double-bounded (auxiliary or structural) variables have incorrect bounds.",
+        ),
+        GLP_EFAIL => (
+            MOI.NUMERICAL_ERROR,
+            "The search was prematurely terminated due to the solver failure.",
+        ),
+        GLP_EOBJLL => (
+            MOI.OBJECTIVE_LIMIT,
+            "The search was prematurely terminated, because the objective function being maximized has reached its lower limit and continues decreasing (the dual simplex only).",
+        ),
+        GLP_EOBJUL => (
+            MOI.OBJECTIVE_LIMIT,
+            "The search was prematurely terminated, because the objective function being minimized has reached its upper limit and continues increasing (the dual simplex only).",
+        ),
+        GLP_EITLIM => (
+            MOI.ITERATION_LIMIT,
+            "The search was prematurely terminated, because the simplex iteration limit has been exceeded.",
+        ),
+        GLP_ETMLIM => (
+            MOI.TIME_LIMIT,
+            "The search was prematurely terminated, because the time limit has been exceeded.",
+        ),
+        GLP_ENOPFS => (
+            MOI.INFEASIBLE,
+            "The LP problem instance has no primal feasible solution (only if the LP presolver is used).",
+        ),
+        GLP_ENODFS => (
+            MOI.DUAL_INFEASIBLE,
+            "The LP problem instance has no dual feasible solution (only if the LP presolver is used).",
+        ),
+    )
 
 const _RAW_EXACT_STRINGS = Dict{Int32,Tuple{MOI.TerminationStatusCode,String}}(
     GLP_EBADB => (
@@ -1542,7 +1638,8 @@ const _RAW_EXACT_STRINGS = Dict{Int32,Tuple{MOI.TerminationStatusCode,String}}(
         MOI.INVALID_MODEL,
         "Unable to start the search, because some double-bounded (auxiliary or structural) variables have incorrect bounds.",
     ),
-    GLP_EFAIL => (MOI.INVALID_MODEL, "The problem instance has no rows/columns."),
+    GLP_EFAIL =>
+        (MOI.INVALID_MODEL, "The problem instance has no rows/columns."),
     GLP_EITLIM => (
         MOI.ITERATION_LIMIT,
         "The search was prematurely terminated, because the simplex iteration limit has been exceeded.",
@@ -1553,13 +1650,18 @@ const _RAW_EXACT_STRINGS = Dict{Int32,Tuple{MOI.TerminationStatusCode,String}}(
     ),
 )
 
-const _RAW_INTERIOR_STRINGS = Dict{Int32,Tuple{MOI.TerminationStatusCode,String}}(
-    GLP_EFAIL => (MOI.INVALID_MODEL, "The problem instance has no rows/columns."),
-    GLP_ENOCVG => (MOI.SLOW_PROGRESS, "Very slow convergence or divergence."),
-    GLP_EITLIM => (MOI.ITERATION_LIMIT, "Iteration limit exceeded."),
-    GLP_EINSTAB =>
-        (MOI.NUMERICAL_ERROR, "Numerical instability on solving Newtonian system."),
-)
+const _RAW_INTERIOR_STRINGS =
+    Dict{Int32,Tuple{MOI.TerminationStatusCode,String}}(
+        GLP_EFAIL =>
+            (MOI.INVALID_MODEL, "The problem instance has no rows/columns."),
+        GLP_ENOCVG =>
+            (MOI.SLOW_PROGRESS, "Very slow convergence or divergence."),
+        GLP_EITLIM => (MOI.ITERATION_LIMIT, "Iteration limit exceeded."),
+        GLP_EINSTAB => (
+            MOI.NUMERICAL_ERROR,
+            "Numerical instability on solving Newtonian system.",
+        ),
+    )
 
 const _RAW_INTOPT_STRINGS = Dict{Int32,Tuple{MOI.TerminationStatusCode,String}}(
     GLP_EBOUND => (
@@ -1592,14 +1694,16 @@ const _RAW_INTOPT_STRINGS = Dict{Int32,Tuple{MOI.TerminationStatusCode,String}}(
     ),
 )
 
-const _RAW_SOLUTION_STATUS = Dict{Int32,Tuple{MOI.TerminationStatusCode,String}}(
-    GLP_OPT => (MOI.OPTIMAL, "Solution is optimal"),
-    GLP_FEAS => (MOI.LOCALLY_SOLVED, "Solution is feasible"),
-    GLP_INFEAS => (MOI.LOCALLY_INFEASIBLE, "Solution is infeasible"),
-    GLP_NOFEAS => (MOI.INFEASIBLE, "No feasible primal-dual solution exists."),
-    GLP_UNBND => (MOI.DUAL_INFEASIBLE, "Problem has unbounded solution"),
-    GLP_UNDEF => (MOI.OTHER_ERROR, "Solution is undefined"),
-)
+const _RAW_SOLUTION_STATUS =
+    Dict{Int32,Tuple{MOI.TerminationStatusCode,String}}(
+        GLP_OPT => (MOI.OPTIMAL, "Solution is optimal"),
+        GLP_FEAS => (MOI.LOCALLY_SOLVED, "Solution is feasible"),
+        GLP_INFEAS => (MOI.LOCALLY_INFEASIBLE, "Solution is infeasible"),
+        GLP_NOFEAS =>
+            (MOI.INFEASIBLE, "No feasible primal-dual solution exists."),
+        GLP_UNBND => (MOI.DUAL_INFEASIBLE, "Problem has unbounded solution"),
+        GLP_UNDEF => (MOI.OTHER_ERROR, "Solution is undefined"),
+    )
 
 function MOI.get(model::Optimizer, attr::MOI.RawStatusString)
     _throw_if_optimize_in_progress(model, attr)
@@ -1737,7 +1841,11 @@ function _get_row_primal(model::Optimizer, row::Int)
     end
 end
 
-function MOI.get(model::Optimizer, attr::MOI.VariablePrimal, x::MOI.VariableIndex)
+function MOI.get(
+    model::Optimizer,
+    attr::MOI.VariablePrimal,
+    x::MOI.VariableIndex,
+)
     _throw_if_optimize_in_progress(model, attr)
     MOI.check_result_index_bounds(model, attr)
     if model.unbounded_ray !== nothing
@@ -1776,7 +1884,9 @@ function _farkas_variable_dual(model::Optimizer, col::Int)
     vind = Vector{Cint}(undef, nnz)
     vval = Vector{Cdouble}(undef, nnz)
     nnz = glp_get_mat_col(model, Cint(col), offset(vind), offset(vval))
-    return sum(model.infeasibility_cert[row] * val for (row, val) in zip(vind, vval))
+    return sum(
+        model.infeasibility_cert[row] * val for (row, val) in zip(vind, vval)
+    )
 end
 
 function MOI.get(
@@ -1904,7 +2014,8 @@ end
 function MOI.get(model::Optimizer, attr::MOI.ObjectiveBound)
     _throw_if_optimize_in_progress(model, attr)
     if !model.last_solved_by_mip
-        return MOI.get(model, MOI.ObjectiveSense()) == MOI.MIN_SENSE ? -Inf : Inf
+        return MOI.get(model, MOI.ObjectiveSense()) == MOI.MIN_SENSE ? -Inf :
+               Inf
     end
     # @mlubin and @ccoey observed some cases where mip_status == OPT and objval
     # and objbound didn't match. In that case, they return mip_obj_val, but
@@ -1924,7 +2035,9 @@ end
 function MOI.get(model::Optimizer, attr::MOI.RelativeGap)
     _throw_if_optimize_in_progress(model, attr)
     if !model.last_solved_by_mip
-        error("RelativeGap is only available for models with integer variables.")
+        error(
+            "RelativeGap is only available for models with integer variables.",
+        )
     end
     return model.relative_gap
 end
@@ -1939,7 +2052,8 @@ function MOI.get(model::Optimizer, attr::MOI.ResultCount)
     (status, _) = _get_status(model)
     if status in (MOI.OPTIMAL, MOI.LOCALLY_SOLVED, MOI.LOCALLY_INFEASIBLE)
         return 1
-    elseif status in (MOI.DUAL_INFEASIBLE, MOI.INFEASIBLE, MOI.LOCALLY_INFEASIBLE)
+    elseif status in
+           (MOI.DUAL_INFEASIBLE, MOI.INFEASIBLE, MOI.LOCALLY_INFEASIBLE)
         if _certificates_potentially_available(model)
             return 1
         end
@@ -2012,7 +2126,9 @@ function MOI.get(
         if typeof(info.set) == S
             push!(
                 indices,
-                MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64},S}(key.value),
+                MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64},S}(
+                    key.value,
+                ),
             )
         end
     end
@@ -2043,7 +2159,10 @@ function MOI.get(model::Optimizer, ::MOI.ListOfConstraints)
         end
     end
     for info in values(model.affine_constraint_info)
-        push!(constraints, (MOI.ScalarAffineFunction{Float64}, typeof(info.set)))
+        push!(
+            constraints,
+            (MOI.ScalarAffineFunction{Float64}, typeof(info.set)),
+        )
     end
     return collect(constraints)
 end
@@ -2071,7 +2190,13 @@ function MOI.modify(
         push!(indices, col)
         push!(coefficients, chg.new_coefficient)
     end
-    glp_set_mat_row(model, row, length(indices), offset(indices), offset(coefficients))
+    glp_set_mat_row(
+        model,
+        row,
+        length(indices),
+        offset(indices),
+        offset(coefficients),
+    )
     return
 end
 
@@ -2095,7 +2220,13 @@ function MOI.set(
     end
     row = Cint(_info(model, c).row)
     indices, coefficients = _indices_and_coefficients(model, f)
-    glp_set_mat_row(model, row, length(indices), offset(indices), offset(coefficients))
+    glp_set_mat_row(
+        model,
+        row,
+        length(indices),
+        offset(indices),
+        offset(coefficients),
+    )
     return
 end
 
@@ -2109,7 +2240,10 @@ function MOI.get(
     cbasis = glp_get_row_stat(model, row)
     if cbasis == GLP_BS
         return MOI.BASIC
-    elseif cbasis == GLP_NL || cbasis == GLP_NU || cbasis == GLP_NF || cbasis == GLP_NS
+    elseif cbasis == GLP_NL ||
+           cbasis == GLP_NU ||
+           cbasis == GLP_NF ||
+           cbasis == GLP_NS
         return MOI.NONBASIC
     else
         error("CBasis value of $(cbasis) isn't defined.")

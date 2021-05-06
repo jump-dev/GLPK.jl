@@ -48,10 +48,14 @@ end
 
 @testset "Linear tests" begin
     @testset "Default Solver" begin
-        MOIT.contlineartest(OPTIMIZER, MOIT.TestConfig(basis = true), [
-            # VariablePrimalStart not supported.
-            "partial_start",
-        ])
+        MOIT.contlineartest(
+            OPTIMIZER,
+            MOIT.TestConfig(basis = true),
+            [
+                # VariablePrimalStart not supported.
+                "partial_start",
+            ],
+        )
     end
 end
 
@@ -116,7 +120,11 @@ end
         # but supports_constrainttest is broken via bridges:
         MOI.empty!(OPTIMIZER)
         MOI.add_variable(OPTIMIZER)
-        @test MOI.supports_constraint(OPTIMIZER, MOI.SingleVariable, MOI.EqualTo{Float64})
+        @test MOI.supports_constraint(
+            OPTIMIZER,
+            MOI.SingleVariable,
+            MOI.EqualTo{Float64},
+        )
         @test MOI.supports_constraint(
             OPTIMIZER,
             MOI.ScalarAffineFunction{Float64},
@@ -133,8 +141,16 @@ end
             MOI.ScalarAffineFunction{Int},
             MOI.EqualTo{Int},
         )
-        @test !MOI.supports_constraint(OPTIMIZER, MOI.SingleVariable, MOI.EqualTo{Int})
-        @test MOI.supports_constraint(OPTIMIZER, MOI.VectorOfVariables, MOI.Zeros)
+        @test !MOI.supports_constraint(
+            OPTIMIZER,
+            MOI.SingleVariable,
+            MOI.EqualTo{Int},
+        )
+        @test MOI.supports_constraint(
+            OPTIMIZER,
+            MOI.VectorOfVariables,
+            MOI.Zeros,
+        )
         @test !MOI.supports_constraint(
             OPTIMIZER,
             MOI.VectorOfVariables,
@@ -229,7 +245,11 @@ end
     exception = ErrorException(
         "Invalid option: cb_func. Use the MOI attribute `GLPK.CallbackFunction` instead.",
     )
-    @test_throws exception MOI.set(model, MOI.RawParameter("cb_func"), (cb) -> nothing)
+    @test_throws exception MOI.set(
+        model,
+        MOI.RawParameter("cb_func"),
+        (cb) -> nothing,
+    )
     MOI.set(model, MOI.RawParameter("tm_lim"), 100)
     @test MOI.get(model, MOI.RawParameter("tm_lim")) == 100
     @test_throws ErrorException MOI.get(model, MOI.RawParameter(:tm_lim))
@@ -242,21 +262,43 @@ end
     exception = ErrorException(
         "Invalid option: cb_func. Use the MOI attribute `GLPK.CallbackFunction` instead.",
     )
-    @test_throws exception MOI.set(model, MOI.RawParameter("cb_func"), (cb) -> nothing)
+    @test_throws exception MOI.set(
+        model,
+        MOI.RawParameter("cb_func"),
+        (cb) -> nothing,
+    )
     MOI.set(model, MOI.RawParameter("tm_lim"), 100)
     @test MOI.get(model, MOI.RawParameter("tm_lim")) == 100
-    @test_throws MOI.UnsupportedAttribute(param) MOI.set(model, MOI.RawParameter("bad"), 1)
-    @test_throws MOI.UnsupportedAttribute(param) MOI.get(model, MOI.RawParameter("bad"))
+    @test_throws MOI.UnsupportedAttribute(param) MOI.set(
+        model,
+        MOI.RawParameter("bad"),
+        1,
+    )
+    @test_throws MOI.UnsupportedAttribute(param) MOI.get(
+        model,
+        MOI.RawParameter("bad"),
+    )
 
     model = GLPK.Optimizer(method = GLPK.EXACT)
     exception = ErrorException(
         "Invalid option: cb_func. Use the MOI attribute `GLPK.CallbackFunction` instead.",
     )
-    @test_throws exception MOI.set(model, MOI.RawParameter("cb_func"), (cb) -> nothing)
+    @test_throws exception MOI.set(
+        model,
+        MOI.RawParameter("cb_func"),
+        (cb) -> nothing,
+    )
     MOI.set(model, MOI.RawParameter("tm_lim"), 100)
     @test MOI.get(model, MOI.RawParameter("tm_lim")) == 100
-    @test_throws MOI.UnsupportedAttribute(param) MOI.set(model, MOI.RawParameter("bad"), 1)
-    @test_throws MOI.UnsupportedAttribute(param) MOI.get(model, MOI.RawParameter("bad"))
+    @test_throws MOI.UnsupportedAttribute(param) MOI.set(
+        model,
+        MOI.RawParameter("bad"),
+        1,
+    )
+    @test_throws MOI.UnsupportedAttribute(param) MOI.get(
+        model,
+        MOI.RawParameter("bad"),
+    )
 
     model = GLPK.Optimizer()
     MOI.set(model, MOI.RawParameter("mip_gap"), 0.001)
@@ -321,7 +363,11 @@ end
     @testset "Variable bounds" begin
         MOI.empty!(model)
         x = MOI.add_variable(model)
-        c1 = MOI.add_constraint(model, MOI.SingleVariable(x), MOI.GreaterThan(0.0))
+        c1 = MOI.add_constraint(
+            model,
+            MOI.SingleVariable(x),
+            MOI.GreaterThan(0.0),
+        )
         c2 = MOI.add_constraint(model, MOI.SingleVariable(x), MOI.LessThan(1.0))
         MOI.set(model, MOI.ConstraintName(), c1, "c1")
         @test MOI.get(model, MOI.ConstraintIndex, "c1") == c1
@@ -425,7 +471,11 @@ end
     @testset "SingleVariable" begin
         model = GLPK.Optimizer()
         x = MOI.add_variables(model, 3)
-        c = MOI.add_constraints(model, MOI.SingleVariable.(x), MOI.GreaterThan(0.0))
+        c = MOI.add_constraints(
+            model,
+            MOI.SingleVariable.(x),
+            MOI.GreaterThan(0.0),
+        )
         MOI.set(model, MOI.ConstraintName(), c[1], "x")
         MOI.set(model, MOI.ConstraintName(), c[2], "x")
         MOI.set(model, MOI.ConstraintName(), c[3], "z")
@@ -446,7 +496,10 @@ end
     @testset "ScalarAffineFunction" begin
         model = GLPK.Optimizer()
         x = MOI.add_variables(model, 3)
-        fs = [MOI.ScalarAffineFunction([MOI.ScalarAffineTerm(1.0, xi)], 0.0) for xi in x]
+        fs = [
+            MOI.ScalarAffineFunction([MOI.ScalarAffineTerm(1.0, xi)], 0.0)
+            for xi in x
+        ]
         c = MOI.add_constraints(model, fs, MOI.GreaterThan(0.0))
         MOI.set(model, MOI.ConstraintName(), c[1], "x")
         MOI.set(model, MOI.ConstraintName(), c[2], "x")
@@ -482,9 +535,18 @@ end
 # TODO move to MOI
 @testset "PR #121" begin
     model = GLPK.Optimizer()
-    ci = MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64},MOI.LessThan{Float64}}(1)
+    ci = MOI.ConstraintIndex{
+        MOI.ScalarAffineFunction{Float64},
+        MOI.LessThan{Float64},
+    }(
+        1,
+    )
     @test_throws MOI.InvalidIndex(ci) MOI.get(model, MOI.ConstraintSet(), ci)
-    @test_throws MOI.InvalidIndex(ci) MOI.get(model, MOI.ConstraintFunction(), ci)
+    @test_throws MOI.InvalidIndex(ci) MOI.get(
+        model,
+        MOI.ConstraintFunction(),
+        ci,
+    )
     @test_throws MOI.InvalidIndex(ci) MOI.delete(model, ci)
 end
 
@@ -501,7 +563,6 @@ end
     MOI.set(model, MOI.ConstraintName(), c, "ω")
     @test MOI.get(model, MOI.ConstraintName(), c) == "ω"
 end
-
 
 @testset "Deprecated constants" begin
     model = GLPK.Optimizer()
@@ -545,7 +606,12 @@ end
             MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}(),
             MOI.ScalarAffineFunction(MOI.ScalarAffineTerm.([1.0], [x[1]]), 0.0),
         )
-        clb = MOI.add_constraint.(model, MOI.SingleVariable.(x), MOI.GreaterThan(0.0))
+        clb =
+            MOI.add_constraint.(
+                model,
+                MOI.SingleVariable.(x),
+                MOI.GreaterThan(0.0),
+            )
         c = MOI.add_constraint(
             model,
             MOI.ScalarAffineFunction(MOI.ScalarAffineTerm.([2.0, 1.0], x), 0.0),
@@ -573,7 +639,12 @@ end
             MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}(),
             MOI.ScalarAffineFunction(MOI.ScalarAffineTerm.([1.0], [x[1]]), 0.0),
         )
-        clb = MOI.add_constraint.(model, MOI.SingleVariable.(x), MOI.GreaterThan(0.0))
+        clb =
+            MOI.add_constraint.(
+                model,
+                MOI.SingleVariable.(x),
+                MOI.GreaterThan(0.0),
+            )
         c = MOI.add_constraint(
             model,
             MOI.ScalarAffineFunction(MOI.ScalarAffineTerm.([2.0, 1.0], x), 0.0),
@@ -601,10 +672,18 @@ end
             MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}(),
             MOI.ScalarAffineFunction([MOI.ScalarAffineTerm(-1.0, x[1])], 0.0),
         )
-        clb = MOI.add_constraint.(model, MOI.SingleVariable.(x), MOI.LessThan(0.0))
+        clb =
+            MOI.add_constraint.(
+                model,
+                MOI.SingleVariable.(x),
+                MOI.LessThan(0.0),
+            )
         c = MOI.add_constraint(
             model,
-            MOI.ScalarAffineFunction(MOI.ScalarAffineTerm.([-2.0, -1.0], x), 0.0),
+            MOI.ScalarAffineFunction(
+                MOI.ScalarAffineTerm.([-2.0, -1.0], x),
+                0.0,
+            ),
             MOI.LessThan(-1.0),
         )
         MOI.optimize!(model)
@@ -629,10 +708,18 @@ end
             MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}(),
             MOI.ScalarAffineFunction([MOI.ScalarAffineTerm(-1.0, x[1])], 0.0),
         )
-        clb = MOI.add_constraint.(model, MOI.SingleVariable.(x), MOI.LessThan(0.0))
+        clb =
+            MOI.add_constraint.(
+                model,
+                MOI.SingleVariable.(x),
+                MOI.LessThan(0.0),
+            )
         c = MOI.add_constraint(
             model,
-            MOI.ScalarAffineFunction(MOI.ScalarAffineTerm.([-2.0, -1.0], x), 0.0),
+            MOI.ScalarAffineFunction(
+                MOI.ScalarAffineTerm.([-2.0, -1.0], x),
+                0.0,
+            ),
             MOI.LessThan(-1.0),
         )
         MOI.optimize!(model)

@@ -99,12 +99,15 @@ function MOI.set(model::Optimizer, ::MOI.LazyConstraintCallback, cb::Function)
 end
 MOI.supports(::Optimizer, ::MOI.LazyConstraintCallback) = true
 
-
 function MOI.submit(
     model::Optimizer,
     cb::MOI.LazyConstraint{CallbackData},
     f::MOI.ScalarAffineFunction{Float64},
-    s::Union{MOI.LessThan{Float64},MOI.GreaterThan{Float64},MOI.EqualTo{Float64}},
+    s::Union{
+        MOI.LessThan{Float64},
+        MOI.GreaterThan{Float64},
+        MOI.EqualTo{Float64},
+    },
 )
     if model.callback_state == CB_USER_CUT
         throw(MOI.InvalidCallbackUsage(MOI.UserCutCallback(), cb))
@@ -116,7 +119,13 @@ function MOI.submit(
     indices, coefficients = _indices_and_coefficients(model, f)
     sense, rhs = _sense_and_rhs(s)
     inner = glp_ios_get_prob(cb.callback_data.tree)
-    _add_affine_constraint(inner, indices, coefficients, sense, rhs - f.constant)
+    _add_affine_constraint(
+        inner,
+        indices,
+        coefficients,
+        sense,
+        rhs - f.constant,
+    )
     return
 end
 MOI.supports(::Optimizer, ::MOI.LazyConstraint{CallbackData}) = true
@@ -186,6 +195,7 @@ function MOI.submit(
         solution[_info(model, var).column] = value
     end
     ret = glp_ios_heur_sol(cb.callback_data.tree, offset(solution))
-    return ret == 0 ? MOI.HEURISTIC_SOLUTION_ACCEPTED : MOI.HEURISTIC_SOLUTION_REJECTED
+    return ret == 0 ? MOI.HEURISTIC_SOLUTION_ACCEPTED :
+           MOI.HEURISTIC_SOLUTION_REJECTED
 end
 MOI.supports(::Optimizer, ::MOI.HeuristicSolution{CallbackData}) = true

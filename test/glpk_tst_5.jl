@@ -28,7 +28,7 @@ function glpk_tst_5()
     @test GLPK.glp_minisat1(lp) == expected_ret
 
     @test GLPK.glp_intfeas1(lp, 0, 0) == expected_ret
-    GLPK.glp_delete_prob(lp)
+    return GLPK.glp_delete_prob(lp)
 end
 
 glpk_tst_5()
