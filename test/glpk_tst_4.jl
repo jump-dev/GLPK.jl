@@ -36,7 +36,21 @@ function glpk_tst_4()
 
     @test GLPK.glp_bf_updated(mip) == 0
 
-    bfp = GLPK.glp_bfcp(0, 0, 0, 0.0, 0, 0, 0.0, 0.0, 0, 0.0, 0, 0, tuple(fill(0.0, 38)...))
+    bfp = GLPK.glp_bfcp(
+        0,
+        0,
+        0,
+        0.0,
+        0,
+        0,
+        0.0,
+        0.0,
+        0,
+        0.0,
+        0,
+        0,
+        tuple(fill(0.0, 38)...),
+    )
     GLPK.glp_get_bfcp(mip, bfp)
     bfp.piv_tol = 0.5
     GLPK.glp_set_bfcp(mip, bfp)
@@ -44,11 +58,11 @@ function glpk_tst_4()
     rows = GLPK.glp_get_num_rows(mip)
     cols = GLPK.glp_get_num_cols(mip)
 
-    for i = 1:rows
+    for i in 1:rows
         bh = GLPK.glp_get_bhead(mip, i)
         rb = GLPK.glp_get_row_bind(mip, i)
     end
-    for i = 1:cols
+    for i in 1:cols
         cb = GLPK.glp_get_col_bind(mip, i)
     end
 
@@ -59,7 +73,7 @@ function glpk_tst_4()
     GLPK.glp_adv_basis(mip, 0)
     @test GLPK.glp_factorize(mip) == 0
 
-    for i = 1:rows+cols
+    for i in 1:rows+cols
         if !var_is_basic(mip, i)
             continue
         end
@@ -70,7 +84,7 @@ function glpk_tst_4()
         @test len <= length(ind)
     end
 
-    for i = 1:rows+cols
+    for i in 1:rows+cols
         if var_is_basic(mip, i)
             continue
         end
@@ -81,28 +95,37 @@ function glpk_tst_4()
         @test len <= length(ind)
     end
 
-    for i = 1:100
-        ia, ja, val = SparseArrays.findnz(SparseArrays.sprand(Int(cols), 1, 0.5))
+    for i in 1:100
+        ia, ja, val =
+            SparseArrays.findnz(SparseArrays.sprand(Int(cols), 1, 0.5))
         indices = round.(Cint, ia)
         resize!(val, cols)
         resize!(indices, cols)
         GLPK.glp_transform_row(
-            mip, length(ia), GLPK.offset(indices), GLPK.offset(val)
+            mip,
+            length(ia),
+            GLPK.offset(indices),
+            GLPK.offset(val),
         )
     end
 
-    for i = 1:100
-        ia, ja, val = SparseArrays.findnz(SparseArrays.sprand(Int(rows), 1, 0.5))
+    for i in 1:100
+        ia, ja, val =
+            SparseArrays.findnz(SparseArrays.sprand(Int(rows), 1, 0.5))
         indices = round.(Cint, ia)
         resize!(val, rows)
         resize!(indices, rows)
         GLPK.glp_transform_col(
-            mip, length(ia), GLPK.offset(indices), GLPK.offset(val)
+            mip,
+            length(ia),
+            GLPK.offset(indices),
+            GLPK.offset(val),
         )
     end
 
-    for i = 1:100
-        ia, ja, val = SparseArrays.findnz(SparseArrays.sprand(Int(rows), 1, 0.5))
+    for i in 1:100
+        ia, ja, val =
+            SparseArrays.findnz(SparseArrays.sprand(Int(rows), 1, 0.5))
         dir = 2 * rand(Bool) - 1
         eps = 1e-9
 
@@ -112,26 +135,37 @@ function glpk_tst_4()
         val = val[basic]
 
         prt = GLPK.glp_prim_rtest(
-            mip, length(ia), GLPK.offset(ia), GLPK.offset(val), dir, eps
+            mip,
+            length(ia),
+            GLPK.offset(ia),
+            GLPK.offset(val),
+            dir,
+            eps,
         )
     end
 
-    for i = 1:100
-        ia, ja, val = SparseArrays.findnz(SparseArrays.sprand(Int(cols), 1, 0.5))
+    for i in 1:100
+        ia, ja, val =
+            SparseArrays.findnz(SparseArrays.sprand(Int(cols), 1, 0.5))
         dir = 2 * rand(Bool) - 1
         eps = 1e-9
 
-        nonbasic = map(x->!var_is_basic(mip, x), ia)
+        nonbasic = map(x -> !var_is_basic(mip, x), ia)
 
         ia = Cint.(ia[nonbasic])
         val = val[nonbasic]
 
         drt = GLPK.glp_dual_rtest(
-            mip, length(ia), GLPK.offset(ia), GLPK.offset(val), dir, eps
+            mip,
+            length(ia),
+            GLPK.offset(ia),
+            GLPK.offset(val),
+            dir,
+            eps,
         )
     end
 
-    for i = 1:rows+cols
+    for i in 1:rows+cols
         if var_is_basic(mip, i)
             coef1 = Ref{Cdouble}()
             var1 = Ref{Cint}()
@@ -140,7 +174,14 @@ function glpk_tst_4()
             var2 = Ref{Cint}()
             value2 = Ref{Cdouble}()
             ac = GLPK.glp_analyze_coef(
-                mip, i, coef1, var1, value1, coef2, var2, value2
+                mip,
+                i,
+                coef1,
+                var1,
+                value1,
+                coef2,
+                var2,
+                value2,
             )
         else
             limit1 = Ref{Cdouble}()
@@ -154,7 +195,8 @@ function glpk_tst_4()
     GLPK.glp_init_env()
 
     p = GLPK.glp_alloc(1, 100 * sizeof(Int))
-    count, cpeak, total, tpeak = Ref{Cint}(), Ref{Cint}(), Ref{Cint}(), Ref{Cint}()
+    count, cpeak, total, tpeak =
+        Ref{Cint}(), Ref{Cint}(), Ref{Cint}(), Ref{Cint}()
     GLPK.glp_mem_usage(count, cpeak, total, tpeak)
     GLPK.glp_free(p)
     mu = GLPK.glp_mem_usage(count, cpeak, total, tpeak)
@@ -168,40 +210,40 @@ function glpk_tst_4()
     # GLPK.glp_free_env()
 
     mktemp() do path, _
-        GLPK.glp_print_sol(mip, path)
+        return GLPK.glp_print_sol(mip, path)
     end
 
     mktemp() do path, _
         GLPK.glp_write_sol(mip, path)
-        GLPK.glp_read_sol(mip, path)
+        return GLPK.glp_read_sol(mip, path)
     end
 
     mktemp() do path, _
-        GLPK.glp_print_ipt(mip, path)
+        return GLPK.glp_print_ipt(mip, path)
     end
 
     mktemp() do path, _
         GLPK.glp_write_ipt(mip, path)
-        GLPK.glp_read_ipt(mip, path)
+        return GLPK.glp_read_ipt(mip, path)
     end
 
     mktemp() do path, _
-        GLPK.glp_print_mip(mip, path)
+        return GLPK.glp_print_mip(mip, path)
     end
 
     mktemp() do path, _
         GLPK.glp_write_mip(mip, path)
-        GLPK.glp_read_mip(mip, path)
+        return GLPK.glp_read_mip(mip, path)
     end
 
     mktemp() do path, _
         GLPK.glp_open_tee(path)
-        GLPK.glp_close_tee()
+        return GLPK.glp_close_tee()
     end
 
     GLPK.glp_term_out(prev_term_out)
     GLPK.glp_mpl_free_wksp(tran)
-    GLPK.glp_delete_prob(mip)
+    return GLPK.glp_delete_prob(mip)
 end
 
 glpk_tst_4()

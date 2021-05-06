@@ -26,7 +26,7 @@ function glpk_tst_3()
     @test GLPK.glp_simplex(lp, C_NULL) == 0
 
     GLPK.glp_term_out(prev_term_out)
-    GLPK.glp_delete_prob(lp)
+    return GLPK.glp_delete_prob(lp)
 end
 
 glpk_tst_3()

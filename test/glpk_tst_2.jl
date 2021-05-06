@@ -19,20 +19,35 @@ function glpk_tst_2()
     @test GLPK.glp_write_prob(lp, 0, "") != 0
 
     mktemp() do path, _
-        GLPK.glp_write_prob(lp, 0, path)
+        return GLPK.glp_write_prob(lp, 0, path)
     end
 
     # test MPS format
-    @test GLPK.glp_read_mps(lp, GLPK.GLP_MPS_FILE, C_NULL, "nonexisting_file") != 0
+    @test GLPK.glp_read_mps(
+        lp,
+        GLPK.GLP_MPS_FILE,
+        C_NULL,
+        "nonexisting_file",
+    ) != 0
 
-    GLPK.glp_read_mps(lp, GLPK.GLP_MPS_DECK, C_NULL, joinpath(datadir, "plan.mps"))
+    GLPK.glp_read_mps(
+        lp,
+        GLPK.GLP_MPS_DECK,
+        C_NULL,
+        joinpath(datadir, "plan.mps"),
+    )
     @test GLPK.glp_simplex(lp, C_NULL) == 0
 
-    @test GLPK.glp_read_mps(lp, GLPK.GLP_MPS_DECK, C_NULL, joinpath(datadir, "plan.lp")) != 0
+    @test GLPK.glp_read_mps(
+        lp,
+        GLPK.GLP_MPS_DECK,
+        C_NULL,
+        joinpath(datadir, "plan.lp"),
+    ) != 0
     @test GLPK.glp_write_mps(lp, GLPK.GLP_MPS_FILE, C_NULL, "") != 0
 
     mktemp() do path, _
-        GLPK.glp_write_mps(lp, GLPK.GLP_MPS_FILE, C_NULL, path)
+        return GLPK.glp_write_mps(lp, GLPK.GLP_MPS_FILE, C_NULL, path)
     end
 
     # Test LP format
@@ -45,11 +60,11 @@ function glpk_tst_2()
     @test GLPK.glp_write_lp(lp, C_NULL, "") != 0
 
     mktemp() do path, _
-        GLPK.glp_write_lp(lp, C_NULL, path)
+        return GLPK.glp_write_lp(lp, C_NULL, path)
     end
 
     GLPK.glp_term_out(prev_term_out)
-    GLPK.glp_delete_prob(lp)
+    return GLPK.glp_delete_prob(lp)
 end
 
 glpk_tst_2()

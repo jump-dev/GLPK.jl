@@ -22,14 +22,19 @@ end
 
 _bound_type(::Type{MOI.Interval{Float64}}) = INTERVAL
 _bound_type(::Type{MOI.EqualTo{Float64}}) = EQUAL_TO
-_bound_type(::Type{S}) where S = NONE
+_bound_type(::Type{S}) where {S} = NONE
 
 function _extract_bound_data(
-    src, mapping, lb, ub, bound_type, s::Type{S}
+    src,
+    mapping,
+    lb,
+    ub,
+    bound_type,
+    s::Type{S},
 ) where {S}
     dict = DoubleDicts.with_type(mapping.conmap, MOI.SingleVariable, S)
     type = _bound_type(s)
-    list = MOI.get(src, MOI.ListOfConstraintIndices{MOI.SingleVariable, S}())
+    list = MOI.get(src, MOI.ListOfConstraintIndices{MOI.SingleVariable,S}())
     add_sizehint!(dict, length(list))
     for con_index in list
         f = MOI.get(src, MOI.ConstraintFunction(), con_index)
@@ -37,23 +42,27 @@ function _extract_bound_data(
         column = mapping[f.variable].value
         _add_bounds(lb, ub, column, s)
         bound_type[column] = type
-        dict[con_index] = MOI.ConstraintIndex{MOI.SingleVariable, S}(column)
+        dict[con_index] = MOI.ConstraintIndex{MOI.SingleVariable,S}(column)
     end
     return
 end
 
-_add_type(type, i, ::MOI.Integer) = begin type[i] = INTEGER end
-_add_type(type, i, ::MOI.ZeroOne) = begin type[i] = BINARY end
+_add_type(type, i, ::MOI.Integer) = begin
+    type[i] = INTEGER
+end
+_add_type(type, i, ::MOI.ZeroOne) = begin
+    type[i] = BINARY
+end
 
 function _extract_type_data(src, mapping, var_type, ::Type{S}) where {S}
     dict = DoubleDicts.with_type(mapping.conmap, MOI.SingleVariable, S)
-    list = MOI.get(src, MOI.ListOfConstraintIndices{MOI.SingleVariable, S}())
+    list = MOI.get(src, MOI.ListOfConstraintIndices{MOI.SingleVariable,S}())
     add_sizehint!(dict, length(list))
     for con_index in list
         f = MOI.get(src, MOI.ConstraintFunction(), con_index)
         column = mapping[f.variable].value
         _add_type(var_type, column, S())
-        dict[con_index] = MOI.ConstraintIndex{MOI.SingleVariable, S}(column)
+        dict[con_index] = MOI.ConstraintIndex{MOI.SingleVariable,S}(column)
     end
     return
 end
@@ -87,8 +96,9 @@ end
 function _extract_row_data(src, mapping, lb, ub, I, J, V, ::Type{S}) where {S}
     dict = mapping.conmap[MOI.ScalarAffineFunction{Float64}, S]
     list = MOI.get(
-        src, MOI.ListOfConstraintIndices{MOI.ScalarAffineFunction{Float64}, S}()
-    )::Vector{MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64}, S}}
+        src,
+        MOI.ListOfConstraintIndices{MOI.ScalarAffineFunction{Float64},S}(),
+    )::Vector{MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64},S}}
     N = length(list)
     add_sizehint!(lb, N)
     add_sizehint!(ub, N)
@@ -127,7 +137,7 @@ function _extract_row_data(src, mapping, lb, ub, I, J, V, ::Type{S}) where {S}
             V[non_zeros] = term.coefficient
         end
         row += 1
-        ind = MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64}, S}(row)
+        ind = MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64},S}(row)
         dict[list[i]] = ind
     end
     return
@@ -136,7 +146,11 @@ end
 function test_data(src, dest)
     for (F, S) in MOI.get(src, MOI.ListOfConstraints())
         if !MOI.supports_constraint(dest, F, S)
-            throw(MOI.UnsupportedConstraint{F, S}("GLPK.Optimizer does not support constraints of type $F-in-$S."))
+            throw(
+                MOI.UnsupportedConstraint{F,S}(
+                    "GLPK.Optimizer does not support constraints of type $F-in-$S.",
+                ),
+            )
         end
     end
     fobj_type = MOI.get(src, MOI.ObjectiveFunctionType())
@@ -147,7 +161,12 @@ function test_data(src, dest)
 end
 
 function _add_all_variables(
-    model::Optimizer, N, lower, upper, bound_type, var_type
+    model::Optimizer,
+    N,
+    lower,
+    upper,
+    bound_type,
+    var_type,
 )
     glp_add_cols(model, N)
     sizehint!(model.variable_info, N)
@@ -202,7 +221,10 @@ function _add_all_constraints(dest::Optimizer, rl, ru, I, J, V)
 end
 
 function MOI.copy_to(
-    dest::Optimizer, src::MOI.ModelLike; copy_names::Bool = false, kwargs...
+    dest::Optimizer,
+    src::MOI.ModelLike;
+    copy_names::Bool = false,
+    kwargs...,
 )
     @assert MOI.is_empty(dest)
     test_data(src, dest)
@@ -210,7 +232,14 @@ function MOI.copy_to(
     cl, cu = fill(-Inf, N), fill(Inf, N)
     bound_type = fill(NONE, N)
     var_type = fill(CONTINUOUS, N)
-    _extract_bound_data(src, mapping, cl, cu, bound_type, MOI.GreaterThan{Float64})
+    _extract_bound_data(
+        src,
+        mapping,
+        cl,
+        cu,
+        bound_type,
+        MOI.GreaterThan{Float64},
+    )
     _extract_bound_data(src, mapping, cl, cu, bound_type, MOI.LessThan{Float64})
     _extract_bound_data(src, mapping, cl, cu, bound_type, MOI.EqualTo{Float64})
     _extract_bound_data(src, mapping, cl, cu, bound_type, MOI.Interval{Float64})
@@ -236,15 +265,20 @@ end
 
 function pass_constraint_attributes(dest, src, copy_names, mapping)
     ctr_types = MOI.get(src, MOI.ListOfConstraints())
-    for (F,S) in ctr_types
+    for (F, S) in ctr_types
         pass_constraint_attributes(dest, src, copy_names, mapping, F, S)
     end
     return
 end
 function pass_constraint_attributes(
-    dest, src, copy_names, mapping, ::Type{F}, ::Type{S}
+    dest,
+    src,
+    copy_names,
+    mapping,
+    ::Type{F},
+    ::Type{S},
 ) where {F,S}
-    indices = MOI.get(src, MOI.ListOfConstraintIndices{F, S}())
+    indices = MOI.get(src, MOI.ListOfConstraintIndices{F,S}())
     MOIU.pass_attributes(dest, src, copy_names, mapping, indices)
     return
 end
