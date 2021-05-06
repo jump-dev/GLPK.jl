@@ -86,9 +86,7 @@ function glpk_tst_4()
         indices = round.(Cint, ia)
         resize!(val, cols)
         resize!(indices, cols)
-        GLPK.glp_transform_row(
-            mip, length(ia), GLPK.offset(indices), GLPK.offset(val)
-        )
+        GLPK.glp_transform_row(mip, length(ia), GLPK.offset(indices), GLPK.offset(val))
     end
 
     for i = 1:100
@@ -96,9 +94,7 @@ function glpk_tst_4()
         indices = round.(Cint, ia)
         resize!(val, rows)
         resize!(indices, rows)
-        GLPK.glp_transform_col(
-            mip, length(ia), GLPK.offset(indices), GLPK.offset(val)
-        )
+        GLPK.glp_transform_col(mip, length(ia), GLPK.offset(indices), GLPK.offset(val))
     end
 
     for i = 1:100
@@ -112,7 +108,12 @@ function glpk_tst_4()
         val = val[basic]
 
         prt = GLPK.glp_prim_rtest(
-            mip, length(ia), GLPK.offset(ia), GLPK.offset(val), dir, eps
+            mip,
+            length(ia),
+            GLPK.offset(ia),
+            GLPK.offset(val),
+            dir,
+            eps,
         )
     end
 
@@ -121,13 +122,18 @@ function glpk_tst_4()
         dir = 2 * rand(Bool) - 1
         eps = 1e-9
 
-        nonbasic = map(x->!var_is_basic(mip, x), ia)
+        nonbasic = map(x -> !var_is_basic(mip, x), ia)
 
         ia = Cint.(ia[nonbasic])
         val = val[nonbasic]
 
         drt = GLPK.glp_dual_rtest(
-            mip, length(ia), GLPK.offset(ia), GLPK.offset(val), dir, eps
+            mip,
+            length(ia),
+            GLPK.offset(ia),
+            GLPK.offset(val),
+            dir,
+            eps,
         )
     end
 
@@ -139,9 +145,7 @@ function glpk_tst_4()
             coef2 = Ref{Cdouble}()
             var2 = Ref{Cint}()
             value2 = Ref{Cdouble}()
-            ac = GLPK.glp_analyze_coef(
-                mip, i, coef1, var1, value1, coef2, var2, value2
-            )
+            ac = GLPK.glp_analyze_coef(mip, i, coef1, var1, value1, coef2, var2, value2)
         else
             limit1 = Ref{Cdouble}()
             var1 = Ref{Cint}()

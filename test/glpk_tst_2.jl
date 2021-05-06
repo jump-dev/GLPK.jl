@@ -28,7 +28,8 @@ function glpk_tst_2()
     GLPK.glp_read_mps(lp, GLPK.GLP_MPS_DECK, C_NULL, joinpath(datadir, "plan.mps"))
     @test GLPK.glp_simplex(lp, C_NULL) == 0
 
-    @test GLPK.glp_read_mps(lp, GLPK.GLP_MPS_DECK, C_NULL, joinpath(datadir, "plan.lp")) != 0
+    @test GLPK.glp_read_mps(lp, GLPK.GLP_MPS_DECK, C_NULL, joinpath(datadir, "plan.lp")) !=
+          0
     @test GLPK.glp_write_mps(lp, GLPK.GLP_MPS_FILE, C_NULL, "") != 0
 
     mktemp() do path, _

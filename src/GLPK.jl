@@ -1,6 +1,6 @@
 module GLPK
 
-if haskey(ENV,"JULIA_GLPK_LIBRARY_PATH") || VERSION < v"1.3"
+if haskey(ENV, "JULIA_GLPK_LIBRARY_PATH") || VERSION < v"1.3"
     deps_file = joinpath(dirname(@__DIR__), "deps", "deps.jl")
     if isfile(deps_file)
         include(deps_file)
@@ -63,7 +63,7 @@ include("MOI_wrapper/deprecated_constants.jl")
 # these symbols in your environment, then use `import GLPK` instead of
 # `using GLPK`.
 
-for sym in names(@__MODULE__, all=true)
+for sym in names(@__MODULE__, all = true)
     sym_string = string(sym)
     if startswith(sym_string, "GLP_") || startswith(sym_string, "glp_")
         @eval export $sym

@@ -104,7 +104,7 @@ function MOI.submit(
     model::Optimizer,
     cb::MOI.LazyConstraint{CallbackData},
     f::MOI.ScalarAffineFunction{Float64},
-    s::Union{MOI.LessThan{Float64}, MOI.GreaterThan{Float64}, MOI.EqualTo{Float64}}
+    s::Union{MOI.LessThan{Float64},MOI.GreaterThan{Float64},MOI.EqualTo{Float64}},
 )
     if model.callback_state == CB_USER_CUT
         throw(MOI.InvalidCallbackUsage(MOI.UserCutCallback(), cb))
@@ -135,7 +135,7 @@ function MOI.submit(
     model::Optimizer,
     cb::MOI.UserCut{CallbackData},
     f::MOI.ScalarAffineFunction{Float64},
-    s::Union{MOI.LessThan{Float64}, MOI.GreaterThan{Float64}}
+    s::Union{MOI.LessThan{Float64},MOI.GreaterThan{Float64}},
 )
     if model.callback_state == CB_LAZY
         throw(MOI.InvalidCallbackUsage(MOI.LazyConstraintCallback(), cb))
@@ -174,7 +174,7 @@ function MOI.submit(
     model::Optimizer,
     cb::MOI.HeuristicSolution{CallbackData},
     variables::Vector{MOI.VariableIndex},
-    values::MOI.Vector{Float64}
+    values::MOI.Vector{Float64},
 )
     if model.callback_state == CB_LAZY
         throw(MOI.InvalidCallbackUsage(MOI.LazyConstraintCallback(), cb))

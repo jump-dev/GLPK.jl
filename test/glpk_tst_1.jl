@@ -35,21 +35,35 @@ function glpk_tst_1()
     ia = zeros(Cint, 9)
     ja = zeros(Cint, 9)
     ar = zeros(Float64, 9)
-    ia[1] = 1; ja[1] = 1; ar[1] = 1.0
-    ia[2] = 1; ja[2] = 2; ar[2] = 1.0
-    ia[3] = 1; ja[3] = 3; ar[3] = 1.0
-    ia[4] = 2; ja[4] = 1; ar[4] = 10.0
-    ia[5] = 2; ja[5] = 2; ar[5] = 4.0
-    ia[6] = 2; ja[6] = 3; ar[6] = 5.0
-    ia[7] = 3; ja[7] = 1; ar[7] = 2.0
-    ia[8] = 3; ja[8] = 2; ar[8] = 2.0
-    ia[9] = 3; ja[9] = 3; ar[9] = 6.0
-    @test GLPK.glp_check_dup(
-        3, 3, length(ia), GLPK.offset(ia), GLPK.offset(ja)
-    ) == 0
-    GLPK.glp_load_matrix(
-        lp, 9, GLPK.offset(ia), GLPK.offset(ja), GLPK.offset(ar)
-    )
+    ia[1] = 1
+    ja[1] = 1
+    ar[1] = 1.0
+    ia[2] = 1
+    ja[2] = 2
+    ar[2] = 1.0
+    ia[3] = 1
+    ja[3] = 3
+    ar[3] = 1.0
+    ia[4] = 2
+    ja[4] = 1
+    ar[4] = 10.0
+    ia[5] = 2
+    ja[5] = 2
+    ar[5] = 4.0
+    ia[6] = 2
+    ja[6] = 3
+    ar[6] = 5.0
+    ia[7] = 3
+    ja[7] = 1
+    ar[7] = 2.0
+    ia[8] = 3
+    ja[8] = 2
+    ar[8] = 2.0
+    ia[9] = 3
+    ja[9] = 3
+    ar[9] = 6.0
+    @test GLPK.glp_check_dup(3, 3, length(ia), GLPK.offset(ia), GLPK.offset(ja)) == 0
+    GLPK.glp_load_matrix(lp, 9, GLPK.offset(ia), GLPK.offset(ja), GLPK.offset(ar))
 
     # mess up with the problem definition, test
     # alternative way to set rows and columns
@@ -106,21 +120,17 @@ function glpk_tst_1()
     @test GLPK.glp_get_row_ub(lp, 1) == 100.0
     indices = zeros(Cint, 3)
     coefficients = zeros(Cdouble, 3)
-    @test GLPK.glp_get_mat_row(
-        lp, 1, GLPK.offset(indices), GLPK.offset(coefficients)
-    ) == 3
-    @test indices == [1,2,3]
-    @test coefficients == [1.0,1.0,1.0]
+    @test GLPK.glp_get_mat_row(lp, 1, GLPK.offset(indices), GLPK.offset(coefficients)) == 3
+    @test indices == [1, 2, 3]
+    @test coefficients == [1.0, 1.0, 1.0]
     @test GLPK.glp_get_rii(lp, 1) == 1.0
 
     @test unsafe_string(GLPK.glp_get_row_name(lp, 2)) == "q"
     @test GLPK.glp_get_row_type(lp, 2) == GLPK.GLP_UP
     @test GLPK.glp_get_row_lb(lp, 2) == -floatmax(Float64)
     @test GLPK.glp_get_row_ub(lp, 2) == 600.0
-    @test GLPK.glp_get_mat_row(
-        lp, 2, GLPK.offset(indices), GLPK.offset(coefficients)
-    ) == 3
-    @test indices == [1,2,3]
+    @test GLPK.glp_get_mat_row(lp, 2, GLPK.offset(indices), GLPK.offset(coefficients)) == 3
+    @test indices == [1, 2, 3]
     @test coefficients == [10.0, 4.0, 5.0]
     @test GLPK.glp_get_rii(lp, 2) == 1.0
 
@@ -128,10 +138,8 @@ function glpk_tst_1()
     @test GLPK.glp_get_row_type(lp, 3) == GLPK.GLP_UP
     @test GLPK.glp_get_row_lb(lp, 3) == -floatmax(Float64)
     @test GLPK.glp_get_row_ub(lp, 3) == 300.0
-    @test GLPK.glp_get_mat_row(
-        lp, 3, GLPK.offset(indices), GLPK.offset(coefficients)
-    ) == 3
-    @test indices == [1,2,3]
+    @test GLPK.glp_get_mat_row(lp, 3, GLPK.offset(indices), GLPK.offset(coefficients)) == 3
+    @test indices == [1, 2, 3]
     @test coefficients == [2.0, 2.0, 6.0]
     @test GLPK.glp_get_rii(lp, 3) == 1.0
 
@@ -161,7 +169,7 @@ function glpk_tst_1()
         @test GLPK.glp_find_row(lp, rn) == ri
     end
     @test GLPK.glp_find_row(lp, "?") == 0
-    for (ci,cn) in enumerate(["x1", "x2", "x3"])
+    for (ci, cn) in enumerate(["x1", "x2", "x3"])
         @test GLPK.glp_find_col(lp, cn) == ci
     end
     @test GLPK.glp_find_col(lp, "?") == 0
@@ -209,8 +217,10 @@ function glpk_tst_1()
     @test ae_max[] == 0 ? (ae_ind[] == 0) : (1 <= ae_ind[] <= GLPK.glp_get_num_rows(lp))
     @test re_max[] == 0 ? (re_ind[] == 0) : (1 <= re_ind[] <= GLPK.glp_get_num_rows(lp))
     GLPK.glp_check_kkt(lp, GLPK.GLP_SOL, GLPK.GLP_KKT_PB, ae_max, ae_ind, re_max, re_ind)
-    @test ae_max[] == 0 ? (ae_ind[] == 0) : (1 <= ae_ind[] <= GLPK.glp_get_num_rows(lp) + GLPK.glp_get_num_cols(lp))
-    @test re_max[] == 0 ? (re_ind[] == 0) : (1 <= re_ind[] <= GLPK.glp_get_num_rows(lp) + GLPK.glp_get_num_cols(lp))
+    @test ae_max[] == 0 ? (ae_ind[] == 0) :
+          (1 <= ae_ind[] <= GLPK.glp_get_num_rows(lp) + GLPK.glp_get_num_cols(lp))
+    @test re_max[] == 0 ? (re_ind[] == 0) :
+          (1 <= re_ind[] <= GLPK.glp_get_num_rows(lp) + GLPK.glp_get_num_cols(lp))
 
     # solve again, using simplex with exact arithmetics
     flag = GLPK.glp_exact(lp, param)
@@ -230,8 +240,10 @@ function glpk_tst_1()
     @test ae_max[] == 0 ? (ae_ind[] == 0) : (1 <= ae_ind[] <= GLPK.glp_get_num_rows(lp))
     @test re_max[] == 0 ? (re_ind[] == 0) : (1 <= re_ind[] <= GLPK.glp_get_num_rows(lp))
     GLPK.glp_check_kkt(lp, GLPK.GLP_SOL, GLPK.GLP_KKT_PB, ae_max, ae_ind, re_max, re_ind)
-    @test ae_max[] == 0 ? (ae_ind[] == 0) : (1 <= ae_ind[] <= GLPK.glp_get_num_rows(lp) + GLPK.glp_get_num_cols(lp))
-    @test re_max[] == 0 ? (re_ind[] == 0) : (1 <= re_ind[] <= GLPK.glp_get_num_rows(lp) + GLPK.glp_get_num_cols(lp))
+    @test ae_max[] == 0 ? (ae_ind[] == 0) :
+          (1 <= ae_ind[] <= GLPK.glp_get_num_rows(lp) + GLPK.glp_get_num_cols(lp))
+    @test re_max[] == 0 ? (re_ind[] == 0) :
+          (1 <= re_ind[] <= GLPK.glp_get_num_rows(lp) + GLPK.glp_get_num_cols(lp))
 
     # verify results
     tol = 1e-10
@@ -282,14 +294,20 @@ function glpk_tst_1()
     @test ae_max[] == 0 ? (ae_ind[] == 0) : (1 <= ae_ind[] <= GLPK.glp_get_num_rows(lp))
     @test re_max[] == 0 ? (re_ind[] == 0) : (1 <= re_ind[] <= GLPK.glp_get_num_rows(lp))
     GLPK.glp_check_kkt(lp, GLPK.GLP_IPT, GLPK.GLP_KKT_PB, ae_max, ae_ind, re_max, re_ind)
-    @test ae_max[] == 0 ? (ae_ind[] == 0) : (1 <= ae_ind[] <= GLPK.glp_get_num_rows(lp) + GLPK.glp_get_num_cols(lp))
-    @test re_max[] == 0 ? (re_ind[] == 0) : (1 <= re_ind[] <= GLPK.glp_get_num_rows(lp) + GLPK.glp_get_num_cols(lp))
+    @test ae_max[] == 0 ? (ae_ind[] == 0) :
+          (1 <= ae_ind[] <= GLPK.glp_get_num_rows(lp) + GLPK.glp_get_num_cols(lp))
+    @test re_max[] == 0 ? (re_ind[] == 0) :
+          (1 <= re_ind[] <= GLPK.glp_get_num_rows(lp) + GLPK.glp_get_num_cols(lp))
     GLPK.glp_check_kkt(lp, GLPK.GLP_IPT, GLPK.GLP_KKT_DE, ae_max, ae_ind, re_max, re_ind)
-    @test ae_max[] == 0 ? (ae_ind[] == 0) : (1 <= ae_ind[] - GLPK.glp_get_num_rows(lp) <= GLPK.glp_get_num_cols(lp))
-    @test re_max[] == 0 ? (re_ind[] == 0) : (1 <= re_ind[] - GLPK.glp_get_num_rows(lp) <= GLPK.glp_get_num_cols(lp))
+    @test ae_max[] == 0 ? (ae_ind[] == 0) :
+          (1 <= ae_ind[] - GLPK.glp_get_num_rows(lp) <= GLPK.glp_get_num_cols(lp))
+    @test re_max[] == 0 ? (re_ind[] == 0) :
+          (1 <= re_ind[] - GLPK.glp_get_num_rows(lp) <= GLPK.glp_get_num_cols(lp))
     GLPK.glp_check_kkt(lp, GLPK.GLP_IPT, GLPK.GLP_KKT_DB, ae_max, ae_ind, re_max, re_ind)
-    @test ae_max[] == 0 ? (ae_ind[] == 0) : (1 <= ae_ind[] <= GLPK.glp_get_num_rows(lp) + GLPK.glp_get_num_cols(lp))
-    @test re_max[] == 0 ? (re_ind[] == 0) : (1 <= re_ind[] <= GLPK.glp_get_num_rows(lp) + GLPK.glp_get_num_cols(lp))
+    @test ae_max[] == 0 ? (ae_ind[] == 0) :
+          (1 <= ae_ind[] <= GLPK.glp_get_num_rows(lp) + GLPK.glp_get_num_cols(lp))
+    @test re_max[] == 0 ? (re_ind[] == 0) :
+          (1 <= re_ind[] <= GLPK.glp_get_num_rows(lp) + GLPK.glp_get_num_cols(lp))
 
     # verify results
     tol = 1e-10
