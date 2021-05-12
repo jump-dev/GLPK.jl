@@ -72,7 +72,7 @@ If the model is primal or dual infeasible, GLPK will attempt to find a
 certificate of infeasibility. This can be expensive, particularly if you do not
 intend to use the certificate. If this is the case, use:
 ```julia
-model = Model() -> GLPK.Optimizer(want_infeasibility_certificates = false))
+model = Model(() -> GLPK.Optimizer(want_infeasibility_certificates = false))
 ```
 ## Callbacks
 
