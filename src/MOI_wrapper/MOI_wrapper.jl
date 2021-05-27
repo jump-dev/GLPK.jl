@@ -180,7 +180,7 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
         model.simplex_param = glp_smcp()
         glp_init_smcp(model.simplex_param)
 
-        MOI.set(model, MOI.RawParameter("msg_lev"), GLP_MSG_ERR)
+        MOI.set(model, MOI.RawParameter("msg_lev"), GLP_MSG_ON)
         if length(kwargs) > 0
             @warn(
                 "Passing parameters as keyword arguments is deprecated. Use " *
