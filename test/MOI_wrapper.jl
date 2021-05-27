@@ -444,7 +444,7 @@ end
 
 @testset "Default parameters" begin
     model = GLPK.Optimizer()
-    @test MOI.get(model, MOI.RawParameter("msg_lev")) == GLPK.GLP_MSG_ERR
+    @test MOI.get(model, MOI.RawParameter("msg_lev")) == GLPK.GLP_MSG_ON
     @test MOI.get(model, MOI.RawParameter("presolve")) == GLPK.GLP_OFF
     model = GLPK.Optimizer(msg_lev = GLPK.GLP_MSG_ALL, presolve = true)
     @test MOI.get(model, MOI.RawParameter("msg_lev")) == GLPK.GLP_MSG_ALL
