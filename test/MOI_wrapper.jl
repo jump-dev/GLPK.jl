@@ -589,7 +589,15 @@ end
     c8: c + d == 2.2
 """,
     )
-    MOI.copy_to(dest, src; copy_names = true)
+    index_map = MOI.copy_to(dest, src; copy_names = true)
+    @test length(index_map) == 7
+    for (k, v) in index_map
+        if k isa MOI.VariableIndex
+            @test k == v
+        else
+            @test k isa MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64}}
+        end
+    end
     v = MOI.get(dest, MOI.ListOfVariableIndices())
     @test length(v) == 4
     names = MOI.get.(dest, MOI.VariableName(), v)
