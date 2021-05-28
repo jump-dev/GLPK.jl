@@ -138,7 +138,7 @@ function _extract_row_data(src, mapping, lb, ub, I, J, V, ::Type{S}) where {S}
         end
         row += 1
         ind = MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64},S}(row)
-        dict[list[i]] = ind
+        mapping[list[i]] = ind
     end
     return
 end
