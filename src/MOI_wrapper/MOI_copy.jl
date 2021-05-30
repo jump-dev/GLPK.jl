@@ -145,8 +145,10 @@ function _add_all_variables(model::Optimizer, cache::_OptimizerCache)
         glp_set_col_bnds(model, i, glp_bound_type, cache.cl[i], cache.cu[i])
         if cache.types[i] == BINARY
             model.num_binaries += 1
+            glp_set_col_kind(model, i, GLP_IV)
         elseif cache.types[i] == INTEGER
             model.num_integers += 1
+            glp_set_col_kind(model, i, GLP_IV)
         end
     end
     return
@@ -154,6 +156,9 @@ end
 
 function _add_all_constraints(dest::Optimizer, cache::_OptimizerCache)
     N = length(cache.rl)
+    if N == 0
+        return  # GLPK doesn't like it if we add 0 rows...
+    end
     glp_add_rows(dest, N)
     glp_load_matrix(
         dest,
