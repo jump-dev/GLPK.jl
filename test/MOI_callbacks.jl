@@ -25,9 +25,7 @@ end
 function _callback_simple_model(cache)
     model = if cache
         m = MOI.Utilities.CachingOptimizer(
-            MOI.Utilities.UniversalFallback(
-                MOI.Utilities.Model{Float64}(),
-            ),
+            MOI.Utilities.UniversalFallback(MOI.Utilities.Model{Float64}()),
             GLPK.Optimizer(),
         )
         MOI.Utilities.reset_optimizer(m)
@@ -55,9 +53,7 @@ end
 function _callback_knapsack_model(cache)
     model = if cache
         m = MOI.Utilities.CachingOptimizer(
-            MOI.Utilities.UniversalFallback(
-                MOI.Utilities.Model{Float64}(),
-            ),
+            MOI.Utilities.UniversalFallback(MOI.Utilities.Model{Float64}()),
             GLPK.Optimizer(),
         )
         MOI.Utilities.reset_optimizer(m)
@@ -93,19 +89,10 @@ function test_lazy_constraint(cache)
         MOI.LazyConstraintCallback(),
         (cb_data) -> begin
             lazy_called = true
-            x_val = MOI.get(
-                model,
-                MOI.CallbackVariablePrimal(cb_data),
-                x,
-            )
-            y_val = MOI.get(
-                model,
-                MOI.CallbackVariablePrimal(cb_data),
-                y,
-            )
+            x_val = MOI.get(model, MOI.CallbackVariablePrimal(cb_data), x)
+            y_val = MOI.get(model, MOI.CallbackVariablePrimal(cb_data), y)
             @test MOI.supports(model, MOI.LazyConstraint(cb_data))
-            status =
-                MOI.get(model, MOI.CallbackNodeStatus(cb_data))
+            status = MOI.get(model, MOI.CallbackNodeStatus(cb_data))
             if [x_val, y_val] ≈ round.(Int, [x_val, y_val])
                 atol = 1e-7
                 @test status == MOI.CALLBACK_NODE_STATUS_INTEGER
@@ -162,7 +149,7 @@ function test_lazy_constraint_optimize_in_progress(cache)
             )
         end,
     )
-    MOI.optimize!(model)
+    return MOI.optimize!(model)
 end
 
 function test_no_cache_LazyConstraint_UserCut()
@@ -174,10 +161,7 @@ function test_no_cache_LazyConstraint_UserCut()
             MOI.submit(
                 model,
                 MOI.UserCut(cb_data),
-                MOI.ScalarAffineFunction(
-                    [MOI.ScalarAffineTerm(1.0, x)],
-                    0.0,
-                ),
+                MOI.ScalarAffineFunction([MOI.ScalarAffineTerm(1.0, x)], 0.0),
                 MOI.LessThan(2.0),
             )
         end,
@@ -197,12 +181,7 @@ function test_no_cache_LazyConstraint_HeuristicSolution()
         model,
         MOI.LazyConstraintCallback(),
         (cb_data) -> begin
-            MOI.submit(
-                model,
-                MOI.HeuristicSolution(cb_data),
-                [x, y],
-                [1.0, 2.0],
-            )
+            MOI.submit(model, MOI.HeuristicSolution(cb_data), [x, y], [1.0, 2.0])
         end,
     )
     @test_throws(
@@ -230,8 +209,7 @@ function test_UserCut(cache)
                 end
             end
             @test MOI.supports(model, MOI.UserCut(cb_data))
-            status =
-                MOI.get(model, MOI.CallbackNodeStatus(cb_data))
+            status = MOI.get(model, MOI.CallbackNodeStatus(cb_data))
             @test status == MOI.CALLBACK_NODE_STATUS_FRACTIONAL
             if accumulated > 10.0
                 MOI.submit(
@@ -258,10 +236,7 @@ function test_no_cache_UserCut_LazyConstraint()
             MOI.submit(
                 model,
                 MOI.LazyConstraint(cb_data),
-                MOI.ScalarAffineFunction(
-                    MOI.ScalarAffineTerm.(1.0, x),
-                    0.0,
-                ),
+                MOI.ScalarAffineFunction(MOI.ScalarAffineTerm.(1.0, x), 0.0),
                 MOI.LessThan(5.0),
             )
         end,
@@ -306,8 +281,7 @@ function test_Heuristic(cache)
         model,
         MOI.HeuristicCallback(),
         (cb_data) -> begin
-            x_vals =
-                MOI.get.(model, MOI.CallbackVariablePrimal(cb_data), x)
+            x_vals = MOI.get.(model, MOI.CallbackVariablePrimal(cb_data), x)
             @test MOI.supports(model, MOI.HeuristicSolution(cb_data))
             if MOI.submit(
                 model,
@@ -325,8 +299,7 @@ function test_Heuristic(cache)
             ) == MOI.HEURISTIC_SOLUTION_REJECTED
                 solution_rejected = true
             end
-            status =
-                MOI.get(model, MOI.CallbackNodeStatus(cb_data))
+            status = MOI.get(model, MOI.CallbackNodeStatus(cb_data))
             @test status == MOI.CALLBACK_NODE_STATUS_FRACTIONAL
         end,
     )
@@ -345,10 +318,7 @@ function test_no_cache_Heuristic_LazyConstraint()
             MOI.submit(
                 model,
                 MOI.LazyConstraint(cb_data),
-                MOI.ScalarAffineFunction(
-                    MOI.ScalarAffineTerm.(1.0, x),
-                    0.0,
-                ),
+                MOI.ScalarAffineFunction(MOI.ScalarAffineTerm.(1.0, x), 0.0),
                 MOI.LessThan(5.0),
             )
         end,
@@ -371,10 +341,7 @@ function test_no_cache_Heuristic_UserCut()
             MOI.submit(
                 model,
                 MOI.UserCut(cb_data),
-                MOI.ScalarAffineFunction(
-                    MOI.ScalarAffineTerm.(1.0, x),
-                    0.0,
-                ),
+                MOI.ScalarAffineFunction(MOI.ScalarAffineTerm.(1.0, x), 0.0),
                 MOI.LessThan(5.0),
             )
         end,
@@ -409,7 +376,7 @@ function test_CallbackFunction_OptimizeInProgress(cache)
         end,
     )
     @test MOI.supports(model, GLPK.CallbackFunction())
-    MOI.optimize!(model)
+    return MOI.optimize!(model)
 end
 
 function test_CallbackFunction_LazyConstraint(cache)
@@ -475,8 +442,7 @@ function test_CallbackFunction_UserCut(cache)
             reason = GLPK.glp_ios_reason(cb_data.tree)
             push!(cb_calls, reason)
             if reason != GLPK.GLP_ICUTGEN
-                status =
-                    MOI.get(model, MOI.CallbackNodeStatus(cb_data))
+                status = MOI.get(model, MOI.CallbackNodeStatus(cb_data))
                 @test status !== nothing
                 return
             end
@@ -497,8 +463,7 @@ function test_CallbackFunction_UserCut(cache)
                 )
                 user_cut_submitted = true
             end
-            status =
-                MOI.get(model, MOI.CallbackNodeStatus(cb_data))
+            status = MOI.get(model, MOI.CallbackNodeStatus(cb_data))
             @test status == MOI.CALLBACK_NODE_STATUS_FRACTIONAL
         end,
     )
@@ -539,8 +504,7 @@ function test_CallbackFunction_HeuristicSolution(cache)
             ) == MOI.HEURISTIC_SOLUTION_REJECTED
                 solution_rejected = true
             end
-            status =
-                MOI.get(model, MOI.CallbackNodeStatus(cb_data))
+            status = MOI.get(model, MOI.CallbackNodeStatus(cb_data))
             @test status == MOI.CALLBACK_NODE_STATUS_FRACTIONAL
         end,
     )

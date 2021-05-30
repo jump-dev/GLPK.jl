@@ -808,12 +808,9 @@ end
     @test MOI.get(model, MOI.TimeLimitSec()) == 1.235
 end
 
-
 @testset "empty problem" begin
     model = MOI.Utilities.CachingOptimizer(
-        MOI.Utilities.UniversalFallback(
-            MOI.Utilities.Model{Float64}(),
-        ),
+        MOI.Utilities.UniversalFallback(MOI.Utilities.Model{Float64}()),
         GLPK.Optimizer(),
     )
     MOI.Utilities.reset_optimizer(model)
