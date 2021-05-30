@@ -57,6 +57,24 @@ end
             ],
         )
     end
+    @testset "Cached solver for `copy_to`" begin
+        MOIT.contlineartest(
+            MOI.Bridges.full_bridge_optimizer(
+                MOI.Utilities.CachingOptimizer(
+                    MOI.Utilities.UniversalFallback(
+                        MOI.Utilities.Model{Float64}(),
+                    ),
+                    GLPK.Optimizer(),
+                ),
+                Float64,
+            ),
+            MOIT.TestConfig(basis = true),
+            [
+                # VariablePrimalStart not supported.
+                "partial_start",
+            ],
+        )
+    end
 end
 
 @testset "Linear Conic tests" begin
@@ -590,12 +608,17 @@ end
 """,
     )
     index_map = MOI.copy_to(dest, src; copy_names = true)
-    @test length(index_map) == 7
+    @test length(index_map) == 13
     for (k, v) in index_map
-        if k isa MOI.VariableIndex
+        if v isa MOI.VariableIndex
+            @test k == v
+        elseif v isa MOI.ConstraintIndex{MOI.SingleVariable}
             @test k == v
         else
-            @test k isa MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64}}
+            # The order of the linear constraints may change. But they should be
+            # ordered from 1 to 3.
+            @test typeof(k) == typeof(v)
+            @test 1 <= v.value <= 3
         end
     end
     v = MOI.get(dest, MOI.ListOfVariableIndices())
