@@ -87,6 +87,21 @@ end
         CONFIG,
         ["int2", "indicator1", "indicator2", "indicator3", "indicator4"],
     )
+    @testset "Cached solver for `copy_to`" begin
+        MOIT.intlineartest(
+            MOI.Bridges.full_bridge_optimizer(
+                MOI.Utilities.CachingOptimizer(
+                    MOI.Utilities.UniversalFallback(
+                        MOI.Utilities.Model{Float64}(),
+                    ),
+                    GLPK.Optimizer(),
+                ),
+                Float64,
+            ),
+            CONFIG,
+            ["int2", "indicator1", "indicator2", "indicator3", "indicator4"],
+        )
+    end
 end
 
 @testset "ModelLike tests" begin
@@ -791,4 +806,15 @@ end
     model = GLPK.Optimizer()
     MOI.set(model, MOI.TimeLimitSec(), 1.2345)
     @test MOI.get(model, MOI.TimeLimitSec()) == 1.235
+end
+
+@testset "empty problem" begin
+    model = MOI.Utilities.CachingOptimizer(
+        MOI.Utilities.UniversalFallback(MOI.Utilities.Model{Float64}()),
+        GLPK.Optimizer(),
+    )
+    MOI.Utilities.reset_optimizer(model)
+    MOI.add_variable(model)
+    MOI.optimize!(model)
+    @test MOI.get(model, MOI.TerminationStatus()) == MOI.OPTIMAL
 end
