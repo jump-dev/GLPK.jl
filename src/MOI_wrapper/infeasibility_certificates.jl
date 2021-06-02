@@ -25,7 +25,7 @@ Assumes `ray` has been initialized to all `0.0`s.
 """
 function _get_infeasibility_ray(model::Optimizer, ray::Vector{Float64})
     if glp_get_num_nz(model) == 0
-        return false  # GLPK aborts if you try to facotrize an empty problem.
+        return false  # GLPK aborts if you try to factorize an empty problem.
     end
     m = glp_get_num_rows(model)
     n = glp_get_num_cols(model)
@@ -78,7 +78,7 @@ Assumes `ray` has been initialized to all `0.0`s.
 """
 function _get_unbounded_ray(model::Optimizer, ray::Vector{Float64})
     if glp_get_num_nz(model) == 0
-        return false  # GLPK aborts if you try to facotrize an empty problem.
+        return false  # GLPK aborts if you try to factorize an empty problem.
     end
     m = glp_get_num_rows(model)
     n = glp_get_num_cols(model)
