@@ -818,3 +818,39 @@ end
     MOI.optimize!(model)
     @test MOI.get(model, MOI.TerminationStatus()) == MOI.OPTIMAL
 end
+
+@testset "empty_problem_infeasible" begin
+    model = GLPK.Optimizer()
+    x = MOI.add_variable(model)
+    MOI.add_constraint(
+        model,
+        MOI.ScalarAffineFunction([MOI.ScalarAffineTerm(0.0, x)], 0.0),
+        MOI.GreaterThan(1.0),
+    )
+    MOI.add_constraint(
+        model,
+        MOI.ScalarAffineFunction([MOI.ScalarAffineTerm(0.0, x)], 0.0),
+        MOI.EqualTo(0.0),
+    )
+    MOI.optimize!(model)
+    @test MOI.get(model, MOI.TerminationStatus()) == MOI.INFEASIBLE
+    @test MOI.get(model, MOI.PrimalStatus()) == MOI.NO_SOLUTION
+    @test MOI.get(model, MOI.DualStatus()) == MOI.NO_SOLUTION
+end
+
+@testset "empty_problem_unbounded" begin
+    model = GLPK.Optimizer()
+    x = MOI.add_variable(model)
+    MOI.add_constraint(
+        model,
+        MOI.ScalarAffineFunction([MOI.ScalarAffineTerm(0.0, x)], 0.0),
+        MOI.EqualTo(0.0),
+    )
+    f = MOI.ScalarAffineFunction([MOI.ScalarAffineTerm(1.0, x)], 0.0)
+    MOI.set(model, MOI.ObjectiveFunction{typeof(f)}(), f)
+    MOI.set(model, MOI.ObjectiveSense(), MOI.MAX_SENSE)
+    MOI.optimize!(model)
+    @test MOI.get(model, MOI.TerminationStatus()) == MOI.DUAL_INFEASIBLE
+    @test MOI.get(model, MOI.PrimalStatus()) == MOI.NO_SOLUTION
+    @test MOI.get(model, MOI.DualStatus()) == MOI.NO_SOLUTION
+end
