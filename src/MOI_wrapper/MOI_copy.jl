@@ -45,10 +45,21 @@ function _validate_constraint_types(dest::Optimizer, src::MOI.ModelLike)
                 ),
             )
         end
+        for attr in MOI.get(src, MOI.ListOfConstraintAttributesSet{F,S}())
+            if !MOI.supports(dest, attr, MOI.ConstraintIndex{F,S})
+                throw(MOI.UnsupportedAttribute(attr))
+            end
+        end
     end
-    fobj_type = MOI.get(src, MOI.ObjectiveFunctionType())
-    if !MOI.supports(dest, MOI.ObjectiveFunction{fobj_type}())
-        throw(MOI.UnsupportedAttribute(MOI.ObjectiveFunction(fobj_type)))
+    for attr in MOI.get(src, MOI.ListOfModelAttributesSet())
+        if !MOI.supports(dest, attr)
+            throw(MOI.UnsupportedAttribute(attr))
+        end
+    end
+    for attr in MOI.get(src, MOI.ListOfVariableAttributesSet())
+        if !MOI.supports(dest, attr, MOI.VariableIndex)
+            throw(MOI.UnsupportedAttribute(attr))
+        end
     end
     return
 end
