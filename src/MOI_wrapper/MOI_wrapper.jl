@@ -432,8 +432,21 @@ function MOI.get(model::Optimizer, ::MOI.ListOfModelAttributesSet)
     return attributes
 end
 
-function MOI.get(model::Optimizer, ::MOI.ListOfConstraintAttributesSet)
+function MOI.get(
+    ::Optimizer,
+    ::MOI.ListOfConstraintAttributesSet,
+)
     return MOI.AbstractConstraintAttribute[MOI.ConstraintName()]
+end
+
+function MOI.get(
+    ::Optimizer,
+    ::MOI.ListOfConstraintAttributesSet{
+        MOI.SingleVariable,
+        <:MOI.AbstractScalarSet,
+    },
+)
+    return MOI.AbstractConstraintAttribute[]
 end
 
 function _indices_and_coefficients(
@@ -2148,36 +2161,22 @@ end
 
 function MOI.get(
     model::Optimizer,
-    attr::MOI.ConstraintBasisStatus,
-    c::MOI.ConstraintIndex{MOI.SingleVariable,S},
-) where {S<:_SCALAR_SETS}
+    attr::MOI.VariableBasisStatus,
+    x::MOI.VariableIndex,
+)
     _throw_if_optimize_in_progress(model, attr)
-    col = column(model, c)
+    col = column(model, x)
     vbasis = glp_get_col_stat(model, col)
     if vbasis == GLP_BS
         return MOI.BASIC
     elseif vbasis == GLP_NL
-        if S <: MOI.LessThan
-            return MOI.BASIC
-        elseif !(S <: MOI.Interval)
-            return MOI.NONBASIC
-        else
-            return MOI.NONBASIC_AT_LOWER
-        end
+        return MOI.NONBASIC_AT_LOWER
     elseif vbasis == GLP_NU
-        MOI.NONBASIC_AT_UPPER
-        if S <: MOI.GreaterThan
-            return MOI.BASIC
-        elseif !(S <: MOI.Interval)
-            return MOI.NONBASIC
-        else
-            return MOI.NONBASIC_AT_UPPER
-        end
+        return MOI.NONBASIC_AT_UPPER
     elseif vbasis == GLP_NF
         return MOI.NONBASIC
-    elseif vbasis == GLP_NS
-        return MOI.NONBASIC
     else
-        error("VBasis value of $(vbasis) isn't defined.")
+        @assert vbasis == GLP_NS
+        return MOI.SUPERBASIC
     end
 end

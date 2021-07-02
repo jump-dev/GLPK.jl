@@ -1,253 +1,92 @@
-using GLPK, Test
+module TestMOIWrapper
+
+using GLPK
+using Test
 
 const MOI = GLPK.MathOptInterface
-const MOIT = MOI.Test
 
-const OPTIMIZER = MOI.Bridges.full_bridge_optimizer(GLPK.Optimizer(), Float64)
-const CONFIG = MOIT.Config()
+function runtests()
+    for name in names(@__MODULE__; all = true)
+        if startswith("$(name)", "test_")
+            @testset "$(name)" begin
+                getfield(@__MODULE__, name)()
+            end
+        end
+    end
+    return
+end
 
-@testset "Unit Tests" begin
-    MOIT.basic_constraint_tests(OPTIMIZER, CONFIG)
-    MOIT.unittest(
-        OPTIMIZER,
-        CONFIG,
-        [
-            # FIXME `NumberOfThreads` not supported
-            "number_threads",
-            # These are excluded because GLPK does not support quadratics.
-            "solve_qcp_edge_cases",
-            "solve_qp_edge_cases",
-            "delete_soc_variables",
-
-            # Tested below because the termination status is different.
-            "solve_zero_one_with_bounds_3",
-
-            # TODO(odow): not implemented.
-            "number_threads",
-        ],
+# TODO: also run the test for this model:
+# MOI.Bridges.full_bridge_optimizer(
+#     MOI.Utilities.CachingOptimizer(
+#         MOI.Utilities.UniversalFallback(
+#             MOI.Utilities.Model{Float64}(),
+#         ),
+#         GLPK.Optimizer(),
+#     ),
+#     Float64,
+# )
+function test_MOI_Test()
+    MOI.Test.runtests(
+        MOI.Bridges.full_bridge_optimizer(GLPK.Optimizer(), Float64),
+        MOI.Test.Config();
+        exclude = [
+            # GLPK returns INVALID_MODEL instead of INFEASIBLE
+            "test_constraint_ZeroOne_bounds_3",
+            # Upstream issue: https://github.com/jump-dev/MathOptInterface.jl/issues/1398#issuecomment-872633881
+            "test_constraint_ConstraintDualStart",
+            "test_constraint_ConstraintPrimalStart",
+            # Upstream issue: https://github.com/jump-dev/MathOptInterface.jl/issues/1431
+            "test_model_LowerBoundAlreadySet",
+            "test_model_UpperBoundAlreadySet",
+        ]
     )
-    @testset "solve_zero_one_with_bounds_3" begin
-        MOI.empty!(OPTIMIZER)
-        MOI.Utilities.loadfromstring!(
-            OPTIMIZER,
-            """
-    variables: x
-    maxobjective: 2.0x
-    x in ZeroOne()
-    x >= 0.2
-    x <= 0.5
-""",
-        )
-        MOI.optimize!(OPTIMIZER)
-        # We test this here because the TerminationStatus is INVALID_MODEL not
-        # INFEASIBLE.
-        @test MOI.get(OPTIMIZER, MOI.TerminationStatus()) == MOI.INVALID_MODEL
-    end
-    MOIT.modificationtest(OPTIMIZER, CONFIG)
+    return
 end
 
-@testset "Linear tests" begin
-    @testset "Default Solver" begin
-        MOIT.contlineartest(
-            OPTIMIZER,
-            MOIT.Config(basis = true),
-            [
-                # VariablePrimalStart not supported.
-                "partial_start",
-            ],
-        )
-    end
-    @testset "Cached solver for `copy_to`" begin
-        MOIT.contlineartest(
-            MOI.Bridges.full_bridge_optimizer(
-                MOI.Utilities.CachingOptimizer(
-                    MOI.Utilities.UniversalFallback(
-                        MOI.Utilities.Model{Float64}(),
-                    ),
-                    GLPK.Optimizer(),
-                ),
-                Float64,
-            ),
-            MOIT.Config(basis = true),
-            [
-                # VariablePrimalStart not supported.
-                "partial_start",
-            ],
-        )
-    end
-end
-
-@testset "Linear Conic tests" begin
-    MOIT.lintest(OPTIMIZER, CONFIG)
-end
-
-@testset "Integer Linear tests" begin
-    MOIT.intlineartest(
-        OPTIMIZER,
-        CONFIG,
-        ["int2", "indicator1", "indicator2", "indicator3", "indicator4"],
-    )
-    @testset "Cached solver for `copy_to`" begin
-        MOIT.intlineartest(
-            MOI.Bridges.full_bridge_optimizer(
-                MOI.Utilities.CachingOptimizer(
-                    MOI.Utilities.UniversalFallback(
-                        MOI.Utilities.Model{Float64}(),
-                    ),
-                    GLPK.Optimizer(),
-                ),
-                Float64,
-            ),
-            CONFIG,
-            ["int2", "indicator1", "indicator2", "indicator3", "indicator4"],
-        )
-    end
-end
-
-@testset "ModelLike tests" begin
-    @test MOI.get(OPTIMIZER, MOI.SolverName()) == "GLPK"
-
-    @testset "default_objective_test" begin
-        MOIT.default_objective_test(OPTIMIZER)
-    end
-
-    @testset "default_status_test" begin
-        MOIT.default_status_test(OPTIMIZER)
-    end
-
-    @testset "nametest" begin
-        MOIT.nametest(OPTIMIZER)
-    end
-
-    @testset "validtest" begin
-        MOIT.validtest(OPTIMIZER)
-    end
-
-    @testset "emptytest" begin
-        MOIT.emptytest(OPTIMIZER)
-    end
-
-    @testset "orderedindicestest" begin
-        MOIT.orderedindicestest(OPTIMIZER)
-    end
-
-    @testset "copytest" begin
-        MOIT.copytest(
-            OPTIMIZER,
-            MOI.Bridges.full_bridge_optimizer(GLPK.Optimizer(), Float64),
-        )
-    end
-
-    @testset "scalar_function_constant_not_zero" begin
-        MOIT.scalar_function_constant_not_zero(OPTIMIZER)
-    end
-
-    @testset "start_values_test" begin
-        # We don't support ConstraintDualStart or ConstraintPrimalStart yet.
-        # @test_broken MOIT.start_values_test(GLPK.Optimizer(), OPTIMIZER)
-    end
-
-    @testset "supports_constrainttest" begin
-        # supports_constrainttest needs VectorOfVariables-in-Zeros,
-        # MOIT.supports_constrainttest(GLPK.Optimizer(), Float64, Float32)
-        # but supports_constrainttest is broken via bridges:
-        MOI.empty!(OPTIMIZER)
-        MOI.add_variable(OPTIMIZER)
-        @test MOI.supports_constraint(
-            OPTIMIZER,
-            MOI.SingleVariable,
-            MOI.EqualTo{Float64},
-        )
-        @test MOI.supports_constraint(
-            OPTIMIZER,
-            MOI.ScalarAffineFunction{Float64},
-            MOI.EqualTo{Float64},
-        )
-        # This test is broken for some reason:
-        @test_broken !MOI.supports_constraint(
-            OPTIMIZER,
-            MOI.ScalarAffineFunction{Int},
-            MOI.EqualTo{Float64},
-        )
-        @test !MOI.supports_constraint(
-            OPTIMIZER,
-            MOI.ScalarAffineFunction{Int},
-            MOI.EqualTo{Int},
-        )
-        @test !MOI.supports_constraint(
-            OPTIMIZER,
-            MOI.SingleVariable,
-            MOI.EqualTo{Int},
-        )
-        @test MOI.supports_constraint(
-            OPTIMIZER,
-            MOI.VectorOfVariables,
-            MOI.Zeros,
-        )
-        @test !MOI.supports_constraint(
-            OPTIMIZER,
-            MOI.VectorOfVariables,
-            MOI.EqualTo{Float64},
-        )
-        @test !MOI.supports_constraint(OPTIMIZER, MOI.SingleVariable, MOI.Zeros)
-        @test !MOI.supports_constraint(
-            OPTIMIZER,
-            MOI.VectorOfVariables,
-            MOIT.UnknownVectorSet,
-        )
-    end
-
-    @testset "set_lower_bound_twice" begin
-        MOIT.set_lower_bound_twice(GLPK.Optimizer(), Float64)
-    end
-
-    @testset "set_upper_bound_twice" begin
-        MOIT.set_upper_bound_twice(GLPK.Optimizer(), Float64)
-    end
-end
-
-@testset "Parameter setting" begin
+function test_parameter_setting()
     solver = GLPK.Optimizer(tm_lim = 1, ord_alg = 2, alien = 3)
     @test solver.simplex_param.tm_lim == 1
     @test solver.intopt_param.tm_lim == 1
     @test solver.interior_param.ord_alg == 2
     @test solver.intopt_param.alien == 3
+    return
 end
 
-@testset "Issue #79" begin
-    @testset "An unbounded integer model" begin
-        model = GLPK.Optimizer()
-        MOI.Utilities.loadfromstring!(
-            model,
-            """
-    variables: x, y
-    minobjective: -5.0x + y
-    x in Integer()
-    x in LessThan(1.0)
+function test_unbounded_integer_model()
+    model = GLPK.Optimizer()
+    MOI.Utilities.loadfromstring!(
+        model,
+        """
+variables: x, y
+minobjective: -5.0x + y
+x in Integer()
+x in LessThan(1.0)
 """,
-        )
-        MOI.optimize!(model)
-        @test MOI.get(model, MOI.TerminationStatus()) == MOI.DUAL_INFEASIBLE
-    end
-
-    @testset "An infeasible integer model" begin
-        model = GLPK.Optimizer()
-        MOI.Utilities.loadfromstring!(
-            model,
-            """
-    variables: x
-    minobjective: -5.0x
-    x in Integer()
-    x in LessThan(1.0)
-    c3: 1.0x in GreaterThan(2.0)
-""",
-        )
-        MOI.optimize!(model)
-        @test MOI.get(model, MOI.TerminationStatus()) == MOI.INFEASIBLE
-    end
+    )
+    MOI.optimize!(model)
+    @test MOI.get(model, MOI.TerminationStatus()) == MOI.DUAL_INFEASIBLE
+    return
 end
 
-@testset "Issue #70" begin
+function test_infeasible_integer_model()
+    model = GLPK.Optimizer()
+    MOI.Utilities.loadfromstring!(
+        model,
+        """
+variables: x
+minobjective: -5.0x
+x in Integer()
+x in LessThan(1.0)
+c3: 1.0x in GreaterThan(2.0)
+""",
+    )
+    MOI.optimize!(model)
+    @test MOI.get(model, MOI.TerminationStatus()) == MOI.INFEASIBLE
+    return
+end
+
+function test_issue_70()
     model = GLPK.Optimizer()
     x = MOI.add_variable(model)
     f = MOI.ScalarAffineFunction(MOI.ScalarAffineTerm.([1.0], [x]), 0.0)
@@ -263,17 +102,19 @@ end
     @test GLPK.glp_get_row_type(model.inner, row) == GLPK.GLP_UP
     @test GLPK.glp_get_row_lb(model.inner, row) == -GLPK.GLP_DBL_MAX
     @test GLPK.glp_get_row_ub(model.inner, row) == 1.0
+    return
 end
 
-@testset "Infeasible bounds" begin
+function test_infeasible_bounds()
     model = GLPK.Optimizer()
     x = MOI.add_variable(model)
     MOI.add_constraint(model, MOI.SingleVariable(x), MOI.Interval(1.0, -1.0))
     MOI.optimize!(model)
     @test MOI.get(model, MOI.TerminationStatus()) == MOI.INVALID_MODEL
+    return
 end
 
-@testset "RawOptimizerAttribute" begin
+function test_RawOptimizerAttribute()
     model = GLPK.Optimizer(method = GLPK.SIMPLEX)
     exception = ErrorException(
         "Invalid option: cb_func. Use the MOI attribute `GLPK.CallbackFunction` instead.",
@@ -334,9 +175,10 @@ end
     model = GLPK.Optimizer()
     MOI.set(model, MOI.RawOptimizerAttribute("mip_gap"), 0.001)
     @test MOI.get(model, MOI.RawOptimizerAttribute("mip_gap")) == 0.001
+    return
 end
 
-@testset "TimeLimitSec issue #110" begin
+function test_TimeLimitSec_issue_110()
     model = GLPK.Optimizer(method = GLPK.SIMPLEX)
     MOI.set(model, MOI.TimeLimitSec(), nothing)
     @test MOI.get(model, MOI.RawOptimizerAttribute("tm_lim")) == typemax(Int32)
@@ -346,9 +188,10 @@ end
     # conversion between ms and sec
     MOI.set(model, MOI.RawOptimizerAttribute("tm_lim"), 100)
     @test isapprox(MOI.get(model, MOI.TimeLimitSec()), 0.1)
+    return
 end
 
-@testset "RelativeGap" begin
+function test_RelativeGap()
     model = GLPK.Optimizer()
     MOI.Utilities.loadfromstring!(
         model,
@@ -373,42 +216,10 @@ end
     )
     MOI.optimize!(model)
     @test_throws ErrorException MOI.get(model, MOI.RelativeGap())
+    return
 end
 
-@testset "Extra name tests" begin
-    model = GLPK.Optimizer()
-    @testset "Variables" begin
-        MOI.empty!(model)
-        x = MOI.add_variables(model, 2)
-        MOI.set(model, MOI.VariableName(), x[1], "x1")
-        @test MOI.get(model, MOI.VariableIndex, "x1") == x[1]
-        MOI.set(model, MOI.VariableName(), x[1], "x2")
-        @test MOI.get(model, MOI.VariableIndex, "x1") === nothing
-        @test MOI.get(model, MOI.VariableIndex, "x2") == x[1]
-        MOI.set(model, MOI.VariableName(), x[2], "x1")
-        @test MOI.get(model, MOI.VariableIndex, "x1") == x[2]
-        MOI.set(model, MOI.VariableName(), x[1], "x1")
-        @test_throws ErrorException MOI.get(model, MOI.VariableIndex, "x1")
-    end
-    @testset "Affine constraints" begin
-        MOI.empty!(model)
-        x = MOI.add_variable(model)
-        f = MOI.ScalarAffineFunction([MOI.ScalarAffineTerm(1.0, x)], 0.0)
-        c1 = MOI.add_constraint(model, f, MOI.GreaterThan(0.0))
-        c2 = MOI.add_constraint(model, f, MOI.LessThan(1.0))
-        MOI.set(model, MOI.ConstraintName(), c1, "c1")
-        @test MOI.get(model, MOI.ConstraintIndex, "c1") == c1
-        MOI.set(model, MOI.ConstraintName(), c1, "c2")
-        @test MOI.get(model, MOI.ConstraintIndex, "c1") === nothing
-        @test MOI.get(model, MOI.ConstraintIndex, "c2") == c1
-        MOI.set(model, MOI.ConstraintName(), c2, "c1")
-        @test MOI.get(model, MOI.ConstraintIndex, "c1") == c2
-        MOI.set(model, MOI.ConstraintName(), c1, "c1")
-        @test_throws ErrorException MOI.get(model, MOI.ConstraintIndex, "c1")
-    end
-end
-
-@testset "Issue #102" begin
+function test_issue_102()
     model = GLPK.Optimizer()
     x = MOI.add_variable(model)
     MOI.add_constraint(model, MOI.SingleVariable(x), MOI.GreaterThan(0.0))
@@ -422,9 +233,10 @@ end
     MOI.optimize!(model)
     @test MOI.get(model, MOI.ObjectiveValue()) == 3.0
     @test MOI.get(model, MOI.ObjectiveBound()) == 3.0
+    return
 end
 
-@testset "Issue #116" begin
+function test_issue_116()
     model = GLPK.Optimizer(method = GLPK.EXACT)
     x = MOI.add_variables(model, 2)
     c1 = MOI.add_constraint(
@@ -450,9 +262,10 @@ end
     @test cd1 <= 1e-6
     @test MOI.get(model, MOI.ConstraintDual(), c2) ≈ -cd1 atol = 1e-6
     @test MOI.get(model, MOI.ConstraintDual(), c3) ≈ -cd1 atol = 1e-6
+    return
 end
 
-@testset "Default parameters" begin
+function test_default_parameters()
     model = GLPK.Optimizer()
     @test MOI.get(model, MOI.RawOptimizerAttribute("msg_lev")) ==
           GLPK.GLP_MSG_ERR
@@ -461,49 +274,10 @@ end
     @test MOI.get(model, MOI.RawOptimizerAttribute("msg_lev")) ==
           GLPK.GLP_MSG_ALL
     @test MOI.get(model, MOI.RawOptimizerAttribute("presolve")) == GLPK.GLP_ON
+    return
 end
 
-@testset "Duplicate names" begin
-    @testset "Variables" begin
-        model = GLPK.Optimizer()
-        (x, y, z) = MOI.add_variables(model, 3)
-        MOI.set(model, MOI.VariableName(), x, "x")
-        MOI.set(model, MOI.VariableName(), y, "x")
-        MOI.set(model, MOI.VariableName(), z, "z")
-        @test MOI.get(model, MOI.VariableIndex, "z") == z
-        @test_throws ErrorException MOI.get(model, MOI.VariableIndex, "x")
-        MOI.set(model, MOI.VariableName(), y, "y")
-        @test MOI.get(model, MOI.VariableIndex, "x") == x
-        @test MOI.get(model, MOI.VariableIndex, "y") == y
-        MOI.set(model, MOI.VariableName(), z, "x")
-        @test_throws ErrorException MOI.get(model, MOI.VariableIndex, "x")
-        MOI.delete(model, x)
-        @test MOI.get(model, MOI.VariableIndex, "x") == z
-    end
-    @testset "ScalarAffineFunction" begin
-        model = GLPK.Optimizer()
-        x = MOI.add_variables(model, 3)
-        fs = [
-            MOI.ScalarAffineFunction([MOI.ScalarAffineTerm(1.0, xi)], 0.0)
-            for xi in x
-        ]
-        c = MOI.add_constraints(model, fs, MOI.GreaterThan(0.0))
-        MOI.set(model, MOI.ConstraintName(), c[1], "x")
-        MOI.set(model, MOI.ConstraintName(), c[2], "x")
-        MOI.set(model, MOI.ConstraintName(), c[3], "z")
-        @test MOI.get(model, MOI.ConstraintIndex, "z") == c[3]
-        @test_throws ErrorException MOI.get(model, MOI.ConstraintIndex, "x")
-        MOI.set(model, MOI.ConstraintName(), c[2], "y")
-        @test MOI.get(model, MOI.ConstraintIndex, "x") == c[1]
-        @test MOI.get(model, MOI.ConstraintIndex, "y") == c[2]
-        MOI.set(model, MOI.ConstraintName(), c[3], "x")
-        @test_throws ErrorException MOI.get(model, MOI.ConstraintIndex, "x")
-        MOI.delete(model, c[1])
-        @test MOI.get(model, MOI.ConstraintIndex, "x") == c[3]
-    end
-end
-
-@testset "Duals with equal bounds" begin
+function test_duals_with_equal_bounds()
     model = GLPK.Optimizer()
     x = MOI.add_variable(model)
     xl = MOI.add_constraint(model, MOI.SingleVariable(x), MOI.GreaterThan(1.0))
@@ -517,10 +291,10 @@ end
     MOI.optimize!(model)
     @test MOI.get(model, MOI.ConstraintDual(), xl) == 1.0
     @test MOI.get(model, MOI.ConstraintDual(), xu) == 0.0
+    return
 end
 
-# TODO move to MOI
-@testset "PR #121" begin
+function test_pr_121()
     model = GLPK.Optimizer()
     ci = MOI.ConstraintIndex{
         MOI.ScalarAffineFunction{Float64},
@@ -535,9 +309,10 @@ end
         ci,
     )
     @test_throws MOI.InvalidIndex(ci) MOI.delete(model, ci)
+    return
 end
 
-@testset "Non-ascii names" begin
+function test_nonascii_names()
     model = GLPK.Optimizer()
     x = MOI.add_variable(model)
     MOI.set(model, MOI.VariableName(), x, "ω")
@@ -549,16 +324,18 @@ end
     )
     MOI.set(model, MOI.ConstraintName(), c, "ω")
     @test MOI.get(model, MOI.ConstraintName(), c) == "ω"
+    return
 end
 
-@testset "Deprecated constants" begin
+function test_deprecated_constants()
     model = GLPK.Optimizer()
     MOI.set(model, MOI.RawOptimizerAttribute("msg_lev"), GLPK.MSG_OFF)
     @test MOI.get(model, MOI.RawOptimizerAttribute("msg_lev")) ==
           GLPK.GLP_MSG_OFF
+    return
 end
 
-@testset "MOI.copy" begin
+function test_copy_to()
     dest = GLPK.Optimizer()
     src = MOI.Utilities.Model{Float64}()
     MOI.Utilities.loadfromstring!(
@@ -595,149 +372,10 @@ end
     @test length(v) == 4
     names = MOI.get.(dest, MOI.VariableName(), v)
     @test names == ["a", "b", "c", "d"]
+    return
 end
 
-@testset "dual_farkas" begin
-    @testset "test_farkas_dual_min" begin
-        model = GLPK.Optimizer()
-        x = MOI.add_variables(model, 2)
-        MOI.set(model, MOI.ObjectiveSense(), MOI.MIN_SENSE)
-        MOI.set(
-            model,
-            MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}(),
-            MOI.ScalarAffineFunction(MOI.ScalarAffineTerm.([1.0], [x[1]]), 0.0),
-        )
-        clb =
-            MOI.add_constraint.(
-                model,
-                MOI.SingleVariable.(x),
-                MOI.GreaterThan(0.0),
-            )
-        c = MOI.add_constraint(
-            model,
-            MOI.ScalarAffineFunction(MOI.ScalarAffineTerm.([2.0, 1.0], x), 0.0),
-            MOI.LessThan(-1.0),
-        )
-        MOI.optimize!(model)
-        @test MOI.get(model, MOI.TerminationStatus()) == MOI.INFEASIBLE
-        @test MOI.get(model, MOI.DualStatus()) == MOI.INFEASIBILITY_CERTIFICATE
-        clb_dual = MOI.get.(model, MOI.ConstraintDual(), clb)
-        c_dual = MOI.get(model, MOI.ConstraintDual(), c)
-        @show clb_dual, c_dual
-        @test clb_dual[1] > -1e-6
-        @test clb_dual[2] > -1e-6
-        @test c_dual[1] < 1e-6
-        @test clb_dual[1] ≈ -2 * c_dual atol = 1e-6
-        @test clb_dual[2] ≈ -c_dual atol = 1e-6
-    end
-
-    @testset "test_farkas_dual_max" begin
-        model = GLPK.Optimizer()
-        x = MOI.add_variables(model, 2)
-        MOI.set(model, MOI.ObjectiveSense(), MOI.MAX_SENSE)
-        MOI.set(
-            model,
-            MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}(),
-            MOI.ScalarAffineFunction(MOI.ScalarAffineTerm.([1.0], [x[1]]), 0.0),
-        )
-        clb =
-            MOI.add_constraint.(
-                model,
-                MOI.SingleVariable.(x),
-                MOI.GreaterThan(0.0),
-            )
-        c = MOI.add_constraint(
-            model,
-            MOI.ScalarAffineFunction(MOI.ScalarAffineTerm.([2.0, 1.0], x), 0.0),
-            MOI.LessThan(-1.0),
-        )
-        MOI.optimize!(model)
-        @test MOI.get(model, MOI.TerminationStatus()) == MOI.INFEASIBLE
-        @test MOI.get(model, MOI.DualStatus()) == MOI.INFEASIBILITY_CERTIFICATE
-        clb_dual = MOI.get.(model, MOI.ConstraintDual(), clb)
-        c_dual = MOI.get(model, MOI.ConstraintDual(), c)
-        @show clb_dual, c_dual
-        @test clb_dual[1] > -1e-6
-        @test clb_dual[2] > -1e-6
-        @test c_dual[1] < 1e-6
-        @test clb_dual[1] ≈ -2 * c_dual atol = 1e-6
-        @test clb_dual[2] ≈ -c_dual atol = 1e-6
-    end
-
-    @testset "test_farkas_dual_min_ii" begin
-        model = GLPK.Optimizer()
-        x = MOI.add_variables(model, 2)
-        MOI.set(model, MOI.ObjectiveSense(), MOI.MIN_SENSE)
-        MOI.set(
-            model,
-            MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}(),
-            MOI.ScalarAffineFunction([MOI.ScalarAffineTerm(-1.0, x[1])], 0.0),
-        )
-        clb =
-            MOI.add_constraint.(
-                model,
-                MOI.SingleVariable.(x),
-                MOI.LessThan(0.0),
-            )
-        c = MOI.add_constraint(
-            model,
-            MOI.ScalarAffineFunction(
-                MOI.ScalarAffineTerm.([-2.0, -1.0], x),
-                0.0,
-            ),
-            MOI.LessThan(-1.0),
-        )
-        MOI.optimize!(model)
-        @test MOI.get(model, MOI.TerminationStatus()) == MOI.INFEASIBLE
-        @test MOI.get(model, MOI.DualStatus()) == MOI.INFEASIBILITY_CERTIFICATE
-        clb_dual = MOI.get.(model, MOI.ConstraintDual(), clb)
-        c_dual = MOI.get(model, MOI.ConstraintDual(), c)
-        @show clb_dual, c_dual
-        @test clb_dual[1] < 1e-6
-        @test clb_dual[2] < 1e-6
-        @test c_dual[1] < 1e-6
-        @test clb_dual[1] ≈ 2 * c_dual atol = 1e-6
-        @test clb_dual[2] ≈ c_dual atol = 1e-6
-    end
-
-    @testset "test_farkas_dual_max_ii" begin
-        model = GLPK.Optimizer()
-        x = MOI.add_variables(model, 2)
-        MOI.set(model, MOI.ObjectiveSense(), MOI.MAX_SENSE)
-        MOI.set(
-            model,
-            MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}(),
-            MOI.ScalarAffineFunction([MOI.ScalarAffineTerm(-1.0, x[1])], 0.0),
-        )
-        clb =
-            MOI.add_constraint.(
-                model,
-                MOI.SingleVariable.(x),
-                MOI.LessThan(0.0),
-            )
-        c = MOI.add_constraint(
-            model,
-            MOI.ScalarAffineFunction(
-                MOI.ScalarAffineTerm.([-2.0, -1.0], x),
-                0.0,
-            ),
-            MOI.LessThan(-1.0),
-        )
-        MOI.optimize!(model)
-        @test MOI.get(model, MOI.TerminationStatus()) == MOI.INFEASIBLE
-        @test MOI.get(model, MOI.DualStatus()) == MOI.INFEASIBILITY_CERTIFICATE
-        clb_dual = MOI.get.(model, MOI.ConstraintDual(), clb)
-        c_dual = MOI.get(model, MOI.ConstraintDual(), c)
-        @show clb_dual, c_dual
-        @test clb_dual[1] < 1e-6
-        @test clb_dual[2] < 1e-6
-        @test c_dual[1] < 1e-6
-        @test clb_dual[1] ≈ 2 * c_dual atol = 1e-6
-        @test clb_dual[2] ≈ c_dual atol = 1e-6
-    end
-end
-
-@testset "want_infeasibility_certificates" begin
+function test_want_infeasibility_certificates()
     model = GLPK.Optimizer(want_infeasibility_certificates = false)
     x = MOI.add_variables(model, 2)
     MOI.add_constraint.(model, MOI.SingleVariable.(x), MOI.LessThan(0.0))
@@ -749,21 +387,24 @@ end
     MOI.optimize!(model)
     @test MOI.get(model, MOI.TerminationStatus()) == MOI.INFEASIBLE
     @test MOI.get(model, MOI.DualStatus()) == MOI.NO_SOLUTION
+    return
 end
 
-@testset "large_time_limits" begin
+function test_large_time_limits()
     model = GLPK.Optimizer()
     MOI.set(model, MOI.TimeLimitSec(), 1e9)
     @test MOI.get(model, MOI.TimeLimitSec()) == typemax(Cint) / 1_000
+    return
 end
 
-@testset "fractional_time_limits" begin
+function test_fractional_time_limits()
     model = GLPK.Optimizer()
     MOI.set(model, MOI.TimeLimitSec(), 1.2345)
     @test MOI.get(model, MOI.TimeLimitSec()) == 1.235
+    return
 end
 
-@testset "empty problem" begin
+function test_empty_problem()
     model = MOI.Utilities.CachingOptimizer(
         MOI.Utilities.UniversalFallback(MOI.Utilities.Model{Float64}()),
         GLPK.Optimizer(),
@@ -772,9 +413,10 @@ end
     MOI.add_variable(model)
     MOI.optimize!(model)
     @test MOI.get(model, MOI.TerminationStatus()) == MOI.OPTIMAL
+    return
 end
 
-@testset "empty_problem_infeasible" begin
+function test_empty_problem_infeasible()
     model = GLPK.Optimizer()
     x = MOI.add_variable(model)
     MOI.add_constraint(
@@ -791,9 +433,10 @@ end
     @test MOI.get(model, MOI.TerminationStatus()) == MOI.INFEASIBLE
     @test MOI.get(model, MOI.PrimalStatus()) == MOI.NO_SOLUTION
     @test MOI.get(model, MOI.DualStatus()) == MOI.NO_SOLUTION
+    return
 end
 
-@testset "empty_problem_unbounded" begin
+function test_empty_problem_unbounded()
     model = GLPK.Optimizer()
     x = MOI.add_variable(model)
     MOI.add_constraint(
@@ -808,4 +451,9 @@ end
     @test MOI.get(model, MOI.TerminationStatus()) == MOI.DUAL_INFEASIBLE
     @test MOI.get(model, MOI.PrimalStatus()) == MOI.NO_SOLUTION
     @test MOI.get(model, MOI.DualStatus()) == MOI.NO_SOLUTION
+    return
 end
+
+end  # module
+
+TestMOIWrapper.runtests()
