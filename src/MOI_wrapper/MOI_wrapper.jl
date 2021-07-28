@@ -1,7 +1,6 @@
 import MathOptInterface
 
 const MOI = MathOptInterface
-const MOIU = MOI.Utilities
 const CleverDicts = MOI.Utilities.CleverDicts
 
 @enum(TypeEnum, CONTINUOUS, BINARY, INTEGER)
@@ -432,10 +431,7 @@ function MOI.get(model::Optimizer, ::MOI.ListOfModelAttributesSet)
     return attributes
 end
 
-function MOI.get(
-    ::Optimizer,
-    ::MOI.ListOfConstraintAttributesSet,
-)
+function MOI.get(::Optimizer, ::MOI.ListOfConstraintAttributesSet)
     return MOI.AbstractConstraintAttribute[MOI.ConstraintName()]
 end
 

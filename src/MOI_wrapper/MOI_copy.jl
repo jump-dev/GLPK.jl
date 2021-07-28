@@ -66,7 +66,7 @@ end
 
 function _init_index_map(src::MOI.ModelLike)
     variables = MOI.get(src, MOI.ListOfVariableIndices())
-    map = MOIU.IndexMap()
+    map = MOI.Utilities.IndexMap()
     N = 0
     for x in variables
         N += 1
@@ -121,8 +121,8 @@ function _extract_row_data(src, map, cache, ::Type{S}) where {S}
         MOI.ListOfConstraintIndices{MOI.ScalarAffineFunction{Float64},S}(),
     )::Vector{MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64},S}}
         f = MOI.get(src, MOI.ConstraintFunction(), ci)
-        if !MOIU.is_canonical(f)
-            f = MOIU.canonical(f)
+        if !MOI.Utilities.is_canonical(f)
+            f = MOI.Utilities.canonical(f)
         end
         l, u = _bounds(MOI.get(src, MOI.ConstraintSet(), ci))
         push!(cache.rl, l === nothing ? -Inf : l - f.constant)
@@ -232,12 +232,12 @@ function MOI.copy_to(
     _add_all_variables(dest, cache)
     _add_all_constraints(dest, cache)
     # Copy model attributes:
-    MOIU.pass_attributes(dest, src, copy_names, map)
-    MOIU.pass_attributes(dest, src, copy_names, map, variables)
+    MOI.Utilities.pass_attributes(dest, src, copy_names, map)
+    MOI.Utilities.pass_attributes(dest, src, copy_names, map, variables)
     for (F, S) in MOI.get(src, MOI.ListOfConstraintTypesPresent())
         indices = MOI.get(src, MOI.ListOfConstraintIndices{F,S}())
         # TODO(odow): fix copy_names = false.
-        MOIU.pass_attributes(dest, src, false, map, indices)
+        MOI.Utilities.pass_attributes(dest, src, false, map, indices)
     end
     return map
 end

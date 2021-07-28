@@ -39,7 +39,9 @@ function test_MOI_Test()
             # Upstream issue: https://github.com/jump-dev/MathOptInterface.jl/issues/1431
             "test_model_LowerBoundAlreadySet",
             "test_model_UpperBoundAlreadySet",
-        ]
+            # TODO(odow): bug in GLPK
+            "test_objective_set_via_modify",
+        ],
     )
     return
 end

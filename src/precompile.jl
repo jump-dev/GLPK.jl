@@ -8,7 +8,10 @@ function _precompile_()
     Base.precompile(MOI.delete, (Optimizer, MOI.VariableIndex))
     Base.precompile(MOI.get, (Optimizer, MOI.VariablePrimal, MOI.VariableIndex))
 
-    Base.precompile(MOI.set, (Optimizer, MOI.ObjectiveSense, MOI.OptimizationSense))
+    Base.precompile(
+        MOI.set,
+        (Optimizer, MOI.ObjectiveSense, MOI.OptimizationSense),
+    )
     Base.precompile(
         MOI.set,
         (
@@ -31,7 +34,10 @@ function _precompile_()
             MOI.get,
             (Optimizer, MOI.ConstraintPrimal, MOI.ConstraintIndex{F,S}),
         )
-        Base.precompile(MOI.get, (Optimizer, MOI.ConstraintDual, MOI.ConstraintIndex{F,S}))
+        Base.precompile(
+            MOI.get,
+            (Optimizer, MOI.ConstraintDual, MOI.ConstraintIndex{F,S}),
+        )
         Base.precompile(
             MOI.get,
             (Optimizer, MOI.ConstraintFunction, MOI.ConstraintIndex{F,S}),
@@ -40,7 +46,10 @@ function _precompile_()
             MOI.set,
             (Optimizer, MOI.ConstraintFunction, MOI.ConstraintIndex{F,S}, F),
         )
-        Base.precompile(MOI.get, (Optimizer, MOI.ConstraintSet, MOI.ConstraintIndex{F,S}))
+        Base.precompile(
+            MOI.get,
+            (Optimizer, MOI.ConstraintSet, MOI.ConstraintIndex{F,S}),
+        )
         Base.precompile(
             MOI.set,
             (Optimizer, MOI.ConstraintSet, MOI.ConstraintIndex{F,S}, S),
@@ -48,8 +57,14 @@ function _precompile_()
         Base.precompile(MOI.is_valid, (Optimizer, MOI.ConstraintIndex{F,S}))
         Base.precompile(MOI.delete, (Optimizer, MOI.ConstraintIndex{F,S}))
     end
-    Base.precompile(MOI.add_constraint, (Optimizer, MOI.SingleVariable, MOI.ZeroOne))
-    Base.precompile(MOI.add_constraint, (Optimizer, MOI.SingleVariable, MOI.Integer))
+    Base.precompile(
+        MOI.add_constraint,
+        (Optimizer, MOI.SingleVariable, MOI.ZeroOne),
+    )
+    Base.precompile(
+        MOI.add_constraint,
+        (Optimizer, MOI.SingleVariable, MOI.Integer),
+    )
     Base.precompile(MOI.optimize!, (Optimizer,))
 
     for attr in (
@@ -83,7 +98,12 @@ function _precompile_()
     for S in sets
         Base.precompile(
             MOI.submit,
-            (Optimizer, MOI.UserCut{CallbackData}, MOI.ScalarAffineFunction{Float64}, S),
+            (
+                Optimizer,
+                MOI.UserCut{CallbackData},
+                MOI.ScalarAffineFunction{Float64},
+                S,
+            ),
         )
         Base.precompile(
             MOI.submit,
