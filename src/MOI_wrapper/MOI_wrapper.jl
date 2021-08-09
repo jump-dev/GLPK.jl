@@ -1987,14 +1987,20 @@ function MOI.set(model::Optimizer, ::MOI.Name, name::String)
     return
 end
 
-MOI.get(model::Optimizer, ::MOI.NumberOfVariables) = length(model.variable_info)
+function MOI.get(model::Optimizer, ::MOI.NumberOfVariables)::Int64
+    return length(model.variable_info)
+end
+
 function MOI.get(model::Optimizer, ::MOI.ListOfVariableIndices)
     return sort!(collect(keys(model.variable_info)), by = x -> x.value)
 end
 
 MOI.get(model::Optimizer, ::MOI.RawSolver) = model
 
-function MOI.get(model::Optimizer, ::MOI.NumberOfConstraints{F,S}) where {F,S}
+function MOI.get(
+    model::Optimizer,
+    ::MOI.NumberOfConstraints{F,S},
+)::Int64 where {F,S}
     # TODO: this could be more efficient.
     return length(MOI.get(model, MOI.ListOfConstraintIndices{F,S}()))
 end
@@ -2041,7 +2047,7 @@ function MOI.get(
 end
 
 function MOI.get(model::Optimizer, ::MOI.ListOfConstraintTypesPresent)
-    constraints = Set{Tuple{DataType,DataType}}()
+    constraints = Set{Tuple{Type,Type}}()
     for info in values(model.variable_info)
         if info.bound == NONE
         elseif info.bound == LESS_THAN
