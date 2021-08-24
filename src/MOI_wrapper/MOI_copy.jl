@@ -204,12 +204,7 @@ function _add_all_constraints(dest::Optimizer, cache::_OptimizerCache)
     return
 end
 
-function MOI.copy_to(
-    dest::Optimizer,
-    src::MOI.ModelLike;
-    copy_names::Bool = false,
-    kwargs...,
-)
+function MOI.copy_to(dest::Optimizer, src::MOI.ModelLike)
     @assert MOI.is_empty(dest)
     _validate_constraint_types(dest, src)
     # Initialize the problem storage
@@ -232,12 +227,11 @@ function MOI.copy_to(
     _add_all_variables(dest, cache)
     _add_all_constraints(dest, cache)
     # Copy model attributes:
-    MOI.Utilities.pass_attributes(dest, src, copy_names, map)
-    MOI.Utilities.pass_attributes(dest, src, copy_names, map, variables)
+    MOI.Utilities.pass_attributes(dest, src, map)
+    MOI.Utilities.pass_attributes(dest, src, map, variables)
     for (F, S) in MOI.get(src, MOI.ListOfConstraintTypesPresent())
         indices = MOI.get(src, MOI.ListOfConstraintIndices{F,S}())
-        # TODO(odow): fix copy_names = false.
-        MOI.Utilities.pass_attributes(dest, src, false, map, indices)
+        MOI.Utilities.pass_attributes(dest, src, map, indices)
     end
     return map
 end
