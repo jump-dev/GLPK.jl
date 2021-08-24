@@ -416,7 +416,7 @@ function MOI.get(model::Optimizer, ::MOI.TimeLimitSec)
     return MOI.get(model, MOI.RawOptimizerAttribute("tm_lim")) / 1_000
 end
 
-MOI.supports_incremental_interface(::Optimizer, ::Bool) = true
+MOI.supports_incremental_interface(::Optimizer) = true
 
 function MOI.get(model::Optimizer, ::MOI.ListOfVariableAttributesSet)
     return MOI.AbstractVariableAttribute[MOI.VariableName()]
