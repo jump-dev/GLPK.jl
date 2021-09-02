@@ -41,6 +41,7 @@ function test_MOI_Test()
             "test_model_UpperBoundAlreadySet",
             # TODO(odow): bug in GLPK
             "test_objective_set_via_modify",
+            "test_objective_FEASIBILITY_SENSE_clears_objective",
         ],
     )
     return
@@ -110,7 +111,7 @@ end
 function test_infeasible_bounds()
     model = GLPK.Optimizer()
     x = MOI.add_variable(model)
-    MOI.add_constraint(model, MOI.SingleVariable(x), MOI.Interval(1.0, -1.0))
+    MOI.add_constraint(model, x, MOI.Interval(1.0, -1.0))
     MOI.optimize!(model)
     @test MOI.get(model, MOI.TerminationStatus()) == MOI.INVALID_MODEL
     return
@@ -224,8 +225,8 @@ end
 function test_issue_102()
     model = GLPK.Optimizer()
     x = MOI.add_variable(model)
-    MOI.add_constraint(model, MOI.SingleVariable(x), MOI.GreaterThan(0.0))
-    MOI.add_constraint(model, MOI.SingleVariable(x), MOI.Integer())
+    MOI.add_constraint(model, x, MOI.GreaterThan(0.0))
+    MOI.add_constraint(model, x, MOI.Integer())
     MOI.set(model, MOI.ObjectiveSense(), MOI.MIN_SENSE)
     MOI.set(
         model,
@@ -249,8 +250,8 @@ function test_issue_116()
         ),
         MOI.LessThan(1.0),
     )
-    c2 = MOI.add_constraint(model, MOI.SingleVariable(x[1]), MOI.EqualTo(1.0))
-    c3 = MOI.add_constraint(model, MOI.SingleVariable(x[2]), MOI.EqualTo(1.0))
+    c2 = MOI.add_constraint(model, x[1], MOI.EqualTo(1.0))
+    c3 = MOI.add_constraint(model, x[2], MOI.EqualTo(1.0))
     MOI.set(model, MOI.ObjectiveSense(), MOI.MAX_SENSE)
     MOI.set(
         model,
@@ -282,8 +283,8 @@ end
 function test_duals_with_equal_bounds()
     model = GLPK.Optimizer()
     x = MOI.add_variable(model)
-    xl = MOI.add_constraint(model, MOI.SingleVariable(x), MOI.GreaterThan(1.0))
-    xu = MOI.add_constraint(model, MOI.SingleVariable(x), MOI.LessThan(1.0))
+    xl = MOI.add_constraint(model, x, MOI.GreaterThan(1.0))
+    xu = MOI.add_constraint(model, x, MOI.LessThan(1.0))
     MOI.set(model, MOI.ObjectiveSense(), MOI.MIN_SENSE)
     MOI.set(
         model,
@@ -356,12 +357,12 @@ function test_copy_to()
     c8: c + d == 2.2
 """,
     )
-    index_map = MOI.copy_to(dest, src; copy_names = true)
+    index_map = MOI.copy_to(dest, src)
     @test length(index_map) == 13
     for (k, v) in index_map
         if v isa MOI.VariableIndex
             @test k == v
-        elseif v isa MOI.ConstraintIndex{MOI.SingleVariable}
+        elseif v isa MOI.ConstraintIndex{MOI.VariableIndex}
             @test k == v
         else
             # The order of the linear constraints may change. But they should be
@@ -380,7 +381,7 @@ end
 function test_want_infeasibility_certificates()
     model = GLPK.Optimizer(want_infeasibility_certificates = false)
     x = MOI.add_variables(model, 2)
-    MOI.add_constraint.(model, MOI.SingleVariable.(x), MOI.LessThan(0.0))
+    MOI.add_constraint.(model, x, MOI.LessThan(0.0))
     MOI.add_constraint(
         model,
         MOI.ScalarAffineFunction(MOI.ScalarAffineTerm.([-2.0, -1.0], x), 0.0),

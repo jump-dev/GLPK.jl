@@ -21,7 +21,7 @@ function _precompile_()
         ),
     )
 
-    functions = (MOI.ScalarAffineFunction{Float64}, MOI.SingleVariable)
+    functions = (MOI.ScalarAffineFunction{Float64}, MOI.VariableIndex)
     sets = (
         MOI.LessThan{Float64},
         MOI.GreaterThan{Float64},
@@ -59,11 +59,11 @@ function _precompile_()
     end
     Base.precompile(
         MOI.add_constraint,
-        (Optimizer, MOI.SingleVariable, MOI.ZeroOne),
+        (Optimizer, MOI.VariableIndex, MOI.ZeroOne),
     )
     Base.precompile(
         MOI.add_constraint,
-        (Optimizer, MOI.SingleVariable, MOI.Integer),
+        (Optimizer, MOI.VariableIndex, MOI.Integer),
     )
     Base.precompile(MOI.optimize!, (Optimizer,))
 

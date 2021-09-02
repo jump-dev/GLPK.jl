@@ -22,10 +22,8 @@ function generate_moi_problem(model, At, b, c;
     A_vals = nonzeros(At)
     if var_bounds
         for col in 1:cols
-            MOI.add_constraint(model, MOI.SingleVariable(x[col]),
-                MOI.LessThan(10.0))
-            MOI.add_constraint(model, MOI.SingleVariable(x[col]),
-                MOI.GreaterThan(-10.0))
+            MOI.add_constraint(model, x[col], MOI.LessThan(10.0))
+            MOI.add_constraint(model, x[col], MOI.GreaterThan(-10.0))
         end
     end
     if scalar

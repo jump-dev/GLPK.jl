@@ -302,7 +302,7 @@ end
 
 function MOI.supports_constraint(
     ::Optimizer,
-    ::Type{MOI.SingleVariable},
+    ::Type{MOI.VariableIndex},
     ::Type{F},
 ) where {
     F<:Union{
@@ -438,7 +438,7 @@ end
 function MOI.get(
     ::Optimizer,
     ::MOI.ListOfConstraintAttributesSet{
-        MOI.SingleVariable,
+        MOI.VariableIndex,
         <:MOI.AbstractScalarSet,
     },
 )
@@ -613,6 +613,10 @@ function MOI.set(
     else
         @assert sense == MOI.FEASIBILITY_SENSE
         glp_set_obj_dir(model, GLP_MIN)
+        for col in Cint(0):Cint(glp_get_num_cols(model) - 1)
+            glp_set_obj_coef(model, col, 0.0)
+        end
+        glp_set_obj_coef(model, 0, 0.0)
         model.is_feasibility = true
     end
     return
@@ -684,12 +688,12 @@ function MOI.modify(
 end
 
 ##
-##  SingleVariable-in-Set constraints.
+##  VariableIndex-in-Set constraints.
 ##
 
 function _info(
     model::Optimizer,
-    c::MOI.ConstraintIndex{MOI.SingleVariable,<:Any},
+    c::MOI.ConstraintIndex{MOI.VariableIndex,<:Any},
 )
     var_index = MOI.VariableIndex(c.value)
     if haskey(model.variable_info, var_index)
@@ -698,13 +702,13 @@ function _info(
     return throw(MOI.InvalidIndex(c))
 end
 
-function column(model, c::MOI.ConstraintIndex{MOI.SingleVariable,<:Any})
+function column(model, c::MOI.ConstraintIndex{MOI.VariableIndex,<:Any})
     return _info(model, c).column
 end
 
 function MOI.is_valid(
     model::Optimizer,
-    c::MOI.ConstraintIndex{MOI.SingleVariable,MOI.LessThan{Float64}},
+    c::MOI.ConstraintIndex{MOI.VariableIndex,MOI.LessThan{Float64}},
 )
     if haskey(model.variable_info, MOI.VariableIndex(c.value))
         info = _info(model, c)
@@ -715,7 +719,7 @@ end
 
 function MOI.is_valid(
     model::Optimizer,
-    c::MOI.ConstraintIndex{MOI.SingleVariable,MOI.GreaterThan{Float64}},
+    c::MOI.ConstraintIndex{MOI.VariableIndex,MOI.GreaterThan{Float64}},
 )
     if haskey(model.variable_info, MOI.VariableIndex(c.value))
         info = _info(model, c)
@@ -726,7 +730,7 @@ end
 
 function MOI.is_valid(
     model::Optimizer,
-    c::MOI.ConstraintIndex{MOI.SingleVariable,MOI.Interval{Float64}},
+    c::MOI.ConstraintIndex{MOI.VariableIndex,MOI.Interval{Float64}},
 )
     return haskey(model.variable_info, MOI.VariableIndex(c.value)) &&
            _info(model, c).bound == INTERVAL
@@ -734,7 +738,7 @@ end
 
 function MOI.is_valid(
     model::Optimizer,
-    c::MOI.ConstraintIndex{MOI.SingleVariable,MOI.EqualTo{Float64}},
+    c::MOI.ConstraintIndex{MOI.VariableIndex,MOI.EqualTo{Float64}},
 )
     return haskey(model.variable_info, MOI.VariableIndex(c.value)) &&
            _info(model, c).bound == EQUAL_TO
@@ -742,7 +746,7 @@ end
 
 function MOI.is_valid(
     model::Optimizer,
-    c::MOI.ConstraintIndex{MOI.SingleVariable,MOI.ZeroOne},
+    c::MOI.ConstraintIndex{MOI.VariableIndex,MOI.ZeroOne},
 )
     return haskey(model.variable_info, MOI.VariableIndex(c.value)) &&
            _info(model, c).type == BINARY
@@ -750,7 +754,7 @@ end
 
 function MOI.is_valid(
     model::Optimizer,
-    c::MOI.ConstraintIndex{MOI.SingleVariable,MOI.Integer},
+    c::MOI.ConstraintIndex{MOI.VariableIndex,MOI.Integer},
 )
     return haskey(model.variable_info, MOI.VariableIndex(c.value)) &&
            _info(model, c).type == INTEGER
@@ -759,19 +763,19 @@ end
 function MOI.get(
     model::Optimizer,
     ::MOI.ConstraintFunction,
-    c::MOI.ConstraintIndex{MOI.SingleVariable,<:Any},
+    c::MOI.ConstraintIndex{MOI.VariableIndex,<:Any},
 )
     MOI.throw_if_not_valid(model, c)
-    return MOI.SingleVariable(MOI.VariableIndex(c.value))
+    return MOI.VariableIndex(c.value)
 end
 
 function MOI.set(
-    model::Optimizer,
+    ::Optimizer,
     ::MOI.ConstraintFunction,
-    c::MOI.ConstraintIndex{MOI.SingleVariable,<:Any},
-    ::MOI.SingleVariable,
+    c::MOI.ConstraintIndex{MOI.VariableIndex,<:Any},
+    ::MOI.VariableIndex,
 )
-    return throw(MOI.SettingSingleVariableFunctionNotAllowed())
+    return throw(MOI.SettingVariableIndexNotAllowed())
 end
 
 _bounds(s::MOI.GreaterThan{Float64}) = (s.lower, nothing)
@@ -821,29 +825,29 @@ end
 
 function MOI.add_constraint(
     model::Optimizer,
-    f::MOI.SingleVariable,
+    f::MOI.VariableIndex,
     s::S,
 ) where {S<:_SCALAR_SETS}
-    info = _info(model, f.variable)
+    info = _info(model, f)
     if S <: MOI.LessThan{Float64}
-        _throw_if_existing_upper(info.bound, info.type, S, f.variable)
+        _throw_if_existing_upper(info.bound, info.type, S, f)
         info.bound =
             info.bound == GREATER_THAN ? LESS_AND_GREATER_THAN : LESS_THAN
     elseif S <: MOI.GreaterThan{Float64}
-        _throw_if_existing_lower(info.bound, info.type, S, f.variable)
+        _throw_if_existing_lower(info.bound, info.type, S, f)
         info.bound =
             info.bound == LESS_THAN ? LESS_AND_GREATER_THAN : GREATER_THAN
     elseif S <: MOI.EqualTo{Float64}
-        _throw_if_existing_lower(info.bound, info.type, S, f.variable)
-        _throw_if_existing_upper(info.bound, info.type, S, f.variable)
+        _throw_if_existing_lower(info.bound, info.type, S, f)
+        _throw_if_existing_upper(info.bound, info.type, S, f)
         info.bound = EQUAL_TO
     else
         @assert S <: MOI.Interval{Float64}
-        _throw_if_existing_lower(info.bound, info.type, S, f.variable)
-        _throw_if_existing_upper(info.bound, info.type, S, f.variable)
+        _throw_if_existing_lower(info.bound, info.type, S, f)
+        _throw_if_existing_upper(info.bound, info.type, S, f)
         info.bound = INTERVAL
     end
-    index = MOI.ConstraintIndex{MOI.SingleVariable,typeof(s)}(f.variable.value)
+    index = MOI.ConstraintIndex{MOI.VariableIndex,typeof(s)}(f.value)
     MOI.set(model, MOI.ConstraintSet(), index, s)
     return index
 end
@@ -892,7 +896,7 @@ end
 
 function MOI.delete(
     model::Optimizer,
-    c::MOI.ConstraintIndex{MOI.SingleVariable,MOI.LessThan{Float64}},
+    c::MOI.ConstraintIndex{MOI.VariableIndex,MOI.LessThan{Float64}},
 )
     MOI.throw_if_not_valid(model, c)
     info = _info(model, c)
@@ -908,7 +912,7 @@ end
 
 function MOI.delete(
     model::Optimizer,
-    c::MOI.ConstraintIndex{MOI.SingleVariable,MOI.GreaterThan{Float64}},
+    c::MOI.ConstraintIndex{MOI.VariableIndex,MOI.GreaterThan{Float64}},
 )
     MOI.throw_if_not_valid(model, c)
     info = _info(model, c)
@@ -920,7 +924,7 @@ end
 
 function MOI.delete(
     model::Optimizer,
-    c::MOI.ConstraintIndex{MOI.SingleVariable,MOI.Interval{Float64}},
+    c::MOI.ConstraintIndex{MOI.VariableIndex,MOI.Interval{Float64}},
 )
     MOI.throw_if_not_valid(model, c)
     info = _info(model, c)
@@ -932,7 +936,7 @@ end
 
 function MOI.delete(
     model::Optimizer,
-    c::MOI.ConstraintIndex{MOI.SingleVariable,MOI.EqualTo{Float64}},
+    c::MOI.ConstraintIndex{MOI.VariableIndex,MOI.EqualTo{Float64}},
 )
     MOI.throw_if_not_valid(model, c)
     info = _info(model, c)
@@ -945,7 +949,7 @@ end
 function MOI.get(
     model::Optimizer,
     ::MOI.ConstraintSet,
-    c::MOI.ConstraintIndex{MOI.SingleVariable,MOI.GreaterThan{Float64}},
+    c::MOI.ConstraintIndex{MOI.VariableIndex,MOI.GreaterThan{Float64}},
 )
     MOI.throw_if_not_valid(model, c)
     lower = glp_get_col_lb(model, column(model, c))
@@ -955,7 +959,7 @@ end
 function MOI.get(
     model::Optimizer,
     ::MOI.ConstraintSet,
-    c::MOI.ConstraintIndex{MOI.SingleVariable,MOI.LessThan{Float64}},
+    c::MOI.ConstraintIndex{MOI.VariableIndex,MOI.LessThan{Float64}},
 )
     MOI.throw_if_not_valid(model, c)
     upper = glp_get_col_ub(model, column(model, c))
@@ -965,7 +969,7 @@ end
 function MOI.get(
     model::Optimizer,
     ::MOI.ConstraintSet,
-    c::MOI.ConstraintIndex{MOI.SingleVariable,MOI.EqualTo{Float64}},
+    c::MOI.ConstraintIndex{MOI.VariableIndex,MOI.EqualTo{Float64}},
 )
     MOI.throw_if_not_valid(model, c)
     lower = glp_get_col_lb(model, column(model, c))
@@ -975,7 +979,7 @@ end
 function MOI.get(
     model::Optimizer,
     ::MOI.ConstraintSet,
-    c::MOI.ConstraintIndex{MOI.SingleVariable,MOI.Interval{Float64}},
+    c::MOI.ConstraintIndex{MOI.VariableIndex,MOI.Interval{Float64}},
 )
     MOI.throw_if_not_valid(model, c)
     col = column(model, c)
@@ -987,7 +991,7 @@ end
 function MOI.set(
     model::Optimizer,
     ::MOI.ConstraintSet,
-    c::MOI.ConstraintIndex{MOI.SingleVariable,S},
+    c::MOI.ConstraintIndex{MOI.VariableIndex,S},
     s::S,
 ) where {S<:_SCALAR_SETS}
     MOI.throw_if_not_valid(model, c)
@@ -998,10 +1002,10 @@ end
 
 function MOI.add_constraint(
     model::Optimizer,
-    f::MOI.SingleVariable,
+    f::MOI.VariableIndex,
     ::MOI.ZeroOne,
 )
-    info = _info(model, f.variable)
+    info = _info(model, f)
     # See https://github.com/JuliaOpt/GLPKMathProgInterface.jl/pull/15
     # for why this is necesary. GLPK interacts weirdly with binary variables and
     # bound modification. So let's set binary variables as "Integer" with [0,1]
@@ -1009,12 +1013,12 @@ function MOI.add_constraint(
     glp_set_col_kind(model, info.column, GLP_IV)
     info.type = BINARY
     model.num_binaries += 1
-    return MOI.ConstraintIndex{MOI.SingleVariable,MOI.ZeroOne}(f.variable.value)
+    return MOI.ConstraintIndex{MOI.VariableIndex,MOI.ZeroOne}(f.value)
 end
 
 function MOI.delete(
     model::Optimizer,
-    c::MOI.ConstraintIndex{MOI.SingleVariable,MOI.ZeroOne},
+    c::MOI.ConstraintIndex{MOI.VariableIndex,MOI.ZeroOne},
 )
     MOI.throw_if_not_valid(model, c)
     info = _info(model, c)
@@ -1028,7 +1032,7 @@ end
 function MOI.get(
     model::Optimizer,
     ::MOI.ConstraintSet,
-    c::MOI.ConstraintIndex{MOI.SingleVariable,MOI.ZeroOne},
+    c::MOI.ConstraintIndex{MOI.VariableIndex,MOI.ZeroOne},
 )
     MOI.throw_if_not_valid(model, c)
     return MOI.ZeroOne()
@@ -1036,19 +1040,19 @@ end
 
 function MOI.add_constraint(
     model::Optimizer,
-    f::MOI.SingleVariable,
+    f::MOI.VariableIndex,
     ::MOI.Integer,
 )
-    info = _info(model, f.variable)
+    info = _info(model, f)
     glp_set_col_kind(model, info.column, GLP_IV)
     info.type = INTEGER
     model.num_integers += 1
-    return MOI.ConstraintIndex{MOI.SingleVariable,MOI.Integer}(f.variable.value)
+    return MOI.ConstraintIndex{MOI.VariableIndex,MOI.Integer}(f.value)
 end
 
 function MOI.delete(
     model::Optimizer,
-    c::MOI.ConstraintIndex{MOI.SingleVariable,MOI.Integer},
+    c::MOI.ConstraintIndex{MOI.VariableIndex,MOI.Integer},
 )
     MOI.throw_if_not_valid(model, c)
     info = _info(model, c)
@@ -1062,7 +1066,7 @@ end
 function MOI.get(
     model::Optimizer,
     ::MOI.ConstraintSet,
-    c::MOI.ConstraintIndex{MOI.SingleVariable,MOI.Integer},
+    c::MOI.ConstraintIndex{MOI.VariableIndex,MOI.Integer},
 )
     MOI.throw_if_not_valid(model, c)
     return MOI.Integer()
@@ -1762,7 +1766,7 @@ end
 function MOI.get(
     model::Optimizer,
     attr::MOI.ConstraintPrimal,
-    c::MOI.ConstraintIndex{MOI.SingleVariable,<:Any},
+    c::MOI.ConstraintIndex{MOI.VariableIndex,<:Any},
 )
     _throw_if_optimize_in_progress(model, attr)
     MOI.check_result_index_bounds(model, attr)
@@ -1796,7 +1800,7 @@ end
 function MOI.get(
     model::Optimizer,
     attr::MOI.ConstraintDual,
-    c::MOI.ConstraintIndex{MOI.SingleVariable,MOI.LessThan{Float64}},
+    c::MOI.ConstraintIndex{MOI.VariableIndex,MOI.LessThan{Float64}},
 )
     _throw_if_optimize_in_progress(model, attr)
     MOI.check_result_index_bounds(model, attr)
@@ -1833,7 +1837,7 @@ end
 function MOI.get(
     model::Optimizer,
     attr::MOI.ConstraintDual,
-    c::MOI.ConstraintIndex{MOI.SingleVariable,MOI.GreaterThan{Float64}},
+    c::MOI.ConstraintIndex{MOI.VariableIndex,MOI.GreaterThan{Float64}},
 )
     _throw_if_optimize_in_progress(model, attr)
     MOI.check_result_index_bounds(model, attr)
@@ -1870,7 +1874,7 @@ end
 function MOI.get(
     model::Optimizer,
     attr::MOI.ConstraintDual,
-    c::MOI.ConstraintIndex{MOI.SingleVariable,S},
+    c::MOI.ConstraintIndex{MOI.VariableIndex,S},
 ) where {S<:Union{MOI.EqualTo,MOI.Interval}}
     _throw_if_optimize_in_progress(model, attr)
     MOI.check_result_index_bounds(model, attr)
@@ -2017,12 +2021,12 @@ _type_enums(::Any) = (nothing,)
 
 function MOI.get(
     model::Optimizer,
-    ::MOI.ListOfConstraintIndices{MOI.SingleVariable,S},
+    ::MOI.ListOfConstraintIndices{MOI.VariableIndex,S},
 ) where {S}
-    indices = MOI.ConstraintIndex{MOI.SingleVariable,S}[]
+    indices = MOI.ConstraintIndex{MOI.VariableIndex,S}[]
     for (key, info) in model.variable_info
         if info.bound in _bound_enums(S) || info.type in _type_enums(S)
-            push!(indices, MOI.ConstraintIndex{MOI.SingleVariable,S}(key.value))
+            push!(indices, MOI.ConstraintIndex{MOI.VariableIndex,S}(key.value))
         end
     end
     return sort!(indices, by = x -> x.value)
@@ -2051,22 +2055,22 @@ function MOI.get(model::Optimizer, ::MOI.ListOfConstraintTypesPresent)
     for info in values(model.variable_info)
         if info.bound == NONE
         elseif info.bound == LESS_THAN
-            push!(constraints, (MOI.SingleVariable, MOI.LessThan{Float64}))
+            push!(constraints, (MOI.VariableIndex, MOI.LessThan{Float64}))
         elseif info.bound == GREATER_THAN
-            push!(constraints, (MOI.SingleVariable, MOI.GreaterThan{Float64}))
+            push!(constraints, (MOI.VariableIndex, MOI.GreaterThan{Float64}))
         elseif info.bound == LESS_AND_GREATER_THAN
-            push!(constraints, (MOI.SingleVariable, MOI.LessThan{Float64}))
-            push!(constraints, (MOI.SingleVariable, MOI.GreaterThan{Float64}))
+            push!(constraints, (MOI.VariableIndex, MOI.LessThan{Float64}))
+            push!(constraints, (MOI.VariableIndex, MOI.GreaterThan{Float64}))
         elseif info.bound == EQUAL_TO
-            push!(constraints, (MOI.SingleVariable, MOI.EqualTo{Float64}))
+            push!(constraints, (MOI.VariableIndex, MOI.EqualTo{Float64}))
         elseif info.bound == INTERVAL
-            push!(constraints, (MOI.SingleVariable, MOI.Interval{Float64}))
+            push!(constraints, (MOI.VariableIndex, MOI.Interval{Float64}))
         end
         if info.type == CONTINUOUS
         elseif info.type == BINARY
-            push!(constraints, (MOI.SingleVariable, MOI.ZeroOne))
+            push!(constraints, (MOI.VariableIndex, MOI.ZeroOne))
         elseif info.type == INTEGER
-            push!(constraints, (MOI.SingleVariable, MOI.Integer))
+            push!(constraints, (MOI.VariableIndex, MOI.Integer))
         end
     end
     for info in values(model.affine_constraint_info)

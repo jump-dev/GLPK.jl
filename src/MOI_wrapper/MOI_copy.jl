@@ -93,22 +93,22 @@ function _add_set_data(cache, i, s::MOI.Interval{Float64})
 end
 
 function _extract_bound_data(src, map, cache, s::Type{S}) where {S}
-    for ci in MOI.get(src, MOI.ListOfConstraintIndices{MOI.SingleVariable,S}())
+    for ci in MOI.get(src, MOI.ListOfConstraintIndices{MOI.VariableIndex,S}())
         f = MOI.get(src, MOI.ConstraintFunction(), ci)
         s = MOI.get(src, MOI.ConstraintSet(), ci)
-        column = map[f.variable].value
+        column = map[f].value
         _add_set_data(cache, column, s)
-        map[ci] = MOI.ConstraintIndex{MOI.SingleVariable,S}(column)
+        map[ci] = MOI.ConstraintIndex{MOI.VariableIndex,S}(column)
     end
     return
 end
 
 function _extract_type_data(src, map, cache, ::Type{S}) where {S}
-    for ci in MOI.get(src, MOI.ListOfConstraintIndices{MOI.SingleVariable,S}())
+    for ci in MOI.get(src, MOI.ListOfConstraintIndices{MOI.VariableIndex,S}())
         f = MOI.get(src, MOI.ConstraintFunction(), ci)
-        column = map[f.variable].value
+        column = map[f].value
         cache.types[column] = S == MOI.Integer ? INTEGER : BINARY
-        map[ci] = MOI.ConstraintIndex{MOI.SingleVariable,S}(column)
+        map[ci] = MOI.ConstraintIndex{MOI.VariableIndex,S}(column)
     end
     return
 end
