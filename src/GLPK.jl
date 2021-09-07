@@ -6,7 +6,8 @@ if haskey(ENV, "JULIA_GLPK_LIBRARY_PATH") || VERSION < v"1.3"
         include(deps_file)
     else
         error(
-            "GLPK not properly installed. Please run import `Pkg; Pkg.build(\"GLPK\")`.",
+            "GLPK not properly installed. Please run " *
+            "`import Pkg; Pkg.build(\"GLPK\")`.",
         )
     end
 else
