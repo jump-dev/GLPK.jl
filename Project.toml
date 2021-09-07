@@ -14,7 +14,7 @@ MathOptInterface = "b8f27783-ece8-5eb3-8dc8-9495eed66fee"
 BinaryProvider = "~0.5"
 CEnum = "0.3, 0.4"
 GLPK_jll = "=5.0.0"
-MathOptInterface = "~0.9.19"
+MathOptInterface = "~0.10.0"
 julia = "1"
 
 [extras]
