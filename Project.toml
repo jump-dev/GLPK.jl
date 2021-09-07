@@ -14,14 +14,13 @@ MathOptInterface = "b8f27783-ece8-5eb3-8dc8-9495eed66fee"
 BinaryProvider = "~0.5"
 CEnum = "0.3, 0.4"
 GLPK_jll = "=5.0.0"
-MathOptInterface = "~0.9.19"
+MathOptInterface = "~0.10.0"
 julia = "1"
 
 [extras]
-Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Pkg", "Random", "SparseArrays", "Test"]
+test = ["Random", "SparseArrays", "Test"]

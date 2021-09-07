@@ -33,9 +33,6 @@ function test_MOI_Test()
         exclude = [
             # GLPK returns INVALID_MODEL instead of INFEASIBLE
             "test_constraint_ZeroOne_bounds_3",
-            # Upstream issue: https://github.com/jump-dev/MathOptInterface.jl/issues/1398#issuecomment-872633881
-            "test_constraint_ConstraintDualStart",
-            "test_constraint_ConstraintPrimalStart",
             # Upstream issue: https://github.com/jump-dev/MathOptInterface.jl/issues/1431
             "test_model_LowerBoundAlreadySet",
             "test_model_UpperBoundAlreadySet",
