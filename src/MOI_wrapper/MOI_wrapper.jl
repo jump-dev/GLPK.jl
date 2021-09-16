@@ -200,7 +200,8 @@ Base.cconvert(::Type{Ptr{glp_prob}}, m::Optimizer) = m
 Base.unsafe_convert(::Type{Ptr{glp_prob}}, m::Optimizer) = m.inner
 
 mutable struct CallbackData
-    c_callback::Base.CFunction
+    model::Optimizer
+    callback_function::Function
     tree::Ptr{Cvoid}
     exception::Union{Nothing,Exception}
 end
@@ -222,27 +223,29 @@ Base.broadcastable(x::CallbackData) = Ref(x)
 # and then re-throw it once we have gracefully exited from the callback.
 #
 # See also: the note in `_solve_mip_problem`.
+
+function _internal_callback(tree::Ptr{Cvoid}, info::Ptr{Cvoid})
+    cb_data = unsafe_pointer_to_objref(info)::CallbackData
+    node = glp_ios_best_node(tree)
+    if node != 0
+        cb_data.model.objective_bound = glp_ios_node_bound(tree, node)
+        cb_data.model.relative_gap = glp_ios_mip_gap(tree)
+    end
+    try
+        cb_data.tree = tree
+        cb_data.callback_function(cb_data)
+    catch ex
+        glp_ios_terminate(tree)
+        cb_data.exception = ex
+    end
+    return Cint(0)
+end
+
 function _set_callback(model::Optimizer, callback_function::Function)
-    internal_callback =
-        (tree::Ptr{Cvoid}, info::Ptr{Cvoid}) -> begin
-            cb_data = unsafe_pointer_to_objref(info)::CallbackData
-            node = glp_ios_best_node(tree)
-            if node != 0
-                model.objective_bound = glp_ios_node_bound(tree, node)
-                model.relative_gap = glp_ios_mip_gap(tree)
-            end
-            try
-                cb_data.tree = tree
-                callback_function(cb_data)
-            catch ex
-                glp_ios_terminate(tree)
-                cb_data.exception = ex
-            end
-            return Cint(0)
-        end
-    c_callback = @cfunction($internal_callback, Cint, (Ptr{Cvoid}, Ptr{Cvoid}))
-    model.callback_data = CallbackData(c_callback, C_NULL, nothing)
-    model.intopt_param.cb_func = c_callback.ptr
+    c_callback = @cfunction(_internal_callback, Cint, (Ptr{Cvoid}, Ptr{Cvoid}))
+    model.callback_data =
+        CallbackData(model, callback_function, C_NULL, nothing)
+    model.intopt_param.cb_func = c_callback
     model.intopt_param.cb_info = pointer_from_objref(model.callback_data)
     return
 end
