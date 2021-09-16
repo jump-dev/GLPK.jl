@@ -243,12 +243,8 @@ end
 
 function _set_callback(model::Optimizer, callback_function::Function)
     c_callback = @cfunction(_internal_callback, Cint, (Ptr{Cvoid}, Ptr{Cvoid}))
-    model.callback_data = CallbackData(
-        model,
-        callback_function,
-        C_NULL,
-        nothing,
-    )
+    model.callback_data =
+        CallbackData(model, callback_function, C_NULL, nothing)
     model.intopt_param.cb_func = c_callback
     model.intopt_param.cb_info = pointer_from_objref(model.callback_data)
     return
