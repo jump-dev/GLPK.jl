@@ -63,21 +63,6 @@ mutable struct ConstraintInfo
     ConstraintInfo(row, set) = new(row, set, "")
 end
 
-# Dummy callback function for internal use only. Responsible for updating the
-# objective bound, saving the mip gap, and calling the user's callback.
-function _internal_callback(tree::Ptr{Cvoid}, info::Ptr{Cvoid})
-    callback_data = unsafe_pointer_to_objref(info)::CallbackData
-    model = callback_data.model
-    callback_data.tree = tree
-    node = glp_ios_best_node(tree)
-    if node != 0
-        model.objective_bound = glp_ios_node_bound(tree, node)
-        model.relative_gap = glp_ios_mip_gap(tree)
-    end
-    model.callback_function(callback_data)
-    return nothing
-end
-
 mutable struct Optimizer <: MOI.AbstractOptimizer
     # The low-level GLPK problem.
     inner::Ptr{glp_prob}
