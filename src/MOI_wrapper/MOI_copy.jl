@@ -4,9 +4,9 @@ struct _OptimizerCache
     "Column upper bounds"
     cu::Vector{Float64}
     "Column bound types"
-    bounds::Vector{BoundEnum}
+    bounds::Vector{_VariableBound}
     "Column types"
-    types::Vector{TypeEnum}
+    types::Vector{_VariableType}
     "Row lower bounds"
     rl::Vector{Float64}
     "Row upper bounds"
@@ -19,8 +19,8 @@ struct _OptimizerCache
         return new(
             fill(-Inf, N),
             fill(Inf, N),
-            fill(NONE, N),
-            fill(CONTINUOUS, N),
+            fill(_NONE, N),
+            fill(_CONTINUOUS, N),
             Float64[],
             Float64[],
             Cint[],
@@ -81,14 +81,14 @@ _add_set_data(cache, i, s::MOI.GreaterThan{Float64}) = (cache.cl[i] = s.lower)
 function _add_set_data(cache, i, s::MOI.EqualTo{Float64})
     cache.cl[i] = s.value
     cache.cu[i] = s.value
-    cache.bounds[i] = EQUAL_TO
+    cache.bounds[i] = _EQUAL_TO
     return
 end
 
 function _add_set_data(cache, i, s::MOI.Interval{Float64})
     cache.cl[i] = s.lower
     cache.cu[i] = s.upper
-    cache.bounds[i] = INTERVAL
+    cache.bounds[i] = _INTERVAL
     return
 end
 
@@ -107,7 +107,7 @@ function _extract_type_data(src, map, cache, ::Type{S}) where {S}
     for ci in MOI.get(src, MOI.ListOfConstraintIndices{MOI.VariableIndex,S}())
         f = MOI.get(src, MOI.ConstraintFunction(), ci)
         column = map[f].value
-        cache.types[column] = S == MOI.Integer ? INTEGER : BINARY
+        cache.types[column] = S == MOI.Integer ? _INTEGER : _BINARY
         map[ci] = MOI.ConstraintIndex{MOI.VariableIndex,S}(column)
     end
     return
@@ -142,22 +142,36 @@ function _extract_row_data(src, map, cache, ::Type{S}) where {S}
     return
 end
 
+function _get_moi_bound_type(lower, upper, type)
+    if type == _INTERVAL
+        return _INTERVAL
+    elseif type == _EQUAL_TO
+        return _EQUAL_TO
+    elseif lower == upper
+        return _LESS_AND_GREATER_THAN
+    elseif lower <= -GLP_DBL_MAX
+        return upper >= GLP_DBL_MAX ? _NONE : _LESS_THAN
+    else
+        return upper >= GLP_DBL_MAX ? _GREATER_THAN : _LESS_AND_GREATER_THAN
+    end
+end
+
 function _add_all_variables(model::Optimizer, cache::_OptimizerCache)
     N = length(cache.cl)
     glp_add_cols(model, N)
     sizehint!(model.variable_info, N)
     for i in 1:N
-        bound = get_moi_bound_type(cache.cl[i], cache.cu[i], cache.bounds[i])
+        bound = _get_moi_bound_type(cache.cl[i], cache.cu[i], cache.bounds[i])
         CleverDicts.add_item(
             model.variable_info,
-            VariableInfo(MOI.VariableIndex(i), i, bound, cache.types[i], ""),
+            _VariableInfo(MOI.VariableIndex(i), i, bound, cache.types[i], ""),
         )
-        glp_bound_type = get_glp_bound_type(cache.cl[i], cache.cu[i])
+        glp_bound_type = _get_glp_bound_type(cache.cl[i], cache.cu[i])
         glp_set_col_bnds(model, i, glp_bound_type, cache.cl[i], cache.cu[i])
-        if cache.types[i] == BINARY
+        if cache.types[i] == _BINARY
             model.num_binaries += 1
             glp_set_col_kind(model, i, GLP_IV)
-        elseif cache.types[i] == INTEGER
+        elseif cache.types[i] == _INTEGER
             model.num_integers += 1
             glp_set_col_kind(model, i, GLP_IV)
         end
@@ -184,20 +198,20 @@ function _add_all_constraints(dest::Optimizer, cache::_OptimizerCache)
             glp_set_row_bnds(dest, i, GLP_UP, -GLP_DBL_MAX, u)
             CleverDicts.add_item(
                 dest.affine_constraint_info,
-                ConstraintInfo(i, MOI.LessThan{Float64}(u)),
+                _ConstraintInfo(i, MOI.LessThan{Float64}(u)),
             )
         elseif u == Inf
             glp_set_row_bnds(dest, i, GLP_LO, l, GLP_DBL_MAX)
             CleverDicts.add_item(
                 dest.affine_constraint_info,
-                ConstraintInfo(i, MOI.GreaterThan{Float64}(l)),
+                _ConstraintInfo(i, MOI.GreaterThan{Float64}(l)),
             )
         else
             @assert l ≈ u  # Must be an equal-to constraint!
             glp_set_row_bnds(dest, i, GLP_FX, l, u)
             CleverDicts.add_item(
                 dest.affine_constraint_info,
-                ConstraintInfo(i, MOI.EqualTo{Float64}(l)),
+                _ConstraintInfo(i, MOI.EqualTo{Float64}(l)),
             )
         end
     end
