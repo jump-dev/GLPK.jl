@@ -20,6 +20,8 @@ include("gen/ctypes.jl")
 include("gen/libglpk_common.jl")
 include("gen/libglpk_api.jl")
 
+const GLP_DBL_MAX = prevfloat(Inf)
+
 """
     offset(x::Vector)
 

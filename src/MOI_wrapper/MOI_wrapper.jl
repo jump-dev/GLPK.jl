@@ -3,63 +3,64 @@ import MathOptInterface
 const MOI = MathOptInterface
 const CleverDicts = MOI.Utilities.CleverDicts
 
-@enum(TypeEnum, CONTINUOUS, BINARY, INTEGER)
-@enum(
-    BoundEnum,
-    NONE,
-    LESS_THAN,
-    GREATER_THAN,
-    LESS_AND_GREATER_THAN,
-    INTERVAL,
-    EQUAL_TO
-)
-@enum(ObjectiveEnum, SINGLE_VARIABLE, SCALAR_AFFINE)
-@enum(MethodEnum, SIMPLEX, INTERIOR, EXACT)
-@enum(CallbackState, CB_NONE, CB_GENERIC, CB_LAZY, CB_USER_CUT, CB_HEURISTIC)
+const _SCALAR_SETS = Union{
+    MOI.GreaterThan{Float64},
+    MOI.LessThan{Float64},
+    MOI.EqualTo{Float64},
+    MOI.Interval{Float64},
+}
 
-mutable struct VariableInfo
+@enum(_VariableType, _CONTINUOUS, _BINARY, _INTEGER)
+
+@enum(
+    _VariableBound,
+    _NONE,
+    _LESS_THAN,
+    _GREATER_THAN,
+    _LESS_AND_GREATER_THAN,
+    _INTERVAL,
+    _EQUAL_TO
+)
+
+@enum(
+    _CallbackState,
+    _CB_NONE,
+    _CB_GENERIC,
+    _CB_LAZY,
+    _CB_USER_CUT,
+    _CB_HEURISTIC,
+)
+
+@enum(MethodEnum, SIMPLEX, INTERIOR, EXACT)
+
+mutable struct _VariableInfo
     index::MOI.VariableIndex
     column::Int
-    bound::BoundEnum
-    type::TypeEnum
+    bound::_VariableBound
+    type::_VariableType
     name::String
 end
 
-function VariableInfo(index::MOI.VariableIndex, column::Int)
-    return VariableInfo(index, column, NONE, CONTINUOUS, "")
+function _VariableInfo(index::MOI.VariableIndex, column::Int)
+    return _VariableInfo(index, column, _NONE, _CONTINUOUS, "")
 end
 
-struct ConstraintKey
+struct _ConstraintKey
     value::Int64
 end
-CleverDicts.key_to_index(k::ConstraintKey) = k.value
-CleverDicts.index_to_key(::Type{ConstraintKey}, index) = ConstraintKey(index)
+CleverDicts.key_to_index(k::_ConstraintKey) = k.value
+CleverDicts.index_to_key(::Type{_ConstraintKey}, index) = _ConstraintKey(index)
 
 _HASH(x) = CleverDicts.key_to_index(x)
 _INVERSE_HASH_V(x) = CleverDicts.index_to_key(MOI.VariableIndex, x)
-_INVERSE_HASH_C(x) = CleverDicts.index_to_key(ConstraintKey, x)
+_INVERSE_HASH_C(x) = CleverDicts.index_to_key(_ConstraintKey, x)
 
-mutable struct ConstraintInfo
+mutable struct _ConstraintInfo
     row::Int
     set::MOI.AbstractSet
     name::String
-    ConstraintInfo(set) = new(0, set, "")
-    ConstraintInfo(row, set) = new(row, set, "")
-end
-
-# Dummy callback function for internal use only. Responsible for updating the
-# objective bound, saving the mip gap, and calling the user's callback.
-function _internal_callback(tree::Ptr{Cvoid}, info::Ptr{Cvoid})
-    callback_data = unsafe_pointer_to_objref(info)::CallbackData
-    model = callback_data.model
-    callback_data.tree = tree
-    node = glp_ios_best_node(tree)
-    if node != 0
-        model.objective_bound = glp_ios_node_bound(tree, node)
-        model.relative_gap = glp_ios_mip_gap(tree)
-    end
-    model.callback_function(callback_data)
-    return nothing
+    _ConstraintInfo(set) = new(0, set, "")
+    _ConstraintInfo(row, set) = new(row, set, "")
 end
 
 mutable struct Optimizer <: MOI.AbstractOptimizer
@@ -84,20 +85,18 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
     # parameter.
     silent::Bool
 
-    # A flag to keep track of MOI.FEASIBILITY_SENSE, since GLPK only stores
-    # MIN_SENSE or MAX_SENSE. This allows us to differentiate between MIN_SENSE
-    # and FEASIBILITY_SENSE.
-    is_feasibility::Bool
+    is_objective_set::Bool
+    objective_sense::Union{Nothing,MOI.OptimizationSense}
 
     variable_info::CleverDicts.CleverDict{
         MOI.VariableIndex,
-        VariableInfo,
+        _VariableInfo,
         typeof(_HASH),
         typeof(_INVERSE_HASH_V),
     }
     affine_constraint_info::CleverDicts.CleverDict{
-        ConstraintKey,
-        ConstraintInfo,
+        _ConstraintKey,
+        _ConstraintInfo,
         typeof(_HASH),
         typeof(_INVERSE_HASH_C),
     }
@@ -123,7 +122,7 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
 
     # Callback fields.
     has_generic_callback::Bool
-    callback_state::CallbackState
+    callback_state::_CallbackState
     lazy_callback::Union{Nothing,Function}
     user_cut_callback::Union{Nothing,Function}
     heuristic_callback::Union{Nothing,Function}
@@ -156,20 +155,18 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
         model.inner = glp_create_prob()
         model.method = method
         model.want_infeasibility_certificates = want_infeasibility_certificates
-
         model.interior_param = glp_iptcp()
         glp_init_iptcp(model.interior_param)
         model.intopt_param = glp_iocp()
         glp_init_iocp(model.intopt_param)
         model.simplex_param = glp_smcp()
         glp_init_smcp(model.simplex_param)
-
         MOI.set(model, MOI.RawOptimizerAttribute("msg_lev"), GLP_MSG_ERR)
         if length(kwargs) > 0
             @warn(
                 "Passing parameters as keyword arguments is deprecated. Use " *
-                "`JuMP.set_optimizer_attribute` or `MOI.RawOptimizerAttribute(key)` " *
-                "instead."
+                "`JuMP.set_optimizer_attribute` or " *
+                "`MOI.RawOptimizerAttribute(key)` instead.",
             )
         end
         for (key, val) in kwargs
@@ -177,18 +174,16 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
         end
         model.silent = false
         model.variable_info =
-            CleverDicts.CleverDict{MOI.VariableIndex,VariableInfo}(
+            CleverDicts.CleverDict{MOI.VariableIndex,_VariableInfo}(
                 _HASH,
                 _INVERSE_HASH_V,
             )
         model.affine_constraint_info =
-            CleverDicts.CleverDict{ConstraintKey,ConstraintInfo}(
+            CleverDicts.CleverDict{_ConstraintKey,_ConstraintInfo}(
                 _HASH,
                 _INVERSE_HASH_C,
             )
-
         MOI.empty!(model)
-
         finalizer(model) do m
             return glp_delete_prob(m)
         end
@@ -250,7 +245,7 @@ function _set_callback(model::Optimizer, callback_function::Function)
     return
 end
 
-Base.show(io::IO, model::Optimizer) = print(io, "A GLPK model")
+Base.show(io::IO, ::Optimizer) = print(io, "A GLPK model")
 
 function MOI.empty!(model::Optimizer)
     glp_erase_prob(model)
@@ -261,7 +256,8 @@ function MOI.empty!(model::Optimizer)
     model.objective_bound = NaN
     model.relative_gap = NaN
     model.solve_time = NaN
-    model.is_feasibility = true
+    model.is_objective_set = false
+    model.objective_sense = nothing
     model.optimize_not_called = true
     empty!(model.variable_info)
     empty!(model.affine_constraint_info)
@@ -270,7 +266,7 @@ function MOI.empty!(model::Optimizer)
     model.unbounded_ray = nothing
     model.infeasibility_cert = nothing
     model.has_generic_callback = false
-    model.callback_state = CB_NONE
+    model.callback_state = _CB_NONE
     model.lazy_callback = nothing
     model.user_cut_callback = nothing
     model.heuristic_callback = nothing
@@ -279,82 +275,27 @@ function MOI.empty!(model::Optimizer)
 end
 
 function MOI.is_empty(model::Optimizer)
-    model.is_feasibility == false && return false
-    !isempty(model.variable_info) && return false
-    !isempty(model.affine_constraint_info) && return false
-    model.name_to_variable !== nothing && return false
-    model.name_to_constraint_index !== nothing && return false
-    model.unbounded_ray !== nothing && return false
-    model.infeasibility_cert !== nothing && return false
-    model.has_generic_callback && return false
-    model.callback_state != CB_NONE && return false
-    model.lazy_callback !== nothing && return false
-    model.user_cut_callback !== nothing && return false
-    model.heuristic_callback !== nothing && return false
-    return true
+    return !model.is_objective_set &&
+           model.objective_sense === nothing &&
+           isempty(model.variable_info) &&
+           isempty(model.affine_constraint_info) &&
+           model.name_to_variable === nothing &&
+           model.name_to_constraint_index === nothing &&
+           model.unbounded_ray === nothing &&
+           model.infeasibility_cert === nothing &&
+           !model.has_generic_callback &&
+           model.callback_state == _CB_NONE &&
+           model.lazy_callback === nothing &&
+           model.user_cut_callback === nothing &&
+           model.heuristic_callback === nothing
 end
 
 MOI.get(::Optimizer, ::MOI.SolverName) = "GLPK"
 
-function MOI.supports(
-    ::Optimizer,
-    ::MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}},
-)
-    return true
-end
+###
+### MOI.RawOptimizerAttribute
+###
 
-function MOI.supports_constraint(
-    ::Optimizer,
-    ::Type{MOI.VariableIndex},
-    ::Type{F},
-) where {
-    F<:Union{
-        MOI.EqualTo{Float64},
-        MOI.LessThan{Float64},
-        MOI.GreaterThan{Float64},
-        MOI.Interval{Float64},
-        MOI.ZeroOne,
-        MOI.Integer,
-    },
-}
-    return true
-end
-
-function MOI.supports_constraint(
-    ::Optimizer,
-    ::Type{MOI.ScalarAffineFunction{Float64}},
-    ::Type{F},
-) where {
-    F<:Union{
-        MOI.EqualTo{Float64},
-        MOI.LessThan{Float64},
-        MOI.GreaterThan{Float64},
-    },
-}
-    return true
-end
-
-const _SCALAR_SETS = Union{
-    MOI.GreaterThan{Float64},
-    MOI.LessThan{Float64},
-    MOI.EqualTo{Float64},
-    MOI.Interval{Float64},
-}
-
-MOI.supports(::Optimizer, ::MOI.VariableName, ::Type{MOI.VariableIndex}) = true
-
-function MOI.supports(
-    ::Optimizer,
-    ::MOI.ConstraintName,
-    ::Type{<:MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64}}},
-)
-    return true
-end
-
-MOI.supports(::Optimizer, ::MOI.Name) = true
-MOI.supports(::Optimizer, ::MOI.Silent) = true
-MOI.supports(::Optimizer, ::MOI.TimeLimitSec) = true
-MOI.supports(::Optimizer, ::MOI.ObjectiveSense) = true
 MOI.supports(::Optimizer, ::MOI.RawOptimizerAttribute) = true
 
 """
@@ -403,8 +344,15 @@ function MOI.get(model::Optimizer, param::MOI.RawOptimizerAttribute)
     return throw(MOI.UnsupportedAttribute(param))
 end
 
+###
+### MOI.TimeLimitSec
+###
+
+MOI.supports(::Optimizer, ::MOI.TimeLimitSec) = true
+
 _limit_sec_to_ms(::Nothing) = typemax(Int32)
 _limit_sec_to_ms(x::Real) = ceil(Int32, min(typemax(Int32), 1_000 * x))
+
 function MOI.set(
     model::Optimizer,
     ::MOI.TimeLimitSec,
@@ -422,20 +370,36 @@ end
 MOI.supports_incremental_interface(::Optimizer) = true
 
 function MOI.get(model::Optimizer, ::MOI.ListOfVariableAttributesSet)
-    return MOI.AbstractVariableAttribute[MOI.VariableName()]
+    for (_, v) in model.variable_info
+        if !isempty(v.name)
+            return MOI.AbstractVariableAttribute[MOI.VariableName()]
+        end
+    end
+    return MOI.AbstractVariableAttribute[]
 end
 
 function MOI.get(model::Optimizer, ::MOI.ListOfModelAttributesSet)
-    obj_func_type = MOI.get(model, MOI.ObjectiveFunctionType())
-    attributes = [MOI.ObjectiveSense(), MOI.ObjectiveFunction{obj_func_type}()]
+    attributes = MOI.AbstractModelAttribute[]
+    if model.is_objective_set
+        F = MOI.get(model, MOI.ObjectiveFunctionType())
+        push!(attributes, MOI.ObjectiveFunction{F}())
+    end
+    if model.objective_sense !== nothing
+        push!(attributes, MOI.ObjectiveSense())
+    end
     if MOI.get(model, MOI.Name()) != ""
         push!(attributes, MOI.Name())
     end
     return attributes
 end
 
-function MOI.get(::Optimizer, ::MOI.ListOfConstraintAttributesSet)
-    return MOI.AbstractConstraintAttribute[MOI.ConstraintName()]
+function MOI.get(model::Optimizer, ::MOI.ListOfConstraintAttributesSet)
+    for (_, v) in model.affine_constraint_info
+        if !isempty(v.name)
+            return MOI.AbstractConstraintAttribute[MOI.ConstraintName()]
+        end
+    end
+    return MOI.AbstractConstraintAttribute[]
 end
 
 function MOI.get(
@@ -482,7 +446,7 @@ _sense_and_rhs(s::MOI.EqualTo{Float64}) = (Cchar('E'), s.value)
 ### Variables
 ###
 
-# Short-cuts to return the VariableInfo associated with an index.
+# Short-cuts to return the _VariableInfo associated with an index.
 function _info(model::Optimizer, key::MOI.VariableIndex)
     if haskey(model.variable_info, key)
         return model.variable_info[key]
@@ -493,11 +457,11 @@ end
 column(model, x::MOI.VariableIndex) = _info(model, x).column
 
 function MOI.add_variable(model::Optimizer)
-    # Initialize `VariableInfo` with a dummy `VariableIndex` and a column,
+    # Initialize `_VariableInfo` with a dummy `VariableIndex` and a column,
     # because we need `add_item` to tell us what the `VariableIndex` is.
     index = CleverDicts.add_item(
         model.variable_info,
-        VariableInfo(MOI.VariableIndex(0), 0),
+        _VariableInfo(MOI.VariableIndex(0), 0),
     )
     info = _info(model, index)
     # Now, set `.index` and `.column`.
@@ -513,11 +477,11 @@ function MOI.add_variables(model::Optimizer, N::Int)
     num_variables = length(model.variable_info)
     glp_add_cols(model, N)
     for i in 1:N
-        # Initialize `VariableInfo` with a dummy `VariableIndex` and a column,
+        # Initialize `_VariableInfo` with a dummy `VariableIndex` and a column,
         # because we need `add_item` to tell us what the `VariableIndex` is.
         index = CleverDicts.add_item(
             model.variable_info,
-            VariableInfo(MOI.VariableIndex(0), 0),
+            _VariableInfo(MOI.VariableIndex(0), 0),
         )
         info = _info(model, index)
         # Now, set `.index` and `.column`.
@@ -560,7 +524,7 @@ function MOI.get(model::Optimizer, ::Type{MOI.VariableIndex}, name::String)
         end
         return variable
     end
-    return nothing
+    return
 end
 
 function _rebuild_name_to_variable(model::Optimizer)
@@ -568,8 +532,7 @@ function _rebuild_name_to_variable(model::Optimizer)
     for (index, info) in model.variable_info
         if isempty(info.name)
             continue
-        end
-        if haskey(model.name_to_variable, info.name)
+        elseif haskey(model.name_to_variable, info.name)
             model.name_to_variable[info.name] = nothing
         else
             model.name_to_variable[info.name] = index
@@ -577,6 +540,8 @@ function _rebuild_name_to_variable(model::Optimizer)
     end
     return
 end
+
+MOI.supports(::Optimizer, ::MOI.VariableName, ::Type{MOI.VariableIndex}) = true
 
 function MOI.get(model::Optimizer, ::MOI.VariableName, v::MOI.VariableIndex)
     return _info(model, v).name
@@ -602,6 +567,8 @@ end
 ### Objectives
 ###
 
+MOI.supports(::Optimizer, ::MOI.ObjectiveSense) = true
+
 function MOI.set(
     model::Optimizer,
     ::MOI.ObjectiveSense,
@@ -609,32 +576,28 @@ function MOI.set(
 )
     if sense == MOI.MIN_SENSE
         glp_set_obj_dir(model, GLP_MIN)
-        model.is_feasibility = false
     elseif sense == MOI.MAX_SENSE
         glp_set_obj_dir(model, GLP_MAX)
-        model.is_feasibility = false
     else
         @assert sense == MOI.FEASIBILITY_SENSE
         glp_set_obj_dir(model, GLP_MIN)
-        for col in Cint(0):Cint(glp_get_num_cols(model) - 1)
+        for col in 0:glp_get_num_cols(model)
             glp_set_obj_coef(model, col, 0.0)
         end
-        glp_set_obj_coef(model, 0, 0.0)
-        model.is_feasibility = true
     end
+    model.objective_sense = sense
     return
 end
 
 function MOI.get(model::Optimizer, ::MOI.ObjectiveSense)
-    sense = glp_get_obj_dir(model)
-    if model.is_feasibility
-        return MOI.FEASIBILITY_SENSE
-    elseif sense == GLP_MAX
-        return MOI.MAX_SENSE
-    else
-        @assert sense == GLP_MIN
-        return MOI.MIN_SENSE
-    end
+    return something(model.objective_sense, MOI.FEASIBILITY_SENSE)
+end
+
+function MOI.supports(
+    ::Optimizer,
+    ::MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}},
+)
+    return true
 end
 
 function MOI.get(model::Optimizer, ::MOI.ObjectiveFunction{F}) where {F}
@@ -660,6 +623,7 @@ function MOI.set(
         glp_set_obj_coef(model, col, coef)
     end
     glp_set_obj_coef(model, 0, f.constant)
+    model.is_objective_set = true
     return
 end
 
@@ -674,7 +638,9 @@ function MOI.get(
     terms = MOI.ScalarAffineTerm{Float64}[]
     for (index, info) in model.variable_info
         coefficient = dest[info.column]
-        iszero(coefficient) && continue
+        if iszero(coefficient)
+            continue
+        end
         push!(terms, MOI.ScalarAffineTerm(coefficient, index))
     end
     constant = glp_get_obj_coef(model, 0)
@@ -687,6 +653,17 @@ function MOI.modify(
     chg::MOI.ScalarConstantChange{Float64},
 )
     glp_set_obj_coef(model, 0, chg.new_constant)
+    model.is_objective_set = true
+    return
+end
+
+function MOI.modify(
+    model::Optimizer,
+    ::MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}},
+    chg::MOI.ScalarCoefficientChange{Float64},
+)
+    glp_set_obj_coef(model, column(model, chg.variable), chg.new_coefficient)
+    model.is_objective_set = true
     return
 end
 
@@ -713,22 +690,22 @@ function MOI.is_valid(
     model::Optimizer,
     c::MOI.ConstraintIndex{MOI.VariableIndex,MOI.LessThan{Float64}},
 )
-    if haskey(model.variable_info, MOI.VariableIndex(c.value))
-        info = _info(model, c)
-        return info.bound == LESS_THAN || info.bound == LESS_AND_GREATER_THAN
+    if !haskey(model.variable_info, MOI.VariableIndex(c.value))
+        return false
     end
-    return false
+    info = _info(model, c)
+    return info.bound == _LESS_THAN || info.bound == _LESS_AND_GREATER_THAN
 end
 
 function MOI.is_valid(
     model::Optimizer,
     c::MOI.ConstraintIndex{MOI.VariableIndex,MOI.GreaterThan{Float64}},
 )
-    if haskey(model.variable_info, MOI.VariableIndex(c.value))
-        info = _info(model, c)
-        return info.bound == GREATER_THAN || info.bound == LESS_AND_GREATER_THAN
+    if !haskey(model.variable_info, MOI.VariableIndex(c.value))
+        return false
     end
-    return false
+    info = _info(model, c)
+    return info.bound == _GREATER_THAN || info.bound == _LESS_AND_GREATER_THAN
 end
 
 function MOI.is_valid(
@@ -736,7 +713,7 @@ function MOI.is_valid(
     c::MOI.ConstraintIndex{MOI.VariableIndex,MOI.Interval{Float64}},
 )
     return haskey(model.variable_info, MOI.VariableIndex(c.value)) &&
-           _info(model, c).bound == INTERVAL
+           _info(model, c).bound == _INTERVAL
 end
 
 function MOI.is_valid(
@@ -744,7 +721,7 @@ function MOI.is_valid(
     c::MOI.ConstraintIndex{MOI.VariableIndex,MOI.EqualTo{Float64}},
 )
     return haskey(model.variable_info, MOI.VariableIndex(c.value)) &&
-           _info(model, c).bound == EQUAL_TO
+           _info(model, c).bound == _EQUAL_TO
 end
 
 function MOI.is_valid(
@@ -752,7 +729,7 @@ function MOI.is_valid(
     c::MOI.ConstraintIndex{MOI.VariableIndex,MOI.ZeroOne},
 )
     return haskey(model.variable_info, MOI.VariableIndex(c.value)) &&
-           _info(model, c).type == BINARY
+           _info(model, c).type == _BINARY
 end
 
 function MOI.is_valid(
@@ -760,7 +737,7 @@ function MOI.is_valid(
     c::MOI.ConstraintIndex{MOI.VariableIndex,MOI.Integer},
 )
     return haskey(model.variable_info, MOI.VariableIndex(c.value)) &&
-           _info(model, c).type == INTEGER
+           _info(model, c).type == _INTEGER
 end
 
 function MOI.get(
@@ -787,43 +764,52 @@ _bounds(s::MOI.EqualTo{Float64}) = (s.value, s.value)
 _bounds(s::MOI.Interval{Float64}) = (s.lower, s.upper)
 
 function _throw_if_existing_lower(
-    bound::BoundEnum,
-    ::TypeEnum,
-    new_set::Type{<:MOI.AbstractSet},
+    bound::_VariableBound,
+    ::_VariableType,
+    ::Type{S},
     variable::MOI.VariableIndex,
-)
-    existing_set = if bound == LESS_AND_GREATER_THAN || bound == GREATER_THAN
-        MOI.GreaterThan{Float64}
-    elseif bound == INTERVAL
-        MOI.Interval{Float64}
-    elseif bound == EQUAL_TO
-        MOI.EqualTo{Float64}
-    else
-        nothing  # Also covers `NONE` and `LESS_THAN`.
+) where {S<:MOI.AbstractSet}
+    if bound == _LESS_AND_GREATER_THAN || bound == _GREATER_THAN
+        throw(MOI.LowerBoundAlreadySet{MOI.GreaterThan{Float64},S}(variable))
+    elseif bound == _INTERVAL
+        throw(MOI.LowerBoundAlreadySet{MOI.Interval{Float64},S}(variable))
+    elseif bound == _EQUAL_TO
+        throw(MOI.LowerBoundAlreadySet{MOI.EqualTo{Float64},S}(variable))
     end
-    if existing_set !== nothing
-        throw(MOI.LowerBoundAlreadySet{existing_set,new_set}(variable))
-    end
+    return
 end
 
 function _throw_if_existing_upper(
-    bound::BoundEnum,
-    ::TypeEnum,
-    new_set::Type{<:MOI.AbstractSet},
+    bound::_VariableBound,
+    ::_VariableType,
+    ::Type{S},
     variable::MOI.VariableIndex,
+) where {S<:MOI.AbstractSet}
+    if bound == _LESS_AND_GREATER_THAN || bound == _LESS_THAN
+        throw(MOI.UpperBoundAlreadySet{MOI.LessThan{Float64},S}(variable))
+    elseif bound == _INTERVAL
+        throw(MOI.UpperBoundAlreadySet{MOI.Interval{Float64},S}(variable))
+    elseif bound == _EQUAL_TO
+        throw(MOI.UpperBoundAlreadySet{MOI.EqualTo{Float64},S}(variable))
+    end
+    return
+end
+
+function MOI.supports_constraint(
+    ::Optimizer,
+    ::Type{MOI.VariableIndex},
+    ::Type{
+        <:Union{
+            MOI.EqualTo{Float64},
+            MOI.LessThan{Float64},
+            MOI.GreaterThan{Float64},
+            MOI.Interval{Float64},
+            MOI.ZeroOne,
+            MOI.Integer,
+        },
+    },
 )
-    existing_set = if bound == LESS_AND_GREATER_THAN || bound == LESS_THAN
-        MOI.LessThan{Float64}
-    elseif bound == INTERVAL
-        MOI.Interval{Float64}
-    elseif bound == EQUAL_TO
-        MOI.EqualTo{Float64}
-    else
-        nothing  # Also covers `NONE` and `GREATER_THAN`.
-    end
-    if existing_set !== nothing
-        throw(MOI.UpperBoundAlreadySet{existing_set,new_set}(variable))
-    end
+    return true
 end
 
 function MOI.add_constraint(
@@ -835,48 +821,33 @@ function MOI.add_constraint(
     if S <: MOI.LessThan{Float64}
         _throw_if_existing_upper(info.bound, info.type, S, f)
         info.bound =
-            info.bound == GREATER_THAN ? LESS_AND_GREATER_THAN : LESS_THAN
+            info.bound == _GREATER_THAN ? _LESS_AND_GREATER_THAN : _LESS_THAN
     elseif S <: MOI.GreaterThan{Float64}
         _throw_if_existing_lower(info.bound, info.type, S, f)
         info.bound =
-            info.bound == LESS_THAN ? LESS_AND_GREATER_THAN : GREATER_THAN
+            info.bound == _LESS_THAN ? _LESS_AND_GREATER_THAN : _GREATER_THAN
     elseif S <: MOI.EqualTo{Float64}
         _throw_if_existing_lower(info.bound, info.type, S, f)
         _throw_if_existing_upper(info.bound, info.type, S, f)
-        info.bound = EQUAL_TO
+        info.bound = _EQUAL_TO
     else
         @assert S <: MOI.Interval{Float64}
         _throw_if_existing_lower(info.bound, info.type, S, f)
         _throw_if_existing_upper(info.bound, info.type, S, f)
-        info.bound = INTERVAL
+        info.bound = _INTERVAL
     end
     index = MOI.ConstraintIndex{MOI.VariableIndex,typeof(s)}(f.value)
     MOI.set(model, MOI.ConstraintSet(), index, s)
     return index
 end
 
-const GLP_DBL_MAX = prevfloat(Inf)
-
-function get_glp_bound_type(lower, upper)
-    if lower == upper
-        GLP_FX
+function _get_glp_bound_type(lower, upper)
+    if lower ≈ upper
+        return GLP_FX
     elseif lower <= -GLP_DBL_MAX
-        upper >= GLP_DBL_MAX ? GLP_FR : GLP_UP
+        return upper >= GLP_DBL_MAX ? GLP_FR : GLP_UP
     else
-        upper >= GLP_DBL_MAX ? GLP_LO : GLP_DB
-    end
-end
-function get_moi_bound_type(lower, upper, type)
-    if type == INTERVAL
-        INTERVAL
-    elseif type == EQUAL_TO
-        EQUAL_TO
-    elseif lower == upper
-        LESS_AND_GREATER_THAN
-    elseif lower <= -GLP_DBL_MAX
-        upper >= GLP_DBL_MAX ? NONE : LESS_THAN
-    else
-        upper >= GLP_DBL_MAX ? GREATER_THAN : LESS_AND_GREATER_THAN
+        return upper >= GLP_DBL_MAX ? GLP_LO : GLP_DB
     end
 end
 
@@ -892,7 +863,7 @@ function _set_variable_bound(
     if upper === nothing
         upper = glp_get_col_ub(model, column)
     end
-    bound_type = get_glp_bound_type(lower, upper)
+    bound_type = _get_glp_bound_type(lower, upper)
     glp_set_col_bnds(model, column, bound_type, lower, upper)
     return
 end
@@ -904,10 +875,10 @@ function MOI.delete(
     MOI.throw_if_not_valid(model, c)
     info = _info(model, c)
     _set_variable_bound(model, info.column, nothing, Inf)
-    if info.bound == LESS_AND_GREATER_THAN
-        info.bound = GREATER_THAN
+    if info.bound == _LESS_AND_GREATER_THAN
+        info.bound = _GREATER_THAN
     else
-        info.bound = NONE
+        info.bound = _NONE
     end
     model.name_to_constraint_index = nothing
     return
@@ -920,7 +891,7 @@ function MOI.delete(
     MOI.throw_if_not_valid(model, c)
     info = _info(model, c)
     _set_variable_bound(model, info.column, -Inf, nothing)
-    info.bound = info.bound == LESS_AND_GREATER_THAN ? LESS_THAN : NONE
+    info.bound = info.bound == _LESS_AND_GREATER_THAN ? _LESS_THAN : _NONE
     model.name_to_constraint_index = nothing
     return
 end
@@ -932,7 +903,7 @@ function MOI.delete(
     MOI.throw_if_not_valid(model, c)
     info = _info(model, c)
     _set_variable_bound(model, info.column, -Inf, Inf)
-    info.bound = NONE
+    info.bound = _NONE
     model.name_to_constraint_index = nothing
     return
 end
@@ -944,7 +915,7 @@ function MOI.delete(
     MOI.throw_if_not_valid(model, c)
     info = _info(model, c)
     _set_variable_bound(model, info.column, -Inf, Inf)
-    info.bound = NONE
+    info.bound = _NONE
     model.name_to_constraint_index = nothing
     return
 end
@@ -1014,7 +985,7 @@ function MOI.add_constraint(
     # bound modification. So let's set binary variables as "Integer" with [0,1]
     # bounds that we enforce just before solve.
     glp_set_col_kind(model, info.column, GLP_IV)
-    info.type = BINARY
+    info.type = _BINARY
     model.num_binaries += 1
     return MOI.ConstraintIndex{MOI.VariableIndex,MOI.ZeroOne}(f.value)
 end
@@ -1026,7 +997,7 @@ function MOI.delete(
     MOI.throw_if_not_valid(model, c)
     info = _info(model, c)
     glp_set_col_kind(model, info.column, GLP_CV)
-    info.type = CONTINUOUS
+    info.type = _CONTINUOUS
     model.num_binaries -= 1
     model.name_to_constraint_index = nothing
     return
@@ -1048,7 +1019,7 @@ function MOI.add_constraint(
 )
     info = _info(model, f)
     glp_set_col_kind(model, info.column, GLP_IV)
-    info.type = INTEGER
+    info.type = _INTEGER
     model.num_integers += 1
     return MOI.ConstraintIndex{MOI.VariableIndex,MOI.Integer}(f.value)
 end
@@ -1060,7 +1031,7 @@ function MOI.delete(
     MOI.throw_if_not_valid(model, c)
     info = _info(model, c)
     glp_set_col_kind(model, info.column, GLP_CV)
-    info.type = CONTINUOUS
+    info.type = _CONTINUOUS
     model.num_integers -= 1
     model.name_to_constraint_index = nothing
     return
@@ -1083,24 +1054,23 @@ function _info(
     model::Optimizer,
     c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64}},
 )
-    key = ConstraintKey(c.value)
-    if haskey(model.affine_constraint_info, key)
-        return model.affine_constraint_info[key]
+    key = _ConstraintKey(c.value)
+    if !haskey(model.affine_constraint_info, key)
+        return throw(MOI.InvalidIndex(c))
     end
-    return throw(MOI.InvalidIndex(c))
+    return model.affine_constraint_info[key]
 end
 
 function MOI.is_valid(
     model::Optimizer,
     c::MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64},S},
 ) where {S}
-    key = ConstraintKey(c.value)
+    key = _ConstraintKey(c.value)
     if haskey(model.affine_constraint_info, key)
         info = model.affine_constraint_info[key]
         return typeof(info.set) == S
-    else
-        return false
     end
+    return false
 end
 
 """
@@ -1152,6 +1122,20 @@ function _add_affine_constraint(
     return
 end
 
+function MOI.supports_constraint(
+    ::Optimizer,
+    ::Type{MOI.ScalarAffineFunction{Float64}},
+    ::Type{
+        <:Union{
+            MOI.EqualTo{Float64},
+            MOI.LessThan{Float64},
+            MOI.GreaterThan{Float64},
+        },
+    },
+)
+    return true
+end
+
 function MOI.add_constraint(
     model::Optimizer,
     f::MOI.ScalarAffineFunction{Float64},
@@ -1161,19 +1145,16 @@ function MOI.add_constraint(
         MOI.EqualTo{Float64},
     },
 )
+    F, S = typeof(f), typeof(s)
     if !iszero(f.constant)
-        throw(
-            MOI.ScalarFunctionConstantNotZero{Float64,typeof(f),typeof(s)}(
-                f.constant,
-            ),
-        )
+        throw(MOI.ScalarFunctionConstantNotZero{Float64,F,S}(f.constant))
     end
-    key = CleverDicts.add_item(model.affine_constraint_info, ConstraintInfo(s))
+    key = CleverDicts.add_item(model.affine_constraint_info, _ConstraintInfo(s))
     model.affine_constraint_info[key].row = length(model.affine_constraint_info)
     indices, coefficients = _indices_and_coefficients(model, f)
     sense, rhs = _sense_and_rhs(s)
     _add_affine_constraint(model, indices, coefficients, sense, rhs)
-    return MOI.ConstraintIndex{typeof(f),typeof(s)}(key.value)
+    return MOI.ConstraintIndex{F,S}(key.value)
 end
 
 function MOI.delete(
@@ -1189,7 +1170,7 @@ function MOI.delete(
             info.row -= 1
         end
     end
-    key = ConstraintKey(c.value)
+    key = _ConstraintKey(c.value)
     delete!(model.affine_constraint_info, key)
     model.name_to_constraint_index = nothing
     return
@@ -1252,6 +1233,14 @@ function MOI.get(
     return MOI.ScalarAffineFunction(terms, 0.0)
 end
 
+function MOI.supports(
+    ::Optimizer,
+    ::MOI.ConstraintName,
+    ::Type{<:MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64}}},
+)
+    return true
+end
+
 function MOI.get(
     model::Optimizer,
     ::MOI.ConstraintName,
@@ -1267,7 +1256,6 @@ function MOI.set(
     name::String,
 )
     info = _info(model, c)
-    old_name = info.name
     info.name = name
     if !isempty(name) && isascii(name)
         # Note: GLPK errors if we try to set non-ascii row names.
@@ -1288,19 +1276,19 @@ function MOI.get(model::Optimizer, ::Type{MOI.ConstraintIndex}, name::String)
         end
         return constr
     end
-    return nothing
+    return
 end
 
 function MOI.get(
     model::Optimizer,
-    C::Type{MOI.ConstraintIndex{F,S}},
+    ::Type{MOI.ConstraintIndex{F,S}},
     name::String,
 ) where {F,S}
     index = MOI.get(model, MOI.ConstraintIndex, name)
-    if typeof(index) == C
+    if typeof(index) == MOI.ConstraintIndex{F,S}
         return index::MOI.ConstraintIndex{F,S}
     end
-    return nothing
+    return
 end
 
 function _rebuild_name_to_constraint_index(model::Optimizer)
@@ -1366,12 +1354,12 @@ Returns a tuple `(column, lower, upper)` for the bounds that need to be reset.
 function _round_bounds_to_integer(model::Optimizer)
     bounds_to_reset = Tuple{Int,Float64,Float64}[]
     for (key, info) in model.variable_info
-        if info.type == BINARY || info.type == INTEGER
+        if info.type == _BINARY || info.type == _INTEGER
             lb = glp_get_col_lb(model, info.column)
             ub = glp_get_col_ub(model, info.column)
             new_lb = ceil(lb)
             new_ub = floor(ub)
-            if info.type == BINARY
+            if info.type == _BINARY
                 new_lb = max(0.0, new_lb)
                 new_ub = min(1.0, new_ub)
             end
@@ -1405,7 +1393,6 @@ function _solve_mip_problem(model::Optimizer)
         end
         model.solver_status = glp_intopt(model, model.intopt_param)
         model.last_solved_by_mip = true
-
         # !!! Very Important Note
         #
         #  This next bit is _very_ important! See the note associated with
@@ -1413,7 +1400,6 @@ function _solve_mip_problem(model::Optimizer)
         if model.callback_data.exception !== nothing
             throw(model.callback_data.exception)
         end
-
     finally
         for (column, lower, upper) in bounds_to_reset
             _set_variable_bound(model, column, lower, upper)
@@ -1475,7 +1461,7 @@ function MOI.optimize!(model::Optimizer)
 end
 
 function _throw_if_optimize_in_progress(model::Optimizer, attr)
-    if model.callback_state != CB_NONE
+    if model.callback_state != _CB_NONE
         throw(MOI.OptimizeInProgress(attr))
     end
 end
@@ -1972,6 +1958,12 @@ function MOI.get(model::Optimizer, attr::MOI.ResultCount)
     return 0
 end
 
+###
+### MOI.Silent
+###
+
+MOI.supports(::Optimizer, ::MOI.Silent) = true
+
 function MOI.get(model::Optimizer, ::MOI.Silent)
     return model.silent
 end
@@ -1983,6 +1975,12 @@ function MOI.set(model::Optimizer, ::MOI.Silent, flag::Bool)
     MOI.set(model, MOI.RawOptimizerAttribute("msg_lev"), output_flag)
     return
 end
+
+###
+### MOI.Name
+###
+
+MOI.supports(::Optimizer, ::MOI.Name) = true
 
 function MOI.get(model::Optimizer, ::MOI.Name)
     name = glp_get_prob_name(model)
@@ -2012,14 +2010,16 @@ function MOI.get(
     return length(MOI.get(model, MOI.ListOfConstraintIndices{F,S}()))
 end
 
-_bound_enums(::Type{<:MOI.LessThan}) = (LESS_THAN, LESS_AND_GREATER_THAN)
-_bound_enums(::Type{<:MOI.GreaterThan}) = (GREATER_THAN, LESS_AND_GREATER_THAN)
-_bound_enums(::Type{<:MOI.Interval}) = (INTERVAL,)
-_bound_enums(::Type{<:MOI.EqualTo}) = (EQUAL_TO,)
+_bound_enums(::Type{<:MOI.LessThan}) = (_LESS_THAN, _LESS_AND_GREATER_THAN)
+function _bound_enums(::Type{<:MOI.GreaterThan})
+    return (_GREATER_THAN, _LESS_AND_GREATER_THAN)
+end
+_bound_enums(::Type{<:MOI.Interval}) = (_INTERVAL,)
+_bound_enums(::Type{<:MOI.EqualTo}) = (_EQUAL_TO,)
 _bound_enums(::Any) = (nothing,)
 
-_type_enums(::Type{MOI.ZeroOne}) = (BINARY,)
-_type_enums(::Type{MOI.Integer}) = (INTEGER,)
+_type_enums(::Type{MOI.ZeroOne}) = (_BINARY,)
+_type_enums(::Type{MOI.Integer}) = (_INTEGER,)
 _type_enums(::Any) = (nothing,)
 
 function MOI.get(
@@ -2056,23 +2056,23 @@ end
 function MOI.get(model::Optimizer, ::MOI.ListOfConstraintTypesPresent)
     constraints = Set{Tuple{Type,Type}}()
     for info in values(model.variable_info)
-        if info.bound == NONE
-        elseif info.bound == LESS_THAN
+        if info.bound == _NONE
+        elseif info.bound == _LESS_THAN
             push!(constraints, (MOI.VariableIndex, MOI.LessThan{Float64}))
-        elseif info.bound == GREATER_THAN
+        elseif info.bound == _GREATER_THAN
             push!(constraints, (MOI.VariableIndex, MOI.GreaterThan{Float64}))
-        elseif info.bound == LESS_AND_GREATER_THAN
+        elseif info.bound == _LESS_AND_GREATER_THAN
             push!(constraints, (MOI.VariableIndex, MOI.LessThan{Float64}))
             push!(constraints, (MOI.VariableIndex, MOI.GreaterThan{Float64}))
-        elseif info.bound == EQUAL_TO
+        elseif info.bound == _EQUAL_TO
             push!(constraints, (MOI.VariableIndex, MOI.EqualTo{Float64}))
-        elseif info.bound == INTERVAL
+        elseif info.bound == _INTERVAL
             push!(constraints, (MOI.VariableIndex, MOI.Interval{Float64}))
         end
-        if info.type == CONTINUOUS
-        elseif info.type == BINARY
+        if info.type == _CONTINUOUS
+        elseif info.type == _BINARY
             push!(constraints, (MOI.VariableIndex, MOI.ZeroOne))
-        elseif info.type == INTEGER
+        elseif info.type == _INTEGER
             push!(constraints, (MOI.VariableIndex, MOI.Integer))
         end
     end
@@ -2085,7 +2085,7 @@ function MOI.get(model::Optimizer, ::MOI.ListOfConstraintTypesPresent)
     return collect(constraints)
 end
 
-function MOI.get(model::Optimizer, ::MOI.ObjectiveFunctionType)
+function MOI.get(::Optimizer, ::MOI.ObjectiveFunctionType)
     return MOI.ScalarAffineFunction{Float64}
 end
 
@@ -2115,15 +2115,6 @@ function MOI.modify(
         offset(indices),
         offset(coefficients),
     )
-    return
-end
-
-function MOI.modify(
-    model::Optimizer,
-    c::MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}},
-    chg::MOI.ScalarCoefficientChange{Float64},
-)
-    glp_set_obj_coef(model, column(model, chg.variable), chg.new_coefficient)
     return
 end
 
@@ -2158,13 +2149,8 @@ function MOI.get(
     cbasis = glp_get_row_stat(model, row)
     if cbasis == GLP_BS
         return MOI.BASIC
-    elseif cbasis == GLP_NL ||
-           cbasis == GLP_NU ||
-           cbasis == GLP_NF ||
-           cbasis == GLP_NS
-        return MOI.NONBASIC
     else
-        error("CBasis value of $(cbasis) isn't defined.")
+        return MOI.NONBASIC
     end
 end
 

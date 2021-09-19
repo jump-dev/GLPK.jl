@@ -16,17 +16,7 @@ function runtests()
     return
 end
 
-# TODO: also run the test for this model:
-# MOI.Bridges.full_bridge_optimizer(
-#     MOI.Utilities.CachingOptimizer(
-#         MOI.Utilities.UniversalFallback(
-#             MOI.Utilities.Model{Float64}(),
-#         ),
-#         GLPK.Optimizer(),
-#     ),
-#     Float64,
-# )
-function test_MOI_Test()
+function test_runtests()
     MOI.Test.runtests(
         MOI.Bridges.full_bridge_optimizer(GLPK.Optimizer(), Float64),
         MOI.Test.Config();
@@ -36,9 +26,29 @@ function test_MOI_Test()
             # Upstream issue: https://github.com/jump-dev/MathOptInterface.jl/issues/1431
             "test_model_LowerBoundAlreadySet",
             "test_model_UpperBoundAlreadySet",
-            # TODO(odow): bug in GLPK
-            "test_objective_set_via_modify",
-            "test_objective_FEASIBILITY_SENSE_clears_objective",
+        ],
+    )
+    return
+end
+
+function test_runtests_cache()
+    MOI.Test.runtests(
+        MOI.Utilities.CachingOptimizer(
+            MOI.Utilities.UniversalFallback(MOI.Utilities.Model{Float64}()),
+            MOI.Bridges.full_bridge_optimizer(GLPK.Optimizer(), Float64),
+        ),
+        MOI.Test.Config();
+        exclude = [
+            # GLPK returns INVALID_MODEL instead of INFEASIBLE
+            "test_constraint_ZeroOne_bounds_3",
+            # Upstream issue: https://github.com/jump-dev/MathOptInterface.jl/issues/1431
+            "test_model_LowerBoundAlreadySet",
+            "test_model_UpperBoundAlreadySet",
+            # ZerosBridge does not support ConstraintDual
+            "test_conic_linear_VectorOfVariables_2",
+            # CachingOptimizer does not throw if solver not attached
+            "test_model_copy_to_UnsupportedAttribute",
+            "test_model_copy_to_UnsupportedConstraint",
         ],
     )
     return

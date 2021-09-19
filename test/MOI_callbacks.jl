@@ -13,10 +13,9 @@ function runtests()
                 getfield(@__MODULE__, name)()
             end
         else
-            # TODO(odow): this is broken!
-            # @testset "$(name)_cache" begin
-            #     getfield(@__MODULE__, name)(true)
-            # end
+            @testset "$(name)_cache" begin
+                getfield(@__MODULE__, name)(true)
+            end
             @testset "$(name)_no_cache" begin
                 getfield(@__MODULE__, name)(false)
             end
@@ -231,7 +230,7 @@ function test_UserCut(cache)
 end
 
 function test_no_cache_UserCut_LazyConstraint()
-    model, x, item_weights = _callback_knapsack_model(false)
+    model, x, _ = _callback_knapsack_model(false)
     MOI.set(
         model,
         MOI.UserCutCallback(),
@@ -254,7 +253,7 @@ function test_no_cache_UserCut_LazyConstraint()
 end
 
 function test_no_cache_UserCut_HeuristicSolution()
-    model, x, item_weights = _callback_knapsack_model(false)
+    model, x, _ = _callback_knapsack_model(false)
     MOI.set(
         model,
         MOI.UserCutCallback(),
@@ -277,7 +276,7 @@ function test_no_cache_UserCut_HeuristicSolution()
 end
 
 function test_Heuristic(cache)
-    model, x, item_weights = _callback_knapsack_model(cache)
+    model, x, _ = _callback_knapsack_model(cache)
     solution_accepted = false
     solution_rejected = false
     MOI.set(
@@ -313,7 +312,7 @@ function test_Heuristic(cache)
 end
 
 function test_no_cache_Heuristic_LazyConstraint()
-    model, x, item_weights = _callback_knapsack_model(false)
+    model, x, _ = _callback_knapsack_model(false)
     MOI.set(
         model,
         MOI.HeuristicCallback(),
@@ -336,7 +335,7 @@ function test_no_cache_Heuristic_LazyConstraint()
 end
 
 function test_no_cache_Heuristic_UserCut()
-    model, x, item_weights = _callback_knapsack_model(false)
+    model, x, _ = _callback_knapsack_model(false)
     MOI.set(
         model,
         MOI.HeuristicCallback(),
@@ -476,7 +475,7 @@ function test_CallbackFunction_UserCut(cache)
 end
 
 function test_CallbackFunction_HeuristicSolution(cache)
-    model, x, item_weights = _callback_knapsack_model(cache)
+    model, x, _ = _callback_knapsack_model(cache)
     solution_accepted = false
     solution_rejected = false
     cb_calls = Int32[]
