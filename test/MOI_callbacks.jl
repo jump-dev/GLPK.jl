@@ -534,6 +534,14 @@ function test_broadcasting(cache)
     @test length(solutions[1]) == length(x)
 end
 
+function test_issue_189(cache)
+    model, x, _ = _callback_knapsack_model(cache)
+    MOI.set(model, GLPK.CallbackFunction(), cb_data -> nothing)
+    MOI.optimize!(model)
+    @test isnan(MOI.get(model, MOI.DualObjectiveValue()))
+    return
+end
+
 end
 
 TestCallbacks.runtests()
