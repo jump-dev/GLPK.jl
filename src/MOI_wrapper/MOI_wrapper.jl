@@ -292,6 +292,8 @@ end
 
 MOI.get(::Optimizer, ::MOI.SolverName) = "GLPK"
 
+MOI.get(::Optimizer, ::MOI.SolverVersion) = string(_GLPK_VERSION)
+
 ###
 ### MOI.RawOptimizerAttribute
 ###
