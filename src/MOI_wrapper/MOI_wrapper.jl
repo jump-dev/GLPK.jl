@@ -63,6 +63,25 @@ mutable struct _ConstraintInfo
     _ConstraintInfo(row, set) = new(row, set, "")
 end
 
+"""
+    Optimizer(;
+        want_infeasibility_certificates::Bool = true,
+        method::MethodEnum = GLPK.SIMPLEX,
+    )
+
+Create a new Optimizer object.
+
+## Arguments
+
+ * `want_infeasibility_certificates::Bool`: flag to control whether to
+   attempt to generate an infeasibility certificate in the case of primal or
+   dual infeasibility. Defaults to `true`. You should set this to `false` if
+   you want GLPK to report primal or dual infeasiblity, but you don't need
+   a certificate.
+
+ * `method::MethodEnum`: Solution method to use. Default is `GLPK.SIMPLEX`.
+   Other options are `GLPK.EXACT` and `GLPK.INTERIOR`.
+"""
 mutable struct Optimizer <: MOI.AbstractOptimizer
     # The low-level GLPK problem.
     inner::Ptr{glp_prob}
@@ -127,25 +146,6 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
     user_cut_callback::Union{Nothing,Function}
     heuristic_callback::Union{Nothing,Function}
 
-    """
-    Optimizer(;
-        want_infeasibility_certificates::Bool = true,
-        method::MethodEnum = GLPK.SIMPLEX,
-    )
-
-    Create a new Optimizer object.
-
-    ## Arguments
-
-     * `want_infeasibility_certificates::Bool`: flag to control whether to
-       attempt to generate an infeasibility certificate in the case of primal or
-       dual infeasibility. Defaults to `true`. You should set this to `false` if
-       you want GLPK to report primal or dual infeasiblity, but you don't need
-       a certificate.
-
-     * `method::MethodEnum`: Solution method to use. Default is `GLPK.SIMPLEX`.
-       Other options are `GLPK.EXACT` and `GLPK.INTERIOR`.
-    """
     function Optimizer(;
         want_infeasibility_certificates::Bool = true,
         method::MethodEnum = SIMPLEX,
