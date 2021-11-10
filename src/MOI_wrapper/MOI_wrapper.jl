@@ -1928,6 +1928,10 @@ end
 function MOI.get(model::Optimizer, attr::MOI.DualObjectiveValue)
     _throw_if_optimize_in_progress(model, attr)
     MOI.check_result_index_bounds(model, attr)
+    if _check_moi_callback_validity(model) || model.has_generic_callback
+        # If we've set a callback, the fallback won't work.
+        return NaN
+    end
     return MOI.Utilities.get_fallback(model, attr, Float64)
 end
 
