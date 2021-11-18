@@ -1771,6 +1771,9 @@ function MOI.get(
 )
     _throw_if_optimize_in_progress(model, attr)
     MOI.check_result_index_bounds(model, attr)
+    if model.unbounded_ray !== nothing
+        return MOI.Utilities.get_fallback(model, attr, c)
+    end
     return _get_row_primal(model, _info(model, c).row)
 end
 
@@ -1900,7 +1903,9 @@ end
 function MOI.get(model::Optimizer, attr::MOI.ObjectiveValue)
     _throw_if_optimize_in_progress(model, attr)
     MOI.check_result_index_bounds(model, attr)
-    if model.last_solved_by_mip
+    if model.unbounded_ray !== nothing
+        return MOI.Utilities.get_fallback(model, attr)
+    elseif model.last_solved_by_mip
         return glp_mip_obj_val(model)
     elseif model.method == SIMPLEX || model.method == EXACT
         return glp_get_obj_val(model)
