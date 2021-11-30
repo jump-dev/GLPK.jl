@@ -1,8 +1,8 @@
 function _precompile_()
     ccall(:jl_generating_output, Cint, ()) == 1 || return nothing
-
+    Base.precompile(Tuple{typeof(MathOptInterface.copy_to),Optimizer,MathOptInterface.Utilities.UniversalFallback{MathOptInterface.Utilities.Model{Float64}}})   # time: 0.1371813
+    Base.precompile(Tuple{Type{Optimizer}})   # time: 0.08901196
     Base.precompile(MOI.set, (Optimizer, MOI.Silent, Bool))
-    Base.precompile(MOI.copy_to, (Optimizer, MOI.Utilities.Model{Float64}))
     Base.precompile(MOI.add_variables, (Optimizer, Int))
     Base.precompile(MOI.add_variable, (Optimizer,))
     Base.precompile(MOI.delete, (Optimizer, MOI.VariableIndex))
