@@ -145,6 +145,9 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
     lazy_callback::Union{Nothing,Function}
     user_cut_callback::Union{Nothing,Function}
     heuristic_callback::Union{Nothing,Function}
+    # Cache for constraints
+    indices::Vector{Cint}
+    coefficients::Vector{Cdouble}
 
     function Optimizer(;
         want_infeasibility_certificates::Bool = true,
@@ -183,6 +186,8 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
                 _HASH,
                 _INVERSE_HASH_C,
             )
+        model.indices = Cint[]
+        model.coefficients = Cdouble[]
         MOI.empty!(model)
         finalizer(model) do m
             return glp_delete_prob(m)
@@ -271,6 +276,8 @@ function MOI.empty!(model::Optimizer)
     model.user_cut_callback = nothing
     model.heuristic_callback = nothing
     _set_callback(model, cb_data -> nothing)
+    empty!(model.indices)
+    empty!(model.coefficients)
     return
 end
 
@@ -426,18 +433,23 @@ function _indices_and_coefficients(
         coefficients[i] = term.coefficient
         i += 1
     end
-    return indices, coefficients
+    return
 end
 
 function _indices_and_coefficients(
     model::Optimizer,
     f::MOI.ScalarAffineFunction{Float64},
 )
-    f_canon = MOI.Utilities.canonical(f)
-    nnz = length(f_canon.terms)
-    indices, coefficients = zeros(Cint, nnz), zeros(Cdouble, nnz)
-    _indices_and_coefficients(indices, coefficients, model, f_canon)
-    return indices, coefficients
+    if !MOI.Utilities.is_canonical(f)
+        f = MOI.Utilities.canonical(f)
+    end
+    nnz = length(f.terms)
+    if length(model.indices) < nnz
+        resize!(model.indices, nnz)
+        resize!(model.coefficients, nnz)
+    end
+    _indices_and_coefficients(model.indices, model.coefficients, model, f)
+    return model.indices, model.coefficients, nnz
 end
 
 _sense_and_rhs(s::MOI.LessThan{Float64}) = (Cchar('L'), s.upper)
@@ -1080,6 +1092,7 @@ end
         problem::Union{Optimizer, Ptr{glp_prob}},
         columns::Vector{Cint},
         coefficients::Vector{Float64},
+        nnz::Int,
         sense::Cchar,
         rhs::Float64,
     )
@@ -1091,18 +1104,16 @@ function _add_affine_constraint(
     problem::Union{Optimizer,Ptr{glp_prob}},
     indices::Vector{Cint},
     coefficients::Vector{Float64},
+    nnz::Int,
     sense::Cchar,
     rhs::Float64,
 )
-    if length(indices) != length(coefficients)
-        error("columns and coefficients have different lengths.")
-    end
     glp_add_rows(problem, 1)
     row = glp_get_num_rows(problem)
     glp_set_mat_row(
         problem,
         row,
-        length(indices),
+        nnz,
         offset(indices),
         offset(coefficients),
     )
@@ -1153,9 +1164,9 @@ function MOI.add_constraint(
     end
     key = CleverDicts.add_item(model.affine_constraint_info, _ConstraintInfo(s))
     model.affine_constraint_info[key].row = length(model.affine_constraint_info)
-    indices, coefficients = _indices_and_coefficients(model, f)
+    indices, coefficients, nnz = _indices_and_coefficients(model, f)
     sense, rhs = _sense_and_rhs(s)
-    _add_affine_constraint(model, indices, coefficients, sense, rhs)
+    _add_affine_constraint(model, indices, coefficients, nnz, sense, rhs)
     return MOI.ConstraintIndex{F,S}(key.value)
 end
 
@@ -2139,11 +2150,11 @@ function MOI.set(
         throw(MOI.ScalarFunctionConstantNotZero(f.constant))
     end
     row = Cint(_info(model, c).row)
-    indices, coefficients = _indices_and_coefficients(model, f)
+    indices, coefficients, nnz = _indices_and_coefficients(model, f)
     glp_set_mat_row(
         model,
         row,
-        length(indices),
+        nnz,
         offset(indices),
         offset(coefficients),
     )

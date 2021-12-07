@@ -120,13 +120,14 @@ function MOI.submit(
     end
     key = CleverDicts.add_item(model.affine_constraint_info, _ConstraintInfo(s))
     model.affine_constraint_info[key].row = length(model.affine_constraint_info)
-    indices, coefficients = _indices_and_coefficients(model, f)
+    indices, coefficients, nnz = _indices_and_coefficients(model, f)
     sense, rhs = _sense_and_rhs(s)
     inner = glp_ios_get_prob(cb.callback_data.tree)
     _add_affine_constraint(
         inner,
         indices,
         coefficients,
+        nnz,
         sense,
         rhs - f.constant,
     )
@@ -156,7 +157,7 @@ function MOI.submit(
     elseif model.callback_state == _CB_HEURISTIC
         throw(MOI.InvalidCallbackUsage(MOI.HeuristicCallback(), cb))
     end
-    indices, coefficients = _indices_and_coefficients(model, f)
+    indices, coefficients, nnz = _indices_and_coefficients(model, f)
     sense, rhs = _sense_and_rhs(s)
     bound_type = sense == Cchar('G') ? GLP_LO : GLP_UP
     glp_ios_add_row(
@@ -164,7 +165,7 @@ function MOI.submit(
         "",
         101,
         0,
-        Cint(length(indices)),
+        nnz,
         offset(indices),
         offset(coefficients),
         bound_type,
