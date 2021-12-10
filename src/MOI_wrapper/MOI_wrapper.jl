@@ -353,7 +353,8 @@ end
 MOI.supports(::Optimizer, ::MOI.TimeLimitSec) = true
 
 _limit_sec_to_ms(::Nothing) = typemax(Int32)
-_limit_sec_to_ms(x::Real) = ceil(Int32, min(typemax(Int32), 1_000 * x))
+# Project the timelimit onto [0, typemax(Int32)] to avoid nasty segfaults.
+_limit_sec_to_ms(x::Real) = ceil(Int32, max(0, min(typemax(Int32), 1_000 * x)))
 
 function MOI.set(
     model::Optimizer,
