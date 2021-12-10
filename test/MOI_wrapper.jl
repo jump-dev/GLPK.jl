@@ -464,6 +464,13 @@ function test_empty_problem_unbounded()
     return
 end
 
+function test_negative_timelimitsec()
+    model = GLPK.Optimizer()
+    MOI.set(model, MOI.TimeLimitSec(), -1.23)
+    @test MOI.get(model, MOI.TimeLimitSec()) == 0.0
+    return
+end
+
 end  # module
 
 TestMOIWrapper.runtests()
