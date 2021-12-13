@@ -92,34 +92,28 @@ function _add_set_data(cache, i, s::MOI.Interval{Float64})
     return
 end
 
-function _extract_bound_data(src, map, cache, s::Type{S}) where {S}
+_add_set_data(cache, i, ::MOI.Integer) = (cache.types[i] = _INTEGER)
+
+_add_set_data(cache, i, ::MOI.ZeroOne) = (cache.types[i] = _BINARY)
+
+function _extract_variable_data(src, map, cache, ::Type{S}) where {S}
+    ci_map = map.con_map[MOI.VariableIndex, S]
     for ci in MOI.get(src, MOI.ListOfConstraintIndices{MOI.VariableIndex,S}())
         f = MOI.get(src, MOI.ConstraintFunction(), ci)
         s = MOI.get(src, MOI.ConstraintSet(), ci)
         column = map[f].value
         _add_set_data(cache, column, s)
-        map[ci] = MOI.ConstraintIndex{MOI.VariableIndex,S}(column)
-    end
-    return
-end
-
-function _extract_type_data(src, map, cache, ::Type{S}) where {S}
-    for ci in MOI.get(src, MOI.ListOfConstraintIndices{MOI.VariableIndex,S}())
-        f = MOI.get(src, MOI.ConstraintFunction(), ci)
-        column = map[f].value
-        cache.types[column] = S == MOI.Integer ? _INTEGER : _BINARY
-        map[ci] = MOI.ConstraintIndex{MOI.VariableIndex,S}(column)
+        ci_map[ci] = MOI.ConstraintIndex{MOI.VariableIndex,S}(column)
     end
     return
 end
 
 function _extract_row_data(src, map, cache, ::Type{S}) where {S}
+    F = MOI.ScalarAffineFunction{Float64}
+    ci_map = map.con_map[F, S]
     nnz = length(cache.I)
     row = nnz == 0 ? 1 : cache.I[end] + 1
-    for ci in MOI.get(
-        src,
-        MOI.ListOfConstraintIndices{MOI.ScalarAffineFunction{Float64},S}(),
-    )::Vector{MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64},S}}
+    for ci in MOI.get(src, MOI.ListOfConstraintIndices{F,S}())
         f = MOI.get(src, MOI.ConstraintFunction(), ci)
         if !MOI.Utilities.is_canonical(f)
             f = MOI.Utilities.canonical(f)
@@ -136,7 +130,7 @@ function _extract_row_data(src, map, cache, ::Type{S}) where {S}
             cache.J[nnz] = Cint(map[term.variable].value::Int64)
             cache.V[nnz] = term.coefficient
         end
-        map[ci] = MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64},S}(row)
+        ci_map[ci] = MOI.ConstraintIndex{F,S}(row)
         row += 1
     end
     return
@@ -160,7 +154,7 @@ function _add_all_variables(model::Optimizer, cache::_OptimizerCache)
     N = length(cache.cl)
     glp_add_cols(model, N)
     sizehint!(model.variable_info, N)
-    for i in 1:N
+    @inbounds for i in 1:N
         bound = _get_moi_bound_type(cache.cl[i], cache.cu[i], cache.bounds[i])
         CleverDicts.add_item(
             model.variable_info,
@@ -193,7 +187,8 @@ function _add_all_constraints(dest::Optimizer, cache::_OptimizerCache)
         offset(cache.V),
     )
     sizehint!(dest.affine_constraint_info, N)
-    for (i, l, u) in zip(1:N, cache.rl, cache.ru)
+    @inbounds for i in 1:N
+        l, u = cache.rl[i], cache.ru[i]
         if l == -Inf
             glp_set_row_bnds(dest, i, GLP_UP, -GLP_DBL_MAX, u)
             CleverDicts.add_item(
@@ -226,13 +221,13 @@ function MOI.copy_to(dest::Optimizer, src::MOI.ModelLike)
     cache = _OptimizerCache(length(variables))
     # Extract the problem data
     #   Variable bounds:
-    _extract_bound_data(src, map, cache, MOI.GreaterThan{Float64})
-    _extract_bound_data(src, map, cache, MOI.LessThan{Float64})
-    _extract_bound_data(src, map, cache, MOI.EqualTo{Float64})
-    _extract_bound_data(src, map, cache, MOI.Interval{Float64})
+    _extract_variable_data(src, map, cache, MOI.GreaterThan{Float64})
+    _extract_variable_data(src, map, cache, MOI.LessThan{Float64})
+    _extract_variable_data(src, map, cache, MOI.EqualTo{Float64})
+    _extract_variable_data(src, map, cache, MOI.Interval{Float64})
     #   Variable types:
-    _extract_type_data(src, map, cache, MOI.Integer)
-    _extract_type_data(src, map, cache, MOI.ZeroOne)
+    _extract_variable_data(src, map, cache, MOI.Integer)
+    _extract_variable_data(src, map, cache, MOI.ZeroOne)
     #   Affine constraints:
     _extract_row_data(src, map, cache, MOI.GreaterThan{Float64})
     _extract_row_data(src, map, cache, MOI.LessThan{Float64})
