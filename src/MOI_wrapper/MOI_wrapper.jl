@@ -1480,8 +1480,8 @@ end
 function _raw_simplex_string(status::Int32)
     if status == GLP_EBADB
         return (
-        MOI.INVALID_MODEL,
-        "Unable to start the search, because the initial basis specified in the problem object is invalid—the number of basic (auxiliary and structural) variables is not the same as the number of rows in the problem object.",
+            MOI.INVALID_MODEL,
+            "Unable to start the search, because the initial basis specified in the problem object is invalid—the number of basic (auxiliary and structural) variables is not the same as the number of rows in the problem object.",
         )
     elseif status == GLP_ESING
         return (
