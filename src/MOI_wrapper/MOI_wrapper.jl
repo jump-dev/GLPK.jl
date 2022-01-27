@@ -1477,53 +1477,66 @@ end
 # because it doesn't imply anything about the solution. If `solver_status` is
 # `Int32(0)`, then a solution-specific status can be queried with `_get_status`.
 
-const _RAW_SIMPLEX_STRINGS =
-    Dict{Int32,Tuple{MOI.TerminationStatusCode,String}}(
-        GLP_EBADB => (
+function _raw_simplex_string(status::Int32)
+    if status == GLP_EBADB
+        return (
             MOI.INVALID_MODEL,
             "Unable to start the search, because the initial basis specified in the problem object is invalid—the number of basic (auxiliary and structural) variables is not the same as the number of rows in the problem object.",
-        ),
-        GLP_ESING => (
+        )
+    elseif status == GLP_ESING
+        return (
             MOI.NUMERICAL_ERROR,
             "Unable to start the search, because the basis matrix corresponding to the initial basis is singular within the working precision.",
-        ),
-        GLP_ECOND => (
+        )
+    elseif status == GLP_ECOND
+        return (
             MOI.NUMERICAL_ERROR,
             "Unable to start the search, because the basis matrix corresponding to the initial basis is ill-conditioned, i.e. its condition number is too large.",
-        ),
-        GLP_EBOUND => (
+        )
+    elseif status == GLP_EBOUND
+        return (
             MOI.INVALID_MODEL,
             "Unable to start the search, because some double-bounded (auxiliary or structural) variables have incorrect bounds.",
-        ),
-        GLP_EFAIL => (
+        )
+    elseif status == GLP_EFAIL
+        return (
             MOI.NUMERICAL_ERROR,
             "The search was prematurely terminated due to the solver failure.",
-        ),
-        GLP_EOBJLL => (
+        )
+    elseif status == GLP_EOBJLL
+        return (
             MOI.OBJECTIVE_LIMIT,
             "The search was prematurely terminated, because the objective function being maximized has reached its lower limit and continues decreasing (the dual simplex only).",
-        ),
-        GLP_EOBJUL => (
+        )
+    elseif status == GLP_EOBJUL
+        return (
             MOI.OBJECTIVE_LIMIT,
             "The search was prematurely terminated, because the objective function being minimized has reached its upper limit and continues increasing (the dual simplex only).",
-        ),
-        GLP_EITLIM => (
+        )
+    elseif status == GLP_EITLIM
+        return (
             MOI.ITERATION_LIMIT,
             "The search was prematurely terminated, because the simplex iteration limit has been exceeded.",
-        ),
-        GLP_ETMLIM => (
+        )
+    elseif status == GLP_ETMLIM
+        return (
             MOI.TIME_LIMIT,
             "The search was prematurely terminated, because the time limit has been exceeded.",
-        ),
-        GLP_ENOPFS => (
+        )
+    elseif status == GLP_ENOPFS
+        return (
             MOI.INFEASIBLE,
             "The LP problem instance has no primal feasible solution (only if the LP presolver is used).",
-        ),
-        GLP_ENODFS => (
+        )
+    elseif status == GLP_ENODFS
+        return (
             MOI.DUAL_INFEASIBLE,
             "The LP problem instance has no dual feasible solution (only if the LP presolver is used).",
-        ),
-    )
+        )
+    else
+        error("unknown status")
+    end
+end
 
 const _RAW_EXACT_STRINGS = Dict{Int32,Tuple{MOI.TerminationStatusCode,String}}(
     GLP_EBADB => (
@@ -1613,7 +1626,7 @@ function MOI.get(model::Optimizer, attr::MOI.RawStatusString)
     elseif model.last_solved_by_mip
         return _RAW_INTOPT_STRINGS[model.solver_status][2]
     elseif model.method == SIMPLEX
-        return _RAW_SIMPLEX_STRINGS[model.solver_status][2]
+        return _raw_simplex_string(model.solver_status)[2]
     elseif model.method == EXACT
         return _RAW_EXACT_STRINGS[model.solver_status][2]
     else
@@ -1660,7 +1673,7 @@ function MOI.get(model::Optimizer, attr::MOI.TerminationStatus)
         if model.last_solved_by_mip
             return _RAW_INTOPT_STRINGS[model.solver_status][1]
         elseif model.method == SIMPLEX
-            return _RAW_SIMPLEX_STRINGS[model.solver_status][1]
+            return _raw_simplex_string(model.solver_status)[1]
         elseif model.method == INTERIOR
             return _RAW_INTERIOR_STRINGS[model.solver_status][1]
         else
