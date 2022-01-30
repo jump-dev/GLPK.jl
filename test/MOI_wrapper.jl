@@ -480,7 +480,7 @@ function test_unbounded_ray()
     MOI.set(
         model,
         MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}(),
-        MOI.ScalarAffineFunction(MOI.ScalarAffineTerm.(c, x), 0.0)
+        MOI.ScalarAffineFunction(MOI.ScalarAffineTerm.(c, x), 0.0),
     )
     MOI.set(model, MOI.ObjectiveSense(), MOI.MIN_SENSE)
     for i in 1:2
