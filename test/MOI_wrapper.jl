@@ -471,6 +471,30 @@ function test_negative_timelimitsec()
     return
 end
 
+function test_unbounded_ray()
+    model = GLPK.Optimizer(; method = GLPK.EXACT)
+    c = [-1.0, 0.0]
+    A = [1.0 1.0; -1.0 -1.0]
+    b = [1.0, -1.0]
+    x = MOI.add_variables(model, 2)
+    MOI.set(
+        model,
+        MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}(),
+        MOI.ScalarAffineFunction(MOI.ScalarAffineTerm.(c, x), 0.0)
+    )
+    MOI.set(model, MOI.ObjectiveSense(), MOI.MIN_SENSE)
+    for i in 1:2
+        MOI.add_constraint(
+            model,
+            MOI.ScalarAffineFunction(MOI.ScalarAffineTerm.(A[i, :], x), 0.0),
+            MOI.LessThan(b[i]),
+        )
+    end
+    MOI.optimize!(model)
+    @test MOI.get(model, MOI.TerminationStatus()) == MOI.DUAL_INFEASIBLE
+    return
+end
+
 end  # module
 
 TestMOIWrapper.runtests()
