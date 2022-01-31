@@ -42,6 +42,8 @@ function _get_infeasibility_ray(model::Optimizer, ray::Vector{Float64})
     unbounded_index = glp_get_unbnd_ray(model)
     if unbounded_index == 0
         return false  # Something went wrong finding an unbounded ray.
+    elseif glp_bf_exists(model) == 0
+        return false  # No basis factorization
     end
     # If the primal value exceeds the upper bound, then the unbounded_index
     # wants to increase. Otherwise, it must want to decrease.
@@ -86,6 +88,8 @@ function _get_unbounded_ray(model::Optimizer, ray::Vector{Float64})
     unbounded_index = glp_get_unbnd_ray(model)
     if unbounded_index == 0
         return false  # Something went wrong finding an unbounded ray.
+    elseif glp_bf_exists(model) == 0
+        return false  # No basis factorization exists
     end
     dual = if unbounded_index <= m
         glp_get_row_dual(model, unbounded_index)
