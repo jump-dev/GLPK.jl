@@ -1,17 +1,10 @@
 module GLPK
 
-if haskey(ENV, "JULIA_GLPK_LIBRARY_PATH") || VERSION < v"1.3"
-    deps_file = joinpath(dirname(@__DIR__), "deps", "deps.jl")
-    if isfile(deps_file)
-        include(deps_file)
-    else
-        error(
-            "GLPK not properly installed. Please run " *
-            "`import Pkg; Pkg.build(\"GLPK\")`.",
-        )
-    end
-else
-    import GLPK_jll: libglpk
+import GLPK_jll
+
+function __init__()
+    global libglpk = GLPK_jll.libglpk
+    return
 end
 
 using CEnum
@@ -62,7 +55,6 @@ end
 include("MOI_wrapper/MOI_wrapper.jl")
 include("MOI_wrapper/MOI_copy.jl")
 include("MOI_wrapper/MOI_callbacks.jl")
-include("MOI_wrapper/deprecated_constants.jl")
 
 # GLPK exports all `GLP_XXX` and `glp_xxx` symbols. If you don't want all of
 # these symbols in your environment, then use `import GLPK` instead of
@@ -75,9 +67,7 @@ for sym in names(@__MODULE__, all = true)
     end
 end
 
-if Base.VERSION >= v"1.4.2"
-    include("precompile.jl")
-    _precompile_()
-end
+include("precompile.jl")
+_precompile_()
 
 end

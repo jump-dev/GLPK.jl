@@ -149,7 +149,6 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
     function Optimizer(;
         want_infeasibility_certificates::Bool = true,
         method::MethodEnum = SIMPLEX,
-        kwargs...,
     )
         model = new()
         model.inner = glp_create_prob()
@@ -162,16 +161,6 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
         model.simplex_param = glp_smcp()
         glp_init_smcp(model.simplex_param)
         MOI.set(model, MOI.RawOptimizerAttribute("msg_lev"), GLP_MSG_ERR)
-        if length(kwargs) > 0
-            @warn(
-                "Passing parameters as keyword arguments is deprecated. Use " *
-                "`JuMP.set_optimizer_attribute` or " *
-                "`MOI.RawOptimizerAttribute(key)` instead.",
-            )
-        end
-        for (key, val) in kwargs
-            MOI.set(model, MOI.RawOptimizerAttribute(String(key)), val)
-        end
         model.silent = false
         model.variable_info =
             CleverDicts.CleverDict{MOI.VariableIndex,_VariableInfo}(
