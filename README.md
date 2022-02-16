@@ -20,9 +20,7 @@ import Pkg; Pkg.add("GLPK")
 ```
 
 In addition to installing the GLPK.jl package, this will also download and
-install the GLPK binaries. (You do not need to install GLPK separately.) If you
-require a custom build of GLPK, see the **Custom Installation** instructions
-below.
+install the GLPK binaries. (You do not need to install GLPK separately.)
 
 ## Use with JuMP
 
@@ -41,32 +39,6 @@ intend to use the certificate. If this is the case, use:
 model = Model() do
     return GLPK.Optimizer(want_infeasibility_certificates = false)
 end
-```
-
-## Custom Installation
-
-To install custom built GLPK binaries, use the environmental variable
-`JULIA_GLPK_LIBRARY_PATH` to point to the path at which you installed GLPK (the
-folder containing `libglpk`). 
-
-For example, on Mac, after installing GLPK with `brew install glpk`, use:
-```julia
-ENV["JULIA_GLPK_LIBRARY_PATH"] = "/usr/local/Cellar/glpk/4.65/lib"
-import Pkg
-Pkg.add("GLPK")
-Pkg.build("GLPK")
-```
-Replace `"/usr/local/Cellar/glpk/4.65/lib"` with a different path as
-appropriate.
-
-**You must have `JULIA_GLPK_LIBRARY_PATH` set _every_ time you run `using GLPK`,
-not just when you install it.**
-
-Switch back to the default binaries as follows:
-```julia
-delete!(ENV, "JULIA_GLPK_LIBRARY_PATH")
-import Pkg
-Pkg.build("GLPK")
 ```
 
 ## Callbacks
