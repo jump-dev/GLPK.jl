@@ -55,7 +55,10 @@ function test_runtests_cache()
 end
 
 function test_parameter_setting()
-    solver = GLPK.Optimizer(tm_lim = 1, ord_alg = 2, alien = 3)
+    solver = GLPK.Optimizer()
+    MOI.set(solver, MOI.RawOptimizerAttribute("tm_lim"), 1)
+    MOI.set(solver, MOI.RawOptimizerAttribute("ord_alg"), 2)
+    MOI.set(solver, MOI.RawOptimizerAttribute("alien"), 3)
     @test solver.simplex_param.tm_lim == 1
     @test solver.intopt_param.tm_lim == 1
     @test solver.interior_param.ord_alg == 2
