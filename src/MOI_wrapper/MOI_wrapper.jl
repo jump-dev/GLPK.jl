@@ -1517,110 +1517,133 @@ function _raw_simplex_string(status::Int32)
             MOI.INFEASIBLE,
             "The LP problem instance has no primal feasible solution (only if the LP presolver is used).",
         )
-    elseif status == GLP_ENODFS
+    else
+        @assert status == GLP_ENODFS
         return (
             MOI.DUAL_INFEASIBLE,
             "The LP problem instance has no dual feasible solution (only if the LP presolver is used).",
         )
-    else
-        error("unknown status")
     end
 end
 
-const _RAW_EXACT_STRINGS = Dict{Int32,Tuple{MOI.TerminationStatusCode,String}}(
-    GLP_EBADB => (
-        MOI.INVALID_MODEL,
-        "Unable to start the search, because the initial basis specified in the problem object is invalid—the number of basic (auxiliary and structural) variables is not the same as the number of rows in the problem object.",
-    ),
-    GLP_ESING => (
-        MOI.NUMERICAL_ERROR,
-        "Unable to start the search, because the basis matrix corresponding to the initial basis is exactly singular.",
-    ),
-    GLP_EBOUND => (
-        MOI.INVALID_MODEL,
-        "Unable to start the search, because some double-bounded (auxiliary or structural) variables have incorrect bounds.",
-    ),
-    GLP_EFAIL =>
-        (MOI.INVALID_MODEL, "The problem instance has no rows/columns."),
-    GLP_EITLIM => (
-        MOI.ITERATION_LIMIT,
-        "The search was prematurely terminated, because the simplex iteration limit has been exceeded.",
-    ),
-    GLP_ETMLIM => (
-        MOI.TIME_LIMIT,
-        "The search was prematurely terminated, because the time limit has been exceeded.",
-    ),
-)
+function _raw_exact_string(status::Int32)
+    if status == GLP_EBADB
+        return (
+            MOI.INVALID_MODEL,
+            "Unable to start the search, because the initial basis specified in the problem object is invalid—the number of basic (auxiliary and structural) variables is not the same as the number of rows in the problem object.",
+        )
+    elseif status == GLP_ESING
+        return (
+            MOI.NUMERICAL_ERROR,
+            "Unable to start the search, because the basis matrix corresponding to the initial basis is exactly singular.",
+        )
+    elseif status == GLP_EBOUND
+        return (
+            MOI.INVALID_MODEL,
+            "Unable to start the search, because some double-bounded (auxiliary or structural) variables have incorrect bounds.",
+        )
+    elseif status == GLP_EFA
+        (MOI.INVALID_MODEL, "The problem instance has no rows/columns.")
+    elseif status == GLP_EITLIM
+        return (
+            MOI.ITERATION_LIMIT,
+            "The search was prematurely terminated, because the simplex iteration limit has been exceeded.",
+        )
+    else
+        @assert status == GLP_ETMLIM
+        return (
+            MOI.TIME_LIMIT,
+            "The search was prematurely terminated, because the time limit has been exceeded.",
+        )
+    end
+end
 
-const _RAW_INTERIOR_STRINGS =
-    Dict{Int32,Tuple{MOI.TerminationStatusCode,String}}(
-        GLP_EFAIL =>
-            (MOI.INVALID_MODEL, "The problem instance has no rows/columns."),
-        GLP_ENOCVG =>
-            (MOI.SLOW_PROGRESS, "Very slow convergence or divergence."),
-        GLP_EITLIM => (MOI.ITERATION_LIMIT, "Iteration limit exceeded."),
-        GLP_EINSTAB => (
+function _raw_interior_string(status::Int32)
+    if status == GLP_EFAIL
+        return (MOI.INVALID_MODEL, "The problem instance has no rows/columns.")
+    elseif status == GLP_ENOCVG
+        return (MOI.SLOW_PROGRESS, "Very slow convergence or divergence.")
+    elseif status == GLP_EITLIM
+        return (MOI.ITERATION_LIMIT, "Iteration limit exceeded.")
+    else
+        @assert status == GLP_EINSTAB
+        return (
             MOI.NUMERICAL_ERROR,
             "Numerical instability on solving Newtonian system.",
-        ),
-    )
+        )
+    end
+end
 
-const _RAW_INTOPT_STRINGS = Dict{Int32,Tuple{MOI.TerminationStatusCode,String}}(
-    GLP_EBOUND => (
-        MOI.INVALID_MODEL,
-        "Unable to start the search, because some double-bounded (auxiliary or structural) variables have incorrect bounds.",
-    ),
-    GLP_ENOPFS => (
-        MOI.INFEASIBLE,
-        "Unable to start the search, because LP relaxation of the MIP problem instance has no primal feasible solution. (This code may appear only if the presolver is enabled.)",
-    ),
-    GLP_ENODFS => (
-        MOI.DUAL_INFEASIBLE,
-        "Unable to start the search, because LP relaxation of the MIP problem instance has no dual feasible solution. In other word, this code means that if the LP relaxation has at least one primal feasible solution, its optimal solution is unbounded, so if the MIP problem has at least one integer feasible solution, its (integer) optimal solution is also unbounded. (This code may appear only if the presolver is enabled.)",
-    ),
-    GLP_EFAIL => (
-        MOI.INVALID_MODEL,
-        "The search was prematurely terminated due to the solver failure.",
-    ),
-    GLP_EMIPGAP => (
-        MOI.OPTIMAL,
-        "The search was prematurely terminated, because the relative mip gap tolerance has been reached.",
-    ),
-    GLP_ETMLIM => (
-        MOI.TIME_LIMIT,
-        "The search was prematurely terminated, because the time limit has been exceeded.",
-    ),
-    GLP_ESTOP => (
-        MOI.INTERRUPTED,
-        "The search was prematurely terminated by application. (This code may appear only if the advanced solver interface is used.)",
-    ),
-)
+function _raw_intopt_string(status::Int32)
+    if status == GLP_EBOUND
+        return (
+            MOI.INVALID_MODEL,
+            "Unable to start the search, because some double-bounded (auxiliary or structural) variables have incorrect bounds.",
+        )
+    elseif status == GLP_ENOPFS
+        return (
+            MOI.INFEASIBLE,
+            "Unable to start the search, because LP relaxation of the MIP problem instance has no primal feasible solution. (This code may appear only if the presolver is enabled.)",
+        )
+    elseif status == GLP_ENODFS
+        return (
+            MOI.DUAL_INFEASIBLE,
+            "Unable to start the search, because LP relaxation of the MIP problem instance has no dual feasible solution. In other word, this code means that if the LP relaxation has at least one primal feasible solution, its optimal solution is unbounded, so if the MIP problem has at least one integer feasible solution, its (integer) optimal solution is also unbounded. (This code may appear only if the presolver is enabled.)",
+        )
+    elseif status == GLP_EFAIL
+        return (
+            MOI.INVALID_MODEL,
+            "The search was prematurely terminated due to the solver failure.",
+        )
+    elseif status == GLP_EMIPGAP
+        return (
+            MOI.OPTIMAL,
+            "The search was prematurely terminated, because the relative mip gap tolerance has been reached.",
+        )
+    elseif status == GLP_ETMLIM
+        return (
+            MOI.TIME_LIMIT,
+            "The search was prematurely terminated, because the time limit has been exceeded.",
+        )
+    else
+        @assert status == GLP_ESTOP
+        return (
+            MOI.INTERRUPTED,
+            "The search was prematurely terminated by application. (This code may appear only if the advanced solver interface is used.)",
+        )
+    end
+end
 
-const _RAW_SOLUTION_STATUS =
-    Dict{Int32,Tuple{MOI.TerminationStatusCode,String}}(
-        GLP_OPT => (MOI.OPTIMAL, "Solution is optimal"),
-        GLP_FEAS => (MOI.LOCALLY_SOLVED, "Solution is feasible"),
-        GLP_INFEAS => (MOI.LOCALLY_INFEASIBLE, "Solution is infeasible"),
-        GLP_NOFEAS =>
-            (MOI.INFEASIBLE, "No feasible primal-dual solution exists."),
-        GLP_UNBND => (MOI.DUAL_INFEASIBLE, "Problem has unbounded solution"),
-        GLP_UNDEF => (MOI.OTHER_ERROR, "Solution is undefined"),
-    )
+function _raw_solution_string(status::Int32)
+    if status == GLP_OPT
+        return (MOI.OPTIMAL, "Solution is optimal")
+    elseif status == GLP_FEAS
+        return (MOI.LOCALLY_SOLVED, "Solution is feasible")
+    elseif status == GLP_INFEAS
+        return (MOI.LOCALLY_INFEASIBLE, "Solution is infeasible")
+    elseif status == GLP_NOFEAS
+        return (MOI.INFEASIBLE, "No feasible primal-dual solution exists.")
+    elseif status == GLP_UNBND
+        return (MOI.DUAL_INFEASIBLE, "Problem has unbounded solution")
+    else
+        @assert status == GLP_UNDEF
+        return (MOI.OTHER_ERROR, "Solution is undefined")
+    end
+end
 
 function MOI.get(model::Optimizer, attr::MOI.RawStatusString)
     _throw_if_optimize_in_progress(model, attr)
     if model.solver_status == Int32(0)
-        (_, msg) = _get_status(model)
-        return msg
+        return _get_status(model)[2]
     elseif model.last_solved_by_mip
-        return _RAW_INTOPT_STRINGS[model.solver_status][2]
+        return _raw_intopt_string(model.solver_status)[2]
     elseif model.method == SIMPLEX
         return _raw_simplex_string(model.solver_status)[2]
     elseif model.method == EXACT
-        return _RAW_EXACT_STRINGS[model.solver_status][2]
+        return _raw_exact_string(model.solver_status)[2]
     else
         @assert model.method == INTERIOR
-        return _RAW_INTERIOR_STRINGS[model.solver_status][2]
+        return _raw_interior_string(model.solver_status)[2]
     end
 end
 
@@ -1633,7 +1656,7 @@ function _get_status(model::Optimizer)
         @assert model.method == INTERIOR
         glp_ipt_status(model)
     end
-    return _RAW_SOLUTION_STATUS[status_code]
+    return _raw_solution_string(status_code)
 end
 
 """
@@ -1660,14 +1683,14 @@ function MOI.get(model::Optimizer, attr::MOI.TerminationStatus)
     elseif model.solver_status != Int32(0)
         # The solver did not exit successfully for some reason.
         if model.last_solved_by_mip
-            return _RAW_INTOPT_STRINGS[model.solver_status][1]
+            return _raw_intopt_string(model.solver_status)[1]
         elseif model.method == SIMPLEX
             return _raw_simplex_string(model.solver_status)[1]
         elseif model.method == INTERIOR
-            return _RAW_INTERIOR_STRINGS[model.solver_status][1]
+            return _raw_interior_string(model.solver_status)[1]
         else
             @assert model.method == EXACT
-            return _RAW_EXACT_STRINGS[model.solver_status][1]
+            return _raw_exact_string(model.solver_status)[1]
         end
     else
         (status, _) = _get_status(model)
