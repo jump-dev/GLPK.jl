@@ -4,12 +4,28 @@ import GLPK_jll
 
 function __init__()
     global libglpk = GLPK_jll.libglpk
+    p = glp_version()
+    version = VersionNumber(parse.(Int, split(unsafe_string(p), "."))...)
+    if !(v"4.64.0" <= version <= v"5.0.0")
+        error("""
+        You have installed version $version of GLPK, which is not supported
+        by GLPK.jl. We prefer GLPK version 5.0, but this may also work on versions
+        4.64 and newer.
+
+        After installing GLPK 5.0, run:
+
+            import Pkg
+            Pkg.rm("GLPK")
+            Pkg.add("GLPK")
+
+        If you have a newer version of GLPK installed, changes may need to be made
+        to the Julia code. Please open an issue at
+        https://github.com/jump-dev/GLPK.jl.
+        """)
+    end
     return
 end
 
-using CEnum
-
-include("gen/ctypes.jl")
 include("gen/libglpk_common.jl")
 include("gen/libglpk_api.jl")
 
@@ -28,29 +44,6 @@ accesses `x[0]`.
 See the GLPK manual for more details.
 """
 offset(x::Vector) = Ref(x, 0)
-
-const _GLPK_VERSION = let
-    p = glp_version()
-    VersionNumber(parse.(Int, split(unsafe_string(p), "."))...)
-end
-
-if !(v"4.64.0" <= _GLPK_VERSION <= v"5.0.0")
-    error("""
-    You have installed version $_GLPK_VERSION of GLPK, which is not supported
-    by GLPK.jl. We prefer GLPK version 5.0, but this may also work on versions
-    4.64 and newer.
-
-    After installing GLPK 5.0, run:
-
-        import Pkg
-        Pkg.rm("GLPK")
-        Pkg.add("GLPK")
-
-    If you have a newer version of GLPK installed, changes may need to be made
-    to the Julia code. Please open an issue at
-    https://github.com/jump-dev/GLPK.jl.
-    """)
-end
 
 include("MOI_wrapper/MOI_wrapper.jl")
 include("MOI_wrapper/MOI_copy.jl")

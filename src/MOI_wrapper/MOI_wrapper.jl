@@ -281,7 +281,7 @@ end
 
 MOI.get(::Optimizer, ::MOI.SolverName) = "GLPK"
 
-MOI.get(::Optimizer, ::MOI.SolverVersion) = string(_GLPK_VERSION)
+MOI.get(::Optimizer, ::MOI.SolverVersion) = unsafe_string(glp_version())
 
 ###
 ### MOI.RawOptimizerAttribute

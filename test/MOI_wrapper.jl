@@ -280,7 +280,9 @@ function test_default_parameters()
     @test MOI.get(model, MOI.RawOptimizerAttribute("msg_lev")) ==
           GLPK.GLP_MSG_ERR
     @test MOI.get(model, MOI.RawOptimizerAttribute("presolve")) == GLPK.GLP_OFF
-    model = GLPK.Optimizer(msg_lev = GLPK.GLP_MSG_ALL, presolve = true)
+    model = GLPK.Optimizer()
+    MOI.set(model, MOI.RawOptimizerAttribute("msg_lev"), GLPK.GLP_MSG_ALL)
+    MOI.set(model, MOI.RawOptimizerAttribute("presolve"), true)
     @test MOI.get(model, MOI.RawOptimizerAttribute("msg_lev")) ==
           GLPK.GLP_MSG_ALL
     @test MOI.get(model, MOI.RawOptimizerAttribute("presolve")) == GLPK.GLP_ON
@@ -334,14 +336,6 @@ function test_nonascii_names()
     )
     MOI.set(model, MOI.ConstraintName(), c, "ω")
     @test MOI.get(model, MOI.ConstraintName(), c) == "ω"
-    return
-end
-
-function test_deprecated_constants()
-    model = GLPK.Optimizer()
-    MOI.set(model, MOI.RawOptimizerAttribute("msg_lev"), GLPK.MSG_OFF)
-    @test MOI.get(model, MOI.RawOptimizerAttribute("msg_lev")) ==
-          GLPK.GLP_MSG_OFF
     return
 end
 
