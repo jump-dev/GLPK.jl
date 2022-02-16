@@ -4,14 +4,11 @@ repo = "https://github.com/jump-dev/GLPK.jl.git"
 version = "1.0.0"
 
 [deps]
-BinaryProvider = "b99e7846-7c00-51b0-8f62-c81ae34c0232"
 CEnum = "fa961155-64e5-5f13-b03f-caf6b980ea82"
 GLPK_jll = "e8aa6df9-e6ca-548a-97ff-1f85fc5b8b98"
-Libdl = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
 MathOptInterface = "b8f27783-ece8-5eb3-8dc8-9495eed66fee"
 
 [compat]
-BinaryProvider = "~0.5"
 CEnum = "0.3, 0.4"
 GLPK_jll = "=5.0.0, =5.0.1"
 MathOptInterface = "~0.10.5"
