@@ -9,7 +9,7 @@ MathOptInterface = "b8f27783-ece8-5eb3-8dc8-9495eed66fee"
 
 [compat]
 GLPK_jll = "=5.0.0, =5.0.1"
-MathOptInterface = "~0.10.5"
+MathOptInterface = "1"
 julia = "1.6"
 
 [extras]
