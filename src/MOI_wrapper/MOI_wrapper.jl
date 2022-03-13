@@ -2209,6 +2209,6 @@ function MOI.get(
         return MOI.NONBASIC
     else
         @assert vbasis == GLP_NS
-        return MOI.SUPERBASIC
+        return MOI.SUPER_BASIC
     end
 end
