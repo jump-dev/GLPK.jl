@@ -492,6 +492,58 @@ function test_unbounded_ray()
     return
 end
 
+"""
+    test_variable_basis_status()
+
+This  is a specially crafted linear program to expose the different variable
+basis behavior of GLPK. Because the problem is degenerate, this test might break
+in a future update of GLPK, but it works with GLPK_jll@5.0.0.
+
+Example constructed from a model provided by @guimarqu in
+https://github.com/jump-dev/GLPK.jl/pull/213.
+"""
+function test_variable_basis_status()
+    str = """
+    variables: x1, x2, x3, x4, x5, x6, x7, x8, x9
+    minobjective: 1.0 * x9
+    c1: x1 + x2 + x4 <= 1.0
+    c4: x8 + x3 + x5 <= 1.0
+    c7: x1 + x2 + x4 >= 1.0
+    c8: x3 + x5 >= 1.0
+    c9: -1.0*x1 >= 0.0
+    c10: x5 + x3 >= 0.0
+    c11: x6 + -1.0*x2 >= 0.0
+    c17: x9 + -72.0*x1 + -108.0*x2 + -26.0*x3 + -144.0*x4 + -130.0*x5 + -18.0*x6 >= -202.0
+    x1 in Interval(0.0, 1.0)
+    x2 in Interval(0.0, 1.0)
+    x3 in Interval(0.0, 1.0)
+    x4 in Interval(0.0, 1.0)
+    x5 in Interval(0.0, 1.0)
+    x6 in Interval(0.0, 1.0)
+    x7 in Interval(0.0, 0.0)
+    x9 >= 0.0
+    """
+    model = GLPK.Optimizer()
+    MOI.Utilities.loadfromstring!(model, str)
+    MOI.optimize!(model)
+    x = MOI.get(model, MOI.ListOfVariableIndices())
+    status = MOI.get.(model, MOI.VariableBasisStatus(), x)
+    x_val = MOI.get.(model, MOI.VariablePrimal(), x)
+    @test x_val == [0, 0, 1, 1, 0, 0, 0, 0, 0]
+    @test status == [
+        MOI.BASIC,              # x1 is [0, 1] at 0 but in basis => degenerate
+        MOI.BASIC,              # x2 is [0, 1] at 0 but in basis => degenerate
+        MOI.NONBASIC_AT_UPPER,  # x3 is [0, 1] at 1
+        MOI.NONBASIC_AT_UPPER,  # x4 is [0, 1] at 1
+        MOI.NONBASIC_AT_LOWER,  # x5 is [0, 1] at 0
+        MOI.NONBASIC_AT_LOWER,  # x6 is [0, 1] at 0
+        MOI.NONBASIC,           # x7 is fixed variable
+        MOI.SUPER_BASIC,        # x8 is a free variable at 0
+        MOI.NONBASIC_AT_LOWER,  # x9 is >= 0 at 0
+    ]
+    return
+end
+
 end  # module
 
 TestMOIWrapper.runtests()

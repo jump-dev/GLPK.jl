@@ -2199,16 +2199,16 @@ function MOI.get(
     _throw_if_optimize_in_progress(model, attr)
     col = column(model, x)
     vbasis = glp_get_col_stat(model, col)
-    if vbasis == GLP_BS
+    if vbasis == GLP_BS  # basic variable
         return MOI.BASIC
-    elseif vbasis == GLP_NL
+    elseif vbasis == GLP_NL  # non-basic variable having active lower bound
         return MOI.NONBASIC_AT_LOWER
-    elseif vbasis == GLP_NU
+    elseif vbasis == GLP_NU  # non-basic variable having active upper bound
         return MOI.NONBASIC_AT_UPPER
-    elseif vbasis == GLP_NF
-        return MOI.NONBASIC
-    else
-        @assert vbasis == GLP_NS
+    elseif vbasis == GLP_NF  # non-basic free variable
         return MOI.SUPER_BASIC
+    else
+        @assert vbasis == GLP_NS  # nonbasic fixed variable
+        return MOI.NONBASIC
     end
 end
