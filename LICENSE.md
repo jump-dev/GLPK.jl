@@ -1,7 +1,7 @@
 GLPK.jl is licensed under the GNU General Public License, which is available in
 the file COPYING, and also available at [https://www.gnu.org/licenses/].
 
-Copyright (c) 2012 Carlo Baldassi and GLPK.jl contributors
+Copyright (c) 2012 GLPK.jl contributors
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
