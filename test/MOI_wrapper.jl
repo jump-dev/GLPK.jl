@@ -586,7 +586,7 @@ function test_multiple_modifications()
     fc1 = MOI.get(model, MOI.ConstraintFunction(), ci1)
     @test MOI.coefficient.(fc1.terms) == [4.0, 1.0, 1.0]
     fc2 = MOI.get(model, MOI.ConstraintFunction(), ci2)
-    @test MOI.coefficient.(fc2.terms) == [2.0, 1.0, 0.5]
+    @test MOI.coefficient.(fc2.terms) == [0.5, 1.0, 2.0]
 end
 
 end  # module
