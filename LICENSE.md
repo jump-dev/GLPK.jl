@@ -1,6 +1,7 @@
-Julia GLPK wrapper package.
-Copyright (C) 2012 Carlo Baldassi (the "Author") <carlobaldassi@gmail.com>.
-All Rights Reserved.
+GLPK.jl is licensed under the GNU General Public License, which is available in
+the file COPYING, and also available at [https://www.gnu.org/licenses/].
+
+Copyright (c) 2012 GLPK.jl contributors
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -12,10 +13,8 @@ but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
-The file COPYING contains a copy of the GNU General Public License,
-also available at [https://www.gnu.org/licenses/].
-
 Many functions in MOIWrapper.jl are adapted from GLPKMathProgInterface.jl.
+
 > Copyright (c) 2013: Carlo Baldassi
 >
 > Permission is hereby granted, free of charge, to any person obtaining
