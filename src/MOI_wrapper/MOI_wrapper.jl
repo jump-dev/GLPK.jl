@@ -2167,6 +2167,46 @@ function MOI.modify(
     return
 end
 
+function MOI.modify(
+    model::Optimizer,
+    cis::Vector{MOI.ConstraintIndex{MOI.ScalarAffineFunction{Float64},S}},
+    changes::Vector{MOI.ScalarCoefficientChange{Float64}},
+) where {S}
+    nels = length(cis)
+    @assert nels == length(changes)
+    rows = Vector{Cint}(undef, nels)
+    cols = Vector{Cint}(undef, nels)
+    coefs = Vector{Cdouble}(undef, nels)
+    for i in 1:nels
+        rows[i] = Cint(_info(model, cis[i]).row)
+        cols[i] = column(model, changes[i].variable)
+        coefs[i] = changes[i].new_coefficient
+    end
+    for row in unique(rows)
+        nnz = glp_get_mat_row(model, row, C_NULL, C_NULL)
+        indices, coefficients = zeros(Cint, nnz), zeros(Cdouble, nnz)
+        glp_get_mat_row(model, row, offset(indices), offset(coefficients))
+        idxs_changed_in_row = findall(x -> x == row, rows)
+        for i in idxs_changed_in_row
+            index = something(findfirst(isequal(cols[i]), indices), 0)
+            if index > 0
+                coefficients[index] = coefs[i]
+            else
+                push!(indices, cols[i])
+                push!(coefficients, coefs[i])
+            end
+        end
+        glp_set_mat_row(
+            model,
+            row,
+            length(indices),
+            offset(indices),
+            offset(coefficients),
+        )
+    end
+    return
+end
+
 function MOI.set(
     model::Optimizer,
     ::MOI.ConstraintFunction,
