@@ -19,21 +19,23 @@ function __init__()
     p = glp_version()
     version = VersionNumber(parse.(Int, split(unsafe_string(p), "."))...)
     if !(v"4.64.0" <= version <= v"5.0.0")
-        error("""
-        You have installed version $version of GLPK, which is not supported
-        by GLPK.jl. We prefer GLPK version 5.0, but this may also work on versions
-        4.64 and newer.
+        error(
+            """
+            You have installed version $version of GLPK, which is not supported
+            by GLPK.jl. We prefer GLPK version 5.0, but this may also work on
+            versions 4.64 and newer.
 
-        After installing GLPK 5.0, run:
+            After installing GLPK 5.0, run:
 
-            import Pkg
-            Pkg.rm("GLPK")
-            Pkg.add("GLPK")
+                import Pkg
+                Pkg.rm("GLPK")
+                Pkg.add("GLPK")
 
-        If you have a newer version of GLPK installed, changes may need to be made
-        to the Julia code. Please open an issue at
-        https://github.com/jump-dev/GLPK.jl.
-        """)
+            If you have a newer version of GLPK installed, changes may need to
+            be made to the Julia code. Please open an issue at
+            https://github.com/jump-dev/GLPK.jl.
+            """,
+        )
     end
     return
 end
