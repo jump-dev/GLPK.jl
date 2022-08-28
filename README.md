@@ -22,6 +22,9 @@ import Pkg; Pkg.add("GLPK")
 In addition to installing the GLPK.jl package, this will also download and
 install the GLPK binaries. (You do not need to install GLPK separately.)
 
+To use a custom binary, read the [Custom solver binaries](https://jump.dev/JuMP.jl/stable/developers/custom_solver_binaries/)
+section of the JuMP documentation.
+
 ## Use with JuMP
 
 To use GLPK with [JuMP](https://github.com/jump-dev/JuMP.jl), use `GLPK.Optimizer`:
