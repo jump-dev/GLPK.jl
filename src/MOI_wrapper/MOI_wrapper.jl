@@ -1554,7 +1554,7 @@ function _raw_exact_string(status::Int32)
             MOI.INVALID_MODEL,
             "Unable to start the search, because some double-bounded (auxiliary or structural) variables have incorrect bounds.",
         )
-    elseif status == GLP_EFA
+    elseif status == GLP_EFAIL
         (MOI.INVALID_MODEL, "The problem instance has no rows/columns.")
     elseif status == GLP_EITLIM
         return (
