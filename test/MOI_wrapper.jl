@@ -601,6 +601,21 @@ function test_multiple_modifications()
     @test MOI.coefficient.(fc2.terms) == [0.5, 1.0, 2.0]
 end
 
+function test_pr_220()
+    for method in (GLPK.EXACT, GLPK.INTERIOR)
+        model = GLPK.Optimizer(; method = GLPK.EXACT)
+        MOI.optimize!(model)
+        @test MOI.get(model, MOI.TerminationStatus()) == MOI.INVALID_MODEL
+        @test MOI.get(model, MOI.RawStatusString()) ==
+              "The problem instance has no rows/columns."
+    end
+    model = GLPK.Optimizer(; method = GLPK.SIMPLEX)
+    MOI.optimize!(model)
+    @test MOI.get(model, MOI.TerminationStatus()) == MOI.OPTIMAL
+    @test MOI.get(model, MOI.RawStatusString()) == "Solution is optimal"
+    return
+end
+
 end  # module
 
 TestMOIWrapper.runtests()
