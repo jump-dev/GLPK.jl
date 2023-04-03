@@ -3,7 +3,7 @@
 [![Build Status](https://github.com/jump-dev/GLPK.jl/workflows/CI/badge.svg?branch=master)](https://github.com/jump-dev/GLPK.jl/actions?query=workflow%3ACI)
 [![codecov](https://codecov.io/gh/jump-dev/GLPK.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/jump-dev/GLPK.jl)
 
-GLPK.jl is a wrapper for the [GNU Linear Programming Kit library](https://www.gnu.org/software/glpk).
+[GLPK.jl](https://github.com/jump-dev/GLPK.jl) is a wrapper for the [GNU Linear Programming Kit library](https://www.gnu.org/software/glpk).
 
 The wrapper has two components:
  * a thin wrapper around the complete C API
@@ -11,6 +11,14 @@ The wrapper has two components:
 
 The C API can be accessed via `GLPK.glp_XXX` functions, where the names and
 arguments are identical to the C API. See the `/tests` folder for inspiration.
+
+## Affiliation
+
+This wrapper is maintained by the JuMP community and is not an GNU project.
+
+## License
+
+`GLPK.jl` is licensed under the [GPL v3 license](https://github.com/jump-dev/GLPK.jl/blob/master/LICENSE.md).
 
 ## Installation
 
@@ -31,8 +39,8 @@ To use GLPK with [JuMP](https://github.com/jump-dev/JuMP.jl), use `GLPK.Optimize
 ```julia
 using JuMP, GLPK
 model = Model(GLPK.Optimizer)
-set_optimizer_attribute(model, "tm_lim", 60 * 1_000)
-set_optimizer_attribute(model, "msg_lev", GLPK.GLP_MSG_OFF)
+set_attribute(model, "tm_lim", 60 * 1_000)
+set_attribute(model, "msg_lev", GLPK.GLP_MSG_OFF)
 ```
 
 If the model is primal or dual infeasible, GLPK will attempt to find a
@@ -43,6 +51,38 @@ model = Model() do
     return GLPK.Optimizer(want_infeasibility_certificates = false)
 end
 ```
+
+## MathOptInterface API
+
+The GLPK optimizer supports the following constraints and attributes.
+
+List of supported objective functions:
+
+ * [`MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}`](@ref)
+
+List of supported variable types:
+
+ * [`MOI.Reals`](@ref)
+
+List of supported constraint types:
+
+ * [`MOI.ScalarAffineFunction{Float64}`](@ref) in [`MOI.EqualTo{Float64}`](@ref)
+ * [`MOI.ScalarAffineFunction{Float64}`](@ref) in [`MOI.GreaterThan{Float64}`](@ref)
+ * [`MOI.ScalarAffineFunction{Float64}`](@ref) in [`MOI.LessThan{Float64}`](@ref)
+ * [`MOI.VariableIndex`](@ref) in [`MOI.EqualTo{Float64}`](@ref)
+ * [`MOI.VariableIndex`](@ref) in [`MOI.GreaterThan{Float64}`](@ref)
+ * [`MOI.VariableIndex`](@ref) in [`MOI.Integer`](@ref)
+ * [`MOI.VariableIndex`](@ref) in [`MOI.Interval{Float64}`](@ref)
+ * [`MOI.VariableIndex`](@ref) in [`MOI.LessThan{Float64}`](@ref)
+ * [`MOI.VariableIndex`](@ref) in [`MOI.ZeroOne`](@ref)
+
+List of supported model attributes:
+
+ * [`MOI.HeuristicCallback()`](@ref)
+ * [`MOI.LazyConstraintCallback()`](@ref)
+ * [`MOI.Name()`](@ref)
+ * [`MOI.ObjectiveSense()`](@ref)
+ * [`MOI.UserCutCallback()`](@ref)
 
 ## Callbacks
 
