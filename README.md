@@ -6,11 +6,9 @@
 [GLPK.jl](https://github.com/jump-dev/GLPK.jl) is a wrapper for the [GNU Linear Programming Kit library](https://www.gnu.org/software/glpk).
 
 The wrapper has two components:
+
  * a thin wrapper around the complete C API
  * an interface to [MathOptInterface](https://github.com/jump-dev/MathOptInterface.jl)
-
-The C API can be accessed via `GLPK.glp_XXX` functions, where the names and
-arguments are identical to the C API. See the `/tests` folder for inspiration.
 
 ## Affiliation
 
@@ -24,18 +22,19 @@ This wrapper is maintained by the JuMP community and is not an GNU project.
 
 Install GLPK using `Pkg.add`:
 ```julia
-import Pkg; Pkg.add("GLPK")
+import Pkg
+Pkg.add("GLPK")
 ```
 
 In addition to installing the GLPK.jl package, this will also download and
-install the GLPK binaries. (You do not need to install GLPK separately.)
+install the GLPK binaries. You do not need to install GLPK separately.
 
 To use a custom binary, read the [Custom solver binaries](https://jump.dev/JuMP.jl/stable/developers/custom_solver_binaries/)
 section of the JuMP documentation.
 
 ## Use with JuMP
 
-To use GLPK with [JuMP](https://github.com/jump-dev/JuMP.jl), use `GLPK.Optimizer`:
+To use GLPK with JuMP, use `GLPK.Optimizer`:
 ```julia
 using JuMP, GLPK
 model = Model(GLPK.Optimizer)
@@ -47,9 +46,7 @@ If the model is primal or dual infeasible, GLPK will attempt to find a
 certificate of infeasibility. This can be expensive, particularly if you do not
 intend to use the certificate. If this is the case, use:
 ```julia
-model = Model() do
-    return GLPK.Optimizer(want_infeasibility_certificates = false)
-end
+model = Model(() -> GLPK.Optimizer(; want_infeasibility_certificates = false))
 ```
 
 ## MathOptInterface API
@@ -83,6 +80,23 @@ List of supported model attributes:
  * [`MOI.Name()`](@ref)
  * [`MOI.ObjectiveSense()`](@ref)
  * [`MOI.UserCutCallback()`](@ref)
+
+## Options
+
+Options for GLPK are comprehensively documented in the [PDF documentation](https://github.com/jump-dev/GLPK.jl/files/11143880/glpk.pdf),
+but they are hard to find.
+
+ * Options when solving a linear program are defined in Section 2.8.1
+ * Options when solving a mixed-integer program are defined in Section 2.10.5
+
+However, the following options are likely to be the most useful:
+
+| Parameter      | Example            | Explanation                            |
+| -------------- | ------------------ | -------------------------------------- |
+| `msg_lev`      | `GLPK.GLP_MSG_ALL` | Message level for terminal output      |
+| `presolve`     | `GLPK.GLP_ON`      | Turn presolve on or off                |
+| `tol_int`      | `1e-5`             | Absolute tolerance for integer feasibility |
+| `tol_obj`      | `1e-7`             | Relative objective tolerance for mixed-integer programs |
 
 ## Callbacks
 
@@ -120,3 +134,8 @@ optimize!(model)
 @test value(y) == 2
 @show reasons
 ```
+
+## C API
+
+The C API can be accessed via `GLPK.glp_XXX` functions, where the names and
+arguments are identical to the C API. See the `/tests` folder for inspiration.
