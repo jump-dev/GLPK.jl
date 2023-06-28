@@ -139,3 +139,7 @@ optimize!(model)
 
 The C API can be accessed via `GLPK.glp_XXX` functions, where the names and
 arguments are identical to the C API. See the `/tests` folder for inspiration.
+
+## Thread safety
+
+GLPK is not thread-safe and should not be used with multithreading.
