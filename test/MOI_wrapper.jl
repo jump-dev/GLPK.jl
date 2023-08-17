@@ -412,7 +412,7 @@ end
 function test_large_time_limits()
     model = GLPK.Optimizer()
     MOI.set(model, MOI.TimeLimitSec(), 1e9)
-    @test MOI.get(model, MOI.TimeLimitSec()) == typemax(Cint) / 1_000
+    @test MOI.get(model, MOI.TimeLimitSec()) == nothing
     return
 end
 
@@ -613,6 +613,19 @@ function test_pr_220()
     MOI.optimize!(model)
     @test MOI.get(model, MOI.TerminationStatus()) == MOI.OPTIMAL
     @test MOI.get(model, MOI.RawStatusString()) == "Solution is optimal"
+    return
+end
+
+function test_attribute_TimeLimitSec()
+    model = GLPK.Optimizer()
+    @test MOI.supports(model, MOI.TimeLimitSec())
+    @test MOI.get(model, MOI.TimeLimitSec()) === nothing
+    MOI.set(model, MOI.TimeLimitSec(), 0.0)
+    @test MOI.get(model, MOI.TimeLimitSec()) == 0.0
+    MOI.set(model, MOI.TimeLimitSec(), nothing)
+    @test MOI.get(model, MOI.TimeLimitSec()) === nothing
+    MOI.set(model, MOI.TimeLimitSec(), 1.0)
+    @test MOI.get(model, MOI.TimeLimitSec()) == 1.0
     return
 end
 
