@@ -367,8 +367,9 @@ function MOI.set(
 end
 
 function MOI.get(model::Optimizer, ::MOI.TimeLimitSec)
+    value = MOI.get(model, MOI.RawOptimizerAttribute("tm_lim"))
     # convert internal ms to sec
-    return MOI.get(model, MOI.RawOptimizerAttribute("tm_lim")) / 1_000
+    return value == typemax(Int32) ? nothing : value / 1_000
 end
 
 MOI.supports_incremental_interface(::Optimizer) = true
