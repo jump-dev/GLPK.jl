@@ -412,7 +412,7 @@ end
 function test_large_time_limits()
     model = GLPK.Optimizer()
     MOI.set(model, MOI.TimeLimitSec(), 1e9)
-    @test MOI.get(model, MOI.TimeLimitSec()) == typemax(Cint) / 1_000
+    @test MOI.get(model, MOI.TimeLimitSec()) == nothing
     return
 end
 
