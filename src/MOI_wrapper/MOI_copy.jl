@@ -124,7 +124,7 @@ function _extract_row_data(src, map, cache, ::Type{S}) where {S}
     F = MOI.ScalarAffineFunction{Float64}
     ci_map = map.con_map[F, S]
     nnz = length(cache.I)
-    row = nnz == 0 ? 1 : cache.I[end] + 1
+    row = length(cache.rl) + 1
     for ci in MOI.get(src, MOI.ListOfConstraintIndices{F,S}())
         f = MOI.get(src, MOI.ConstraintFunction(), ci)
         if !MOI.Utilities.is_canonical(f)
