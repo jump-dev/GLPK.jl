@@ -12,9 +12,11 @@
 
 module TestCallbacks
 
-using GLPK, Test, Random
+using GLPK
+using Random
+using Test
 
-const MOI = GLPK.MOI
+import MathOptInterface as MOI
 
 function runtests()
     for name in names(@__MODULE__; all = true)
@@ -551,6 +553,27 @@ function test_issue_189(cache)
     MOI.set(model, GLPK.CallbackFunction(), cb_data -> nothing)
     MOI.optimize!(model)
     @test isnan(MOI.get(model, MOI.DualObjectiveValue()))
+    return
+end
+
+function test_InterruptException()
+    model = GLPK.Optimizer()
+    MOI.set(model, MOI.Silent(), true)
+    x = MOI.add_variable(model)
+    MOI.add_constraint(model, 1.0 * x, MOI.GreaterThan(2.0))
+    MOI.add_constraint(model, x, MOI.Integer())
+    MOI.set(model, MOI.ObjectiveSense(), MOI.MIN_SENSE)
+    f = 1.0 * x
+    MOI.set(model, MOI.ObjectiveFunction{typeof(f)}(), f)
+    interrupt_thrown = false
+    function my_callback(cb_data)
+        interrupt_thrown = true
+        return throw(InterruptException())
+    end
+    MOI.set(model, GLPK.CallbackFunction(), my_callback)
+    MOI.optimize!(model)
+    @test interrupt_thrown
+    @test MOI.get(model, MOI.TerminationStatus()) == MOI.INTERRUPTED
     return
 end
 

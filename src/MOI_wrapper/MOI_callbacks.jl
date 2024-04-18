@@ -27,8 +27,11 @@ function MOI.set(model::Optimizer, ::CallbackFunction, callback::Function)
     model.has_generic_callback = true
     _set_callback(model, (cb_data) -> begin
         model.callback_state = _CB_GENERIC
-        callback(cb_data)
-        model.callback_state = _CB_NONE
+        try
+            callback(cb_data)
+        finally
+            model.callback_state = _CB_NONE
+        end
     end)
     return
 end
