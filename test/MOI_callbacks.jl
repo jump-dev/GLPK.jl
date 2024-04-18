@@ -556,7 +556,7 @@ function test_issue_189(cache)
     return
 end
 
-function test_InterruptException()
+function test_no_cache_InterruptException()
     model = GLPK.Optimizer()
     MOI.set(model, MOI.Silent(), true)
     x = MOI.add_variable(model)
