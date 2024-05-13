@@ -14,6 +14,12 @@ The wrapper has two components:
 
 This wrapper is maintained by the JuMP community and is not an GNU project.
 
+## Getting help
+
+If you need help, please ask a question on the [JuMP community forum](https://jump.dev/forum).
+
+If you have a reproducible example of a bug, please [open a GitHub issue](https://github.com/jump-dev/GLPK.jl/issues/new).
+
 ## License
 
 `GLPK.jl` is licensed under the [GPL v3 license](https://github.com/jump-dev/GLPK.jl/blob/master/LICENSE.md).
