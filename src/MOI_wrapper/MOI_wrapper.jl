@@ -1402,10 +1402,19 @@ function _solve_mip_problem(model::Optimizer)
         #
         #  This next bit is _very_ important! See the note associated with
         #  set_callback.
-        if model.callback_data.exception isa InterruptException
-            model.solver_status = GLP_ESTOP
-        elseif model.callback_data.exception !== nothing
-            throw(model.callback_data.exception)
+        if model.callback_data.exception !== nothing
+            model.callback_data.exception::CapturedException
+            inner = model.callback_data.exception.ex
+            if inner isa InterruptException
+                model.solver_status = GLP_ESTOP
+            elseif inner isa MOI.InvalidCallbackUsage
+                # Special-case throwing InvalidCallbackUsage to preserve
+                # backwards compatibility. But it does mean that they don't have
+                # good backtraces...
+                throw(inner)
+            else
+                throw(model.callback_data.exception)
+            end
         end
     finally
         for (column, lower, upper) in bounds_to_reset

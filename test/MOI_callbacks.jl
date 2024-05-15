@@ -577,7 +577,7 @@ function test_no_cache_InterruptException()
     return
 end
 
-function test_issue_232()
+function test_no_cache_issue_232()
     model = GLPK.Optimizer()
     x = MOI.add_variable(model)
     MOI.add_constraint(model, x, MOI.ZeroOne())
