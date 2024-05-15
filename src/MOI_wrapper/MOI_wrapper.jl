@@ -232,7 +232,7 @@ function _internal_callback(tree::Ptr{Cvoid}, info::Ptr{Cvoid})
         cb_data.callback_function(cb_data)
     catch ex
         glp_ios_terminate(tree)
-        cb_data.exception = ex
+        cb_data.exception = CapturedException(ex, catch_backtrace())
     end
     return Cint(0)
 end

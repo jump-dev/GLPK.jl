@@ -577,6 +577,25 @@ function test_no_cache_InterruptException()
     return
 end
 
+function test_issue_232()
+    model = GLPK.Optimizer()
+    x = MOI.add_variable(model)
+    MOI.add_constraint(model, x, MOI.ZeroOne())
+    my_callback(args...) = error("FooBar")
+    MOI.set(model, GLPK.CallbackFunction(), my_callback)
+    try
+        MOI.optimize!(model)
+        # To ensure that if an error is not thrown from the callback we still
+        # hit the catch block
+        @assert false
+    catch ex
+        @test ex isa CapturedException
+        @test occursin("my_callback", "$ex")
+        @test occursin("FooBar", "$ex")
+    end
+    return
+end
+
 end
 
 TestCallbacks.runtests()
