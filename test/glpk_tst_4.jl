@@ -85,7 +85,7 @@ function glpk_tst_4()
     GLPK.glp_adv_basis(mip, 0)
     @test GLPK.glp_factorize(mip) == 0
 
-    for i in 1:rows+cols
+    for i in 1:(rows+cols)
         if !var_is_basic(mip, i)
             continue
         end
@@ -96,7 +96,7 @@ function glpk_tst_4()
         @test len <= length(ind)
     end
 
-    for i in 1:rows+cols
+    for i in 1:(rows+cols)
         if var_is_basic(mip, i)
             continue
         end
@@ -177,7 +177,7 @@ function glpk_tst_4()
         )
     end
 
-    for i in 1:rows+cols
+    for i in 1:(rows+cols)
         if var_is_basic(mip, i)
             coef1 = Ref{Cdouble}()
             var1 = Ref{Cint}()
