@@ -18,9 +18,7 @@ GEN_DIR = joinpath(dirname(@__DIR__), "src", "gen")
 const COMMON = joinpath(GEN_DIR, "libglpk_common.jl")
 
 wc = Clang.init(
-    headers = [
-        joinpath(GLPK_jll.artifact_dir, "include", "glpk.h"),
-    ],
+    headers = [joinpath(GLPK_jll.artifact_dir, "include", "glpk.h")],
     output_file = joinpath(GEN_DIR, "libglpk_api.jl"),
     common_file = COMMON,
     header_wrapped = (root, current) -> root == current,
@@ -63,10 +61,11 @@ function manual_corrections()
         "glp_graph" => false,
     ]
         r = Regex("(mutable struct $(s_type).+?end)", "s")
-        str = replace(match(r, file)[1], "\nend" => new_functions(s_type, constr))
+        str =
+            replace(match(r, file)[1], "\nend" => new_functions(s_type, constr))
         file = replace(file, r => str)
     end
-    write(COMMON, file)
+    return write(COMMON, file)
 end
 manual_corrections()
 
